@@ -1,0 +1,173 @@
+services:
+  # ----------------------------------------------------------------------------
+  # Database: PostgreSQL
+  # ----------------------------------------------------------------------------
+  - type: database
+    name: legalops-db
+    databaseName: legalops
+    user: legalops_user
+    plan: free
+
+  # ----------------------------------------------------------------------------
+  # Redis: for Celery and Caching
+  # ----------------------------------------------------------------------------
+  - type: redis
+    name: legalops-redis
+    plan: free
+    ipAllowList: [] # Only allow internal connections
+
+  # ----------------------------------------------------------------------------
+  # Backend API: FastAPI
+  # ----------------------------------------------------------------------------
+  - type: web
+    name: legalops-backend
+    env: python
+    buildCommand: |
+      cd backend
+      pip install --upgrade pip
+      pip install poetry
+      poetry install --only main
+    startCommand: |
+      cd backend
+      poetry run alembic upgrade head
+      poetry run uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: legalops-db
+          property: connectionString
+      - key: DATABASE_URL_SYNC
+        fromDatabase:
+          name: legalops-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: legalops-redis
+          property: connectionString
+      # Secrets to be filled in Render Dashboard
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ENCRYPTION_KEY
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        sync: false
+      - key: GOOGLE_SIGNIN_REDIRECT_URI
+        sync: false
+      - key: PAYSTACK_SECRET_KEY
+        sync: false
+      - key: PAYSTACK_PUBLIC_KEY
+        sync: false
+      - key: APP_URL
+        sync: false # Should be the URL of this service
+      - key: FRONTEND_URL
+        sync: false # Should be the URL of the frontend service
+
+  # ----------------------------------------------------------------------------
+  # Celery Worker
+  # ----------------------------------------------------------------------------
+  - type: worker
+    name: legalops-worker
+    env: python
+    buildCommand: |
+      cd backend
+      pip install --upgrade pip
+      pip install poetry
+      poetry install --only main
+    startCommand: |
+      cd backend
+      poetry run celery -A app.workers.celery_app worker --loglevel=info
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: legalops-db
+          property: connectionString
+      - key: DATABASE_URL_SYNC
+        fromDatabase:
+          name: legalops-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: legalops-redis
+          property: connectionString
+      - key: JWT_SECRET
+        fromService:
+          type: web
+          name: legalops-backend
+          property: envVar
+          envVarKey: JWT_SECRET
+      - key: ENCRYPTION_KEY
+        fromService:
+          type: web
+          name: legalops-backend
+          property: envVar
+          envVarKey: ENCRYPTION_KEY
+
+  # ----------------------------------------------------------------------------
+  # Celery Beat
+  # ----------------------------------------------------------------------------
+  - type: worker
+    name: legalops-beat
+    env: python
+    buildCommand: |
+      cd backend
+      pip install --upgrade pip
+      pip install poetry
+      poetry install --only main
+    startCommand: |
+      cd backend
+      poetry run celery -A app.workers.celery_app beat --loglevel=info
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: legalops-db
+          property: connectionString
+      - key: DATABASE_URL_SYNC
+        fromDatabase:
+          name: legalops-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: legalops-redis
+          property: connectionString
+      - key: JWT_SECRET
+        fromService:
+          type: web
+          name: legalops-backend
+          property: envVar
+          envVarKey: JWT_SECRET
+      - key: ENCRYPTION_KEY
+        fromService:
+          type: web
+          name: legalops-backend
+          property: envVar
+          envVarKey: ENCRYPTION_KEY
+
+  # ----------------------------------------------------------------------------
+  # Frontend: Next.js
+  # ----------------------------------------------------------------------------
+  - type: web
+    name: legalops-frontend
+    env: node
+    buildCommand: |
+      cd frontend
+      npm install
+      npm run build
+    startCommand: |
+      cd frontend
+      npm run start
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        value: https://legalops-backend.onrender.com # Change this to your actual backend URL after first deploy

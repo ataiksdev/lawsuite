@@ -15,6 +15,32 @@ class Settings(BaseSettings):
     database_url: str
     database_url_sync: str
 
+    @property
+    def async_database_url(self) -> str:
+        """
+        Ensures the database URL is using the asyncpg driver.
+        Render provides `postgres://` URLs, but SQLAlchemy 2.0+ requires `postgresql+asyncpg://`.
+        """
+        url = self.database_url
+        if url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql+asyncpg://", 1)
+        elif url.startswith("postgresql://"):
+            url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return url
+
+    @property
+    def sync_database_url(self) -> str:
+        """
+        Ensures the database URL is using the psycopg2 driver for sync operations (like migrations).
+        Render provides `postgres://` URLs, but we want `postgresql+psycopg2://`.
+        """
+        url = self.database_url_sync
+        if url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql+psycopg2://", 1)
+        elif url.startswith("postgresql://"):
+            url = url.replace("postgresql://", "postgresql+psycopg2://", 1)
+        return url
+
     # Redis
     redis_url: str = "redis://localhost:6379/0"
 

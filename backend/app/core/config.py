@@ -30,8 +30,10 @@ class Settings(BaseSettings):
     # Google OAuth
     google_client_id: str = ""
     google_client_secret: str = ""
-    google_redirect_uri: str = "http://localhost:8000/integrations/google/callback"
+    google_redirect_uri: str = "" #http://localhost:8000/integrations/google/callback"
+    google_signin_redirect_uri: str = ""
 
+    trial_days: int = 30
     #paystack
     paystack_secret_key: str = ""
     paystack_public_key: str = ""
@@ -44,7 +46,12 @@ class Settings(BaseSettings):
     app_env: str = "development"
     app_url: str = "http://localhost:8000"
     frontend_url: str = "http://localhost:3000"
-    cors_origins: List[str] = ["http://localhost:3000"]
+    cors_origins: List[str] = ["http://localhost:3000", "192.168.18.5","https://sphinxian-shu-untraveled.ngrok-free.dev"]
+
+    # Platform admin — your own org's UUID (the SaaS operator)
+    # Set this after you register your own account
+    platform_admin_org_id: str = ""
+
 
     @property
     def is_production(self) -> bool:

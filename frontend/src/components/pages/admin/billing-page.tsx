@@ -9,6 +9,7 @@ import {
   Star,
   Loader2,
   ShieldAlert,
+  Clock,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -20,6 +21,7 @@ import {
   getSubscription,
   startCheckout,
   type BillingPlan,
+  type PaidBillingPlan,
   type SubscriptionSummary,
 } from '@/lib/api/billing';
 import { listMembers } from '@/lib/api/members';
@@ -122,9 +124,9 @@ function PlanCard({
   plan: PlanConfig;
   currentPlan: BillingPlan;
   isBusy: boolean;
-  onUpgrade: (plan: Exclude<BillingPlan, 'free'>) => Promise<void>;
+  onUpgrade: (plan: PaidBillingPlan) => Promise<void>;
 }) {
-  const isCurrent = plan.key === currentPlan;
+  const isCurrent = plan.key === currentPlan || (currentPlan === 'trial' && plan.key === 'free');
 
   return (
     <Card
@@ -202,7 +204,7 @@ export function BillingPage() {
   const [matterCount, setMatterCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [checkoutPlan, setCheckoutPlan] = useState<Exclude<BillingPlan, 'free'> | null>(null);
+  const [checkoutPlan, setCheckoutPlan] = useState<PaidBillingPlan | null>(null);
   const [openingPortal, setOpeningPortal] = useState(false);
 
   const loadBilling = async () => {
@@ -249,7 +251,7 @@ export function BillingPage() {
     );
   }
 
-  const handleUpgrade = async (plan: Exclude<BillingPlan, 'free'>) => {
+  const handleUpgrade = async (plan: PaidBillingPlan) => {
     setCheckoutPlan(plan);
     try {
       const response = await startCheckout(plan);
@@ -317,9 +319,17 @@ export function BillingPage() {
                     Your subscription details and usage
                   </CardDescription>
                 </div>
-                <Badge className={cn('border px-3 py-1 text-sm font-semibold', currentPlanConfig.badgeClass)}>
-                  {currentPlanConfig.name}
-                </Badge>
+                <div className="flex items-center gap-2">
+                  {subscription.trial_active && (
+                    <Badge className="border-purple-200 bg-purple-100 px-2 py-1 text-xs font-semibold text-purple-700">
+                      <Clock className="mr-1 h-3 w-3" />
+                      Trial Active
+                    </Badge>
+                  )}
+                  <Badge className={cn('border px-3 py-1 text-sm font-semibold', currentPlanConfig.badgeClass)}>
+                    {currentPlanConfig.name}
+                  </Badge>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -345,17 +355,31 @@ export function BillingPage() {
                   </p>
                 </div>
                 <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900">
-                  <p className="mb-1 text-xs text-slate-500">Included Features</p>
+                  <p className="mb-1 text-xs text-slate-500">Active Features</p>
                   <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
                     {[
-                      subscription.limits.drive_integration ? 'Drive' : null,
-                      subscription.limits.reports ? 'Reports' : null,
+                      subscription.features?.drive_integration ? 'Drive' : null,
+                      subscription.features?.reports ? 'Reports' : null,
+                      subscription.features?.api_access ? 'API' : null,
                     ]
                       .filter(Boolean)
                       .join(' · ') || 'Core features only'}
                   </p>
                 </div>
               </div>
+
+              {subscription.trial_active && subscription.trial_ends_at && (
+                <div className="mb-4 flex items-center gap-3 rounded-lg border border-purple-200 bg-purple-50 px-4 py-3 dark:border-purple-800 dark:bg-purple-950/20">
+                  <Clock className="h-4 w-4 shrink-0 text-purple-600" />
+                  <div className="text-sm">
+                    <span className="font-medium text-purple-800 dark:text-purple-300">Free trial active — </span>
+                    <span className="text-purple-700 dark:text-purple-400">
+                      expires {new Date(subscription.trial_ends_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' })}.
+                      You have full access to all Pro features.
+                    </span>
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-4">
                 <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Usage</h4>
@@ -384,7 +408,7 @@ export function BillingPage() {
                 <PlanCard
                   key={plan.name}
                   plan={plan}
-                  currentPlan={subscription.plan}
+                  currentPlan={subscription.effective_plan ?? subscription.plan}
                   isBusy={checkoutPlan === plan.key}
                   onUpgrade={handleUpgrade}
                 />

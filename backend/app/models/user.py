@@ -1,8 +1,8 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import String, DateTime, Boolean, ForeignKey, Enum as SAEnum
+from sqlalchemy import String, DateTime, Boolean, ForeignKey, Enum as SAEnum, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 import enum
 from app.core.database import Base
 
@@ -24,6 +24,20 @@ class User(Base):
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    # ── Google OAuth identity (sign-in with Google) ───────────────────────
+    # Separate from the workspace Google integration on Organisation.
+    # A user can have both a password and a Google OAuth link.
+    google_oauth_id: Mapped[str | None] = mapped_column(String(255), unique=True, index=True)
+    google_oauth_email: Mapped[str | None] = mapped_column(String(255))
+    google_avatar_url: Mapped[str | None] = mapped_column(Text)
+
+    # ── MFA (TOTP — optional for all roles) ──────────────────────────────
+    mfa_secret: Mapped[str | None] = mapped_column(String(255))  # Fernet-encrypted
+    mfa_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # 8 single-use backup codes stored as JSON list of bcrypt hashes
+    mfa_backup_codes: Mapped[list | None] = mapped_column(JSONB)
+
 
     # Invite flow
     invite_token: Mapped[str | None] = mapped_column(String(255), unique=True)

@@ -24,6 +24,7 @@ export const AUTH_ROUTES: RouteDefinition[] = [
   { path: '/register', pattern: /^\/register\/?$/, name: 'Create Account' },
   { path: '/forgot-password', pattern: /^\/forgot-password\/?$/, name: 'Forgot Password' },
   { path: '/accept-invite', pattern: /^\/accept-invite\/?$/, name: 'Accept Invitation' },
+  { path: '/onboarding', pattern: /^\/onboarding\/?$/, name: 'Onboarding' },
 ];
 
 export const ROUTES: RouteDefinition[] = [

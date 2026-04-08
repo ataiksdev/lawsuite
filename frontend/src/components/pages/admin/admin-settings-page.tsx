@@ -1,265 +1,243 @@
+// ============================================================================
+// LegalOps - Admin Settings Page
+// Organisation profile management wired to live API
+// PATCH /auth/organisation — update org name
+// GET /auth/organisation — load org details
+// ============================================================================
+
 'use client';
 
-import React, { useState } from 'react';
-import {
-  Settings as SettingsIcon,
-  Shield,
-  Trash2,
-  AlertTriangle,
-  Lock,
-  Clock,
-  Info,
-  CheckCircle2,
-} from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Settings, Building2, Loader2, Save } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/lib/auth-store';
+import apiClient, { ApiClientError } from '@/lib/api-client';
 import { UserRole } from '@/lib/types';
-import { mockOrganisation } from '@/lib/mock-data';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Switch } from '@/components/ui/switch';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
 
-// ============================================================================
-// Admin Settings Page
-// ============================================================================
+interface OrgDetails {
+  id: string;
+  name: string;
+  slug: string;
+  plan: string;
+  is_active: boolean;
+  created_at: string;
+}
 
 export function AdminSettingsPage() {
-  const { user } = useAuthStore();
-  const [orgName, setOrgName] = useState(mockOrganisation.name);
-  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
-  const [sessionTimeout, setSessionTimeout] = useState('30');
+  const { user, organisation, setOrganisation } = useAuthStore();
+  const [orgDetails, setOrgDetails] = useState<OrgDetails | null>(null);
+  const [orgName, setOrgName] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState('');
 
+  // Only admins should see this page
   if (user?.role !== UserRole.ADMIN) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
-        <Shield className="h-12 w-12 text-slate-300 mb-4" />
+        <Settings className="mb-4 h-12 w-12 text-slate-300" />
         <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">Access Denied</h2>
-        <p className="text-sm text-slate-500 mt-1">Only administrators can access these settings.</p>
+        <p className="mt-1 text-sm text-slate-500">Only administrators can manage organisation settings.</p>
       </div>
     );
   }
 
-  const handleSaveOrgName = () => {
-    toast.success('Organisation name updated', { description: `Changed to "${orgName}".` });
-  };
+  useEffect(() => {
+    const load = async () => {
+      setIsLoading(true);
+      try {
+        const data = await apiClient.get<OrgDetails>('/auth/organisation');
+        setOrgDetails(data);
+        setOrgName(data.name);
+      } catch {
+        // Use store data as fallback
+        if (organisation) {
+          setOrgName(organisation.name);
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    void load();
+  }, [organisation]);
 
-  const handleDeleteOrganisation = () => {
-    toast.success('Organisation deletion requested', { description: 'A confirmation email has been sent. This action will be processed within 30 days.' });
-  };
-
-  const getPlanBadge = () => {
-    switch (mockOrganisation.plan) {
-      case 'professional':
-        return <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100 text-xs font-semibold">Professional</Badge>;
-      case 'enterprise':
-        return <Badge className="bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100 text-xs font-semibold">Enterprise</Badge>;
-      case 'starter':
-        return <Badge className="bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-100 text-xs font-semibold">Starter</Badge>;
-      default:
-        return <Badge className="bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-100 text-xs font-semibold">Free</Badge>;
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = orgName.trim();
+    if (!trimmed || trimmed.length < 2) {
+      setError('Organisation name must be at least 2 characters');
+      return;
+    }
+    if (trimmed === (orgDetails?.name ?? organisation?.name)) {
+      toast.info('No changes to save.');
+      return;
+    }
+    setIsSaving(true);
+    setError('');
+    try {
+      const updated = await apiClient.patch<OrgDetails>('/auth/organisation', { name: trimmed });
+      setOrgDetails(updated);
+      setOrgName(updated.name);
+      // Update the auth store so the sidebar name refreshes
+      if (organisation) {
+        setOrganisation({ ...organisation, name: updated.name });
+      }
+      toast.success('Organisation name updated.');
+    } catch (err) {
+      const msg = err instanceof ApiClientError ? err.detail : 'Could not save changes.';
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setIsSaving(false);
     }
   };
 
+  const currentOrg = orgDetails ?? organisation;
+
   return (
     <div className="space-y-6 max-w-2xl">
-      {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50 tracking-tight">Admin Settings</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Configure your organisation and security settings.</p>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
+          Organisation Settings
+        </h1>
+        <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+          Manage your organisation profile and preferences.
+        </p>
       </div>
 
-      {/* Organisation Settings */}
       <Card className="border-slate-200/80 dark:border-slate-700/80">
         <CardHeader className="pb-3">
           <div className="flex items-center gap-2">
-            <SettingsIcon className="h-5 w-5 text-slate-500" />
-            <CardTitle className="text-base font-semibold">Organisation Settings</CardTitle>
+            <Building2 className="h-5 w-5 text-slate-500" />
+            <CardTitle className="text-base font-semibold">Organisation Profile</CardTitle>
           </div>
-          <CardDescription className="text-xs">Manage your organisation details.</CardDescription>
+          <CardDescription className="text-xs">
+            Update your firm&apos;s name and review account details.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="org-name">Organisation Name</Label>
-            <div className="flex gap-3">
-              <Input id="org-name" value={orgName} onChange={(e) => setOrgName(e.target.value)} className="max-w-sm" />
-              <Button size="sm" onClick={handleSaveOrgName} disabled={orgName === mockOrganisation.name} className="bg-emerald-600 hover:bg-emerald-700">
-                Save
-              </Button>
+        <CardContent>
+          {isLoading ? (
+            <div className="flex items-center gap-3 py-6">
+              <Loader2 className="h-5 w-5 animate-spin text-emerald-600" />
+              <span className="text-sm text-slate-500">Loading organisation details...</span>
             </div>
-          </div>
+          ) : (
+            <form onSubmit={handleSave} className="space-y-5">
+              {/* Read-only info */}
+              <div className="grid grid-cols-2 gap-4 rounded-lg bg-slate-50 dark:bg-slate-900 p-4">
+                <div>
+                  <p className="text-xs text-slate-500 mb-0.5">Organisation ID</p>
+                  <p className="text-xs font-mono text-slate-700 dark:text-slate-300 break-all">
+                    {currentOrg?.id ?? '—'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500 mb-0.5">URL Slug</p>
+                  <p className="text-xs font-mono text-slate-700 dark:text-slate-300">
+                    {currentOrg?.slug ?? '—'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500 mb-1">Current Plan</p>
+                  <Badge className="text-xs border-emerald-200 bg-emerald-50 text-emerald-700">
+                    {(currentOrg?.plan ?? 'free').charAt(0).toUpperCase() +
+                      (currentOrg?.plan ?? 'free').slice(1)}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500 mb-0.5">Created</p>
+                  <p className="text-xs text-slate-700 dark:text-slate-300">
+                    {currentOrg?.created_at
+                      ? new Date(currentOrg.created_at).toLocaleDateString('en-NG', {
+                          day: 'numeric', month: 'long', year: 'numeric',
+                        })
+                      : '—'}
+                  </p>
+                </div>
+              </div>
 
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Label htmlFor="org-slug">Organisation Slug</Label>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Info className="h-3.5 w-3.5 text-slate-400 cursor-help" />
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p className="text-xs max-w-[200px]">The slug is used in URLs and cannot be changed. Contact support if you need to update it.</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
-            <Input id="org-slug" value={mockOrganisation.slug} disabled className="max-w-sm bg-slate-50 dark:bg-slate-900" />
-          </div>
+              <Separator />
 
-          <div className="space-y-2">
-            <Label>Current Plan</Label>
-            <div className="flex items-center gap-2">
-              {getPlanBadge()}
-              <span className="text-xs text-slate-500">Billed monthly via Paystack</span>
-            </div>
-          </div>
+              {/* Editable name */}
+              <div className="space-y-2">
+                <Label htmlFor="org-name">Organisation / Firm Name</Label>
+                <Input
+                  id="org-name"
+                  type="text"
+                  value={orgName}
+                  onChange={(e) => {
+                    setOrgName(e.target.value);
+                    if (error) setError('');
+                  }}
+                  placeholder="e.g. Adeyemi & Co."
+                  className="max-w-md"
+                />
+                {error && <p className="text-xs text-red-500">{error}</p>}
+                <p className="text-xs text-slate-400">
+                  This name is displayed across the platform and in reports.
+                  The URL slug cannot be changed after creation.
+                </p>
+              </div>
 
-          <Separator />
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label className="text-xs text-slate-500">RC Number</Label>
-              <p className="text-sm font-medium text-slate-900 dark:text-slate-100 mt-0.5">{mockOrganisation.rc_number}</p>
-            </div>
-            <div>
-              <Label className="text-xs text-slate-500">Member Count</Label>
-              <p className="text-sm font-medium text-slate-900 dark:text-slate-100 mt-0.5">{mockOrganisation.member_count}</p>
-            </div>
-            <div>
-              <Label className="text-xs text-slate-500">Email</Label>
-              <p className="text-sm font-medium text-slate-900 dark:text-slate-100 mt-0.5">{mockOrganisation.email}</p>
-            </div>
-            <div>
-              <Label className="text-xs text-slate-500">Created</Label>
-              <p className="text-sm font-medium text-slate-900 dark:text-slate-100 mt-0.5">
-                {new Date(mockOrganisation.created_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' })}
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Security Settings */}
-      <Card className="border-slate-200/80 dark:border-slate-700/80">
-        <CardHeader className="pb-3">
-          <div className="flex items-center gap-2">
-            <Lock className="h-5 w-5 text-slate-500" />
-            <CardTitle className="text-base font-semibold">Security Settings</CardTitle>
-          </div>
-          <CardDescription className="text-xs">Configure security options for your organisation.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label className="text-sm font-medium">Two-Factor Authentication</Label>
-              <p className="text-xs text-slate-500">Require all team members to use 2FA when signing in.</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-200">Coming Soon</Badge>
-              <Switch checked={twoFactorEnabled} onCheckedChange={setTwoFactorEnabled} disabled />
-            </div>
-          </div>
-
-          <Separator />
-
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label className="text-sm font-medium flex items-center gap-1.5">
-                <Clock className="h-4 w-4" />
-                Session Timeout
-              </Label>
-              <p className="text-xs text-slate-500">Automatically sign out inactive users after a period.</p>
-            </div>
-            <select
-              value={sessionTimeout}
-              onChange={(e) => {
-                setSessionTimeout(e.target.value);
-                toast.success('Session timeout updated', { description: `Set to ${e.target.value} minutes.` });
-              }}
-              className="text-sm rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 h-9"
-            >
-              <option value="15">15 minutes</option>
-              <option value="30">30 minutes</option>
-              <option value="60">1 hour</option>
-              <option value="120">2 hours</option>
-              <option value="480">8 hours</option>
-            </select>
-          </div>
+              <div className="flex justify-end">
+                <Button
+                  type="submit"
+                  disabled={isSaving || orgName.trim() === (currentOrg?.name ?? '')}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4 mr-2" />
+                      Save Changes
+                    </>
+                  )}
+                </Button>
+              </div>
+            </form>
+          )}
         </CardContent>
       </Card>
 
       {/* Danger Zone */}
-      <Card className="border-red-200 dark:border-red-900/40">
+      <Card className="border-red-100 dark:border-red-900/30">
         <CardHeader className="pb-3">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-red-500" />
-            <CardTitle className="text-base font-semibold text-red-700 dark:text-red-400">Danger Zone</CardTitle>
-          </div>
-          <CardDescription className="text-xs">Irreversible and destructive actions.</CardDescription>
+          <CardTitle className="text-base font-semibold text-red-700 dark:text-red-400">
+            Danger Zone
+          </CardTitle>
+          <CardDescription className="text-xs">
+            These actions cannot be undone. Contact support to delete your organisation.
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-start justify-between gap-4 p-4 rounded-lg border border-red-200 dark:border-red-900/30 bg-red-50/50 dark:bg-red-950/10">
-            <div className="space-y-1">
-              <h4 className="text-sm font-semibold text-red-700 dark:text-red-400">Delete Organisation</h4>
-              <p className="text-xs text-red-600/80 dark:text-red-400/80 max-w-md">
-                Permanently delete this organisation and all its data, including matters, documents, tasks, and client information. This action cannot be undone.
+          <div className="flex items-center justify-between rounded-lg border border-red-100 dark:border-red-900/30 p-4">
+            <div>
+              <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                Delete Organisation
+              </p>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Permanently remove this organisation and all its data. Contact support.
               </p>
             </div>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="outline" className="bg-red-600 text-white hover:bg-red-700 hover:text-white border-red-600 shrink-0">
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete Organisation
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle className="text-red-700 dark:text-red-400">Are you absolutely sure?</AlertDialogTitle>
-                  <AlertDialogDescription className="space-y-2">
-                    <p>This action <strong>cannot be undone</strong>. This will permanently delete:</p>
-                    <ul className="list-disc list-inside text-sm space-y-1">
-                      <li>All matters and associated documents</li>
-                      <li>All client records</li>
-                      <li>All task history and activity logs</li>
-                      <li>All team member accounts</li>
-                      <li>All billing and payment records</li>
-                    </ul>
-                    <div className="flex items-start gap-2 bg-amber-50 dark:bg-amber-950/20 rounded-lg p-2 mt-2">
-                      <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-                      <span className="text-sm text-amber-700 dark:text-amber-400">Type <strong>&quot;{mockOrganisation.name}&quot;</strong> to confirm.</span>
-                    </div>
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={handleDeleteOrganisation}>
-                    Yes, delete organisation
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400"
+              disabled
+            >
+              Delete (contact support)
+            </Button>
           </div>
         </CardContent>
       </Card>

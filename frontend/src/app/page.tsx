@@ -4,6 +4,7 @@ import React, { useEffect, useRef } from 'react';
 import { AppShell } from '@/components/layout/app-shell';
 import { useCurrentRoute, isAuthRoute, navigate } from '@/lib/router';
 import { useAuthStore } from '@/lib/auth-store';
+import apiClient from '@/lib/api-client';
 import { Scale } from 'lucide-react';
 
 // Auth Pages
@@ -11,6 +12,7 @@ import { LoginPage } from '@/components/pages/auth/login-page';
 import { RegisterPage } from '@/components/pages/auth/register-page';
 import { AcceptInvitePage } from '@/components/pages/auth/accept-invite-page';
 import { ForgotPasswordPage } from '@/components/pages/auth/forgot-password-page';
+import { OnboardingPage } from '@/components/pages/auth/onboarding-page';
 
 // Dashboard Page
 import { DashboardPage } from '@/components/pages/dashboard/dashboard-page';
@@ -70,10 +72,15 @@ function NotFoundPage({ route }: { route: string }) {
 // Auth Router — renders the correct auth page based on the current route
 // ============================================================================
 
+export const AUTH_ROUTES_EXTRA = [
+  '/onboarding',
+];
+
 function AuthRouter({ route }: { route: string }) {
   if (route === '/register') return <RegisterPage />;
   if (route === '/forgot-password') return <ForgotPasswordPage />;
   if (route === '/accept-invite') return <AcceptInvitePage />;
+  if (route === '/onboarding') return <OnboardingPage />;
   return <LoginPage />;
 }
 
@@ -132,9 +139,32 @@ export default function Home() {
   const hasInitializedRef = useRef(false);
 
   // Initialize auth from storage on mount
+  // Also handle Google OAuth callback: /login?tokens=<base64>
   useEffect(() => {
     if (!hasInitializedRef.current) {
       hasInitializedRef.current = true;
+
+      // Handle Google OAuth callback — backend redirects here with base64 tokens
+      const hash = window.location.hash;
+      const queryString = hash.includes('?') ? hash.split('?')[1] : window.location.search.slice(1);
+      const params = new URLSearchParams(queryString);
+      const tokensParam = params.get('tokens');
+
+      if (tokensParam && currentRoute === '/login') {
+        try {
+          const decoded = JSON.parse(atob(tokensParam));
+          if (decoded.access_token && decoded.refresh_token) {
+            apiClient.setTokens(decoded.access_token, decoded.refresh_token);
+            // Clear the tokens from the URL then load auth
+            window.history.replaceState(null, '', window.location.pathname + window.location.hash.split('?')[0]);
+            useAuthStore.getState().loadFromStorage();
+            return;
+          }
+        } catch {
+          // Invalid base64 — fall through to normal flow
+        }
+      }
+
       const token = typeof window !== 'undefined'
         ? localStorage.getItem('lawsuite_access_token')
         : null;
@@ -142,7 +172,7 @@ export default function Home() {
         useAuthStore.getState().loadFromStorage();
       }
     }
-  }, []);
+  }, [currentRoute]);
 
   // If on an auth route or not authenticated, show auth pages
   if (!isAuthenticated || isAuthRoute(currentRoute)) {

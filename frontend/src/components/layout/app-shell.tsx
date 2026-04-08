@@ -31,6 +31,7 @@ import { UserRole } from '@/lib/types';
 
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { TrialBanner } from '@/components/ui/trial-banner';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -453,6 +454,9 @@ export function AppShell({ children }: AppShellProps) {
             </span>
           </div>
         </div>
+
+        {/* Trial Banner — shown when org is in trial */}
+        <TrialBanner />
 
         {/* Header */}
         <HeaderBar />

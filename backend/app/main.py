@@ -40,7 +40,11 @@ async def health():
 
 # ─── Routers ──────────────────────────────────────────────────────────────────
 
-from app.api import auth, clients, matters, tasks, integrations, documents, webhooks, reports, billing
+from app.api import (
+    auth, clients, matters, tasks, 
+    integrations, documents, webhooks, 
+    reports, billing, admin
+)
 
 app.include_router(auth.router,    prefix="/auth",    tags=["auth"])
 app.include_router(clients.router, prefix="/clients", tags=["clients"])
@@ -54,3 +58,4 @@ app.include_router(integrations.router, prefix="/integrations", tags=["integrati
 app.include_router(webhooks.router, prefix="/webhooks", tags=["webhooks"])
 app.include_router(reports.router, prefix="/reports", tags=["reports"])
 app.include_router(billing.router, prefix="/billing", tags=["billing"])
+app.include_router(admin.router, prefix="/admin",tags=["admin"])

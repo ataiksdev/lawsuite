@@ -14,7 +14,10 @@ async def google_connect(current_user: AdminUser, db: DB):
     Initiate Google OAuth flow for this organisation.
     Admin only. Redirects to Google's consent screen.
     Returns the authorization URL (frontend handles the redirect).
+    Requires drive_integration feature (available on Pro, Agency, and trial).
     """
+    from app.services.billing_service import BillingService
+    await BillingService(db).check_feature_access(current_user.org_id, "drive_integration")
     service = GoogleAuthService(db)
     auth_url, state = service.get_authorization_url(current_user.org_id)
     return {"authorization_url": auth_url, "state": state}

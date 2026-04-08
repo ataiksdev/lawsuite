@@ -19,6 +19,8 @@ import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/lib/auth-store';
 import { UserRole } from '@/lib/types';
 import { useTheme } from 'next-themes';
+import apiClient, { ApiClientError } from '@/lib/api-client';
+import { MfaSettingsPage } from './mfa-settings-page';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -116,7 +118,7 @@ export function UserSettingsPage() {
     }, 800);
   };
 
-  const handleChangePassword = () => {
+  const handleChangePassword = async () => {
     if (newPassword !== confirmPassword) {
       toast.error('Passwords do not match');
       return;
@@ -126,14 +128,22 @@ export function UserSettingsPage() {
       return;
     }
     setChangingPassword(true);
-    setTimeout(() => {
-      setChangingPassword(false);
+    try {
+      await apiClient.post('/auth/me/change-password', {
+        current_password: currentPassword,
+        new_password: newPassword,
+      });
       setPasswordDialogOpen(false);
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
       toast.success('Password changed', { description: 'Your password has been updated successfully.' });
-    }, 1000);
+    } catch (err) {
+      const message = err instanceof ApiClientError ? err.detail : 'Could not change password.';
+      toast.error(message);
+    } finally {
+      setChangingPassword(false);
+    }
   };
 
   const handleRevokeSession = (session: Session) => {
@@ -285,6 +295,9 @@ export function UserSettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Two-Factor Authentication Section */}
+      <MfaSettingsPage />
 
       {/* Preferences Section */}
       <Card className="border-slate-200/80 dark:border-slate-700/80">

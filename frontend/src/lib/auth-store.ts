@@ -23,6 +23,18 @@ interface BackendTokenResponse {
   expires_in: number;
 }
 
+// FIX: Backend login now returns mfa_required flag
+interface BackendLoginResponse {
+  mfa_required: boolean;
+  // Present when mfa_required === false
+  access_token?: string;
+  refresh_token?: string;
+  token_type?: string;
+  expires_in?: number;
+  // Present when mfa_required === true
+  mfa_token?: string;
+}
+
 interface BackendAuthUser {
   id: string;
   email: string;
@@ -90,7 +102,12 @@ interface AuthState {
   isLoading: boolean;
   error: string | null;
 
-  login: (email: string, password: string) => Promise<void>;
+  // MFA pending state — set when login requires a second factor
+  mfaPending: boolean;
+  mfaToken: string | null;
+
+  login: (email: string, password: string) => Promise<{ mfaRequired: boolean }>;
+  completeMfaLogin: (code: string) => Promise<void>;
   register: (data: RegisterRequest) => Promise<void>;
   acceptInvite: (token: string, password: string) => Promise<void>;
   logout: () => void;
@@ -116,6 +133,8 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       isLoading: false,
       error: null,
+      mfaPending: false,
+      mfaToken: null,
 
       // --------------------------------------------------------------------------
       // Actions
@@ -124,10 +143,27 @@ export const useAuthStore = create<AuthState>()(
       login: async (email: string, password: string) => {
         set({ isLoading: true, error: null });
         try {
-          const data = await apiClient.post<BackendTokenResponse>('/auth/login', {
+          // FIX: Backend now returns { mfa_required, access_token? } or { mfa_required, mfa_token }
+          const data = await apiClient.post<BackendLoginResponse>('/auth/login', {
             email,
             password,
           }, { skipAuth: true });
+
+          if (data.mfa_required && data.mfa_token) {
+            // Step 1 of MFA login — store the short-lived mfa_token
+            set({
+              mfaPending: true,
+              mfaToken: data.mfa_token,
+              isLoading: false,
+              error: null,
+            });
+            return { mfaRequired: true };
+          }
+
+          // No MFA — complete login immediately
+          if (!data.access_token || !data.refresh_token) {
+            throw new Error('Incomplete token response from server');
+          }
 
           apiClient.setTokens(data.access_token, data.refresh_token);
 
@@ -143,9 +179,12 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: true,
             isLoading: false,
             error: null,
+            mfaPending: false,
+            mfaToken: null,
           });
 
           toast.success(`Welcome back, ${mappedUser.first_name || 'there'}!`);
+          return { mfaRequired: false };
         } catch (error) {
           const message =
             error instanceof ApiClientError
@@ -157,8 +196,54 @@ export const useAuthStore = create<AuthState>()(
             user: null,
             organisation: null,
             isAuthenticated: false,
+            mfaPending: false,
+            mfaToken: null,
           });
           apiClient.clearTokens();
+          toast.error(message);
+          throw error;
+        }
+      },
+
+      completeMfaLogin: async (code: string) => {
+        const { mfaToken } = get();
+        if (!mfaToken) {
+          throw new Error('No MFA token available. Please log in again.');
+        }
+
+        set({ isLoading: true, error: null });
+        try {
+          const data = await apiClient.post<BackendTokenResponse>(
+            '/auth/mfa/validate',
+            { mfa_token: mfaToken, code },
+            { skipAuth: true }
+          );
+
+          apiClient.setTokens(data.access_token, data.refresh_token);
+
+          const [user, organisation] = await Promise.all([
+            apiClient.get<BackendAuthUser>('/auth/me'),
+            apiClient.get<BackendAuthOrganisation>('/auth/organisation'),
+          ]);
+          const mappedUser = mapBackendUser(user);
+
+          set({
+            user: mappedUser,
+            organisation: mapBackendOrganisation(organisation),
+            isAuthenticated: true,
+            isLoading: false,
+            error: null,
+            mfaPending: false,
+            mfaToken: null,
+          });
+
+          toast.success(`Welcome back, ${mappedUser.first_name || 'there'}!`);
+        } catch (error) {
+          const message =
+            error instanceof ApiClientError
+              ? error.detail
+              : 'Invalid MFA code. Please try again.';
+          set({ isLoading: false, error: message });
           toast.error(message);
           throw error;
         }
@@ -254,6 +339,8 @@ export const useAuthStore = create<AuthState>()(
           isAuthenticated: false,
           isLoading: false,
           error: null,
+          mfaPending: false,
+          mfaToken: null,
         });
         toast.success('You have been logged out.');
       },
@@ -308,6 +395,7 @@ export const useAuthStore = create<AuthState>()(
         user: state.user,
         organisation: state.organisation,
         isAuthenticated: state.isAuthenticated,
+        // Don't persist mfa state — it's short-lived
       }),
     }
   )

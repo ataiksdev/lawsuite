@@ -1,0 +1,21 @@
+../.env
+../.env.example
+../codacy
+../.vscode
+../.github
+../.gitignore
+../alembic
+
+.env
+.env.example
+
+#Ignore vscode AI rules
+.github\instructions\codacy.instructions.md
+
+#frontend
+frontend/.github
+frontend/.gitignore
+frontend/.next
+backend/alembic/env.py
+frontend/node_modules
+

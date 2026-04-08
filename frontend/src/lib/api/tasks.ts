@@ -25,6 +25,7 @@ export interface BackendTaskListResponse {
   total: number;
   page: number;
   page_size: number;
+  // Backend returns "pages" not "total_pages"
   pages: number;
 }
 
@@ -56,15 +57,16 @@ export interface OverdueTaskListResponse {
   pages: number;
 }
 
+// FIX: Backend mounts tasks at /matters/{id}/tasks, not /tasks/{id}/tasks
 export async function listMatterTasks(
   matterId: string,
   params: { status?: BackendTaskStatus; page?: number; page_size?: number } = {}
 ) {
-  return apiClient.get<BackendTaskListResponse>(`/tasks/${matterId}/tasks`, params);
+  return apiClient.get<BackendTaskListResponse>(`/matters/${matterId}/tasks`, params);
 }
 
 export async function createTask(matterId: string, payload: TaskUpsertPayload) {
-  return apiClient.post<BackendTask>(`/tasks/${matterId}/tasks`, payload);
+  return apiClient.post<BackendTask>(`/matters/${matterId}/tasks`, payload);
 }
 
 export async function updateTask(
@@ -72,11 +74,11 @@ export async function updateTask(
   taskId: string,
   payload: Partial<TaskUpsertPayload>
 ) {
-  return apiClient.patch<BackendTask>(`/tasks/${matterId}/tasks/${taskId}`, payload);
+  return apiClient.patch<BackendTask>(`/matters/${matterId}/tasks/${taskId}`, payload);
 }
 
 export async function deleteTask(matterId: string, taskId: string) {
-  return apiClient.delete<void>(`/tasks/${matterId}/tasks/${taskId}`);
+  return apiClient.delete<void>(`/matters/${matterId}/tasks/${taskId}`);
 }
 
 export async function listOverdueTasks(params: { page?: number; page_size?: number } = {}) {

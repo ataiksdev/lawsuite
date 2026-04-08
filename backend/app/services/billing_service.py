@@ -2,6 +2,7 @@
 import uuid
 import hmac
 import hashlib
+from datetime import datetime, timezone
 from typing import Literal
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -12,7 +13,7 @@ from app.models.organisation import Organisation
 
 
 # Plan definitions — amounts in Kobo (NGN × 100)
-PLANS: dict[str, dict] = {
+PLAN_FEATURES = {
     "free": {
         "name": "Free",
         "plan_code": settings.paystack_free_plan_code,
@@ -21,26 +22,59 @@ PLANS: dict[str, dict] = {
         "max_seats": 1,
         "drive_integration": False,
         "reports": False,
+        # "mfa": True,              # MFA always available for security
+        "advanced_tasks": False,
+        "api_access": False,
     },
     "pro": {
         "name": "Pro",
         "plan_code": settings.paystack_pro_plan_code,
-        "amount_kobo": 2_900_000,   # ₦29,000/month
+        "amount_kobo": 1_000_000,   # ₦10,000/month
         "max_matters": None,         # unlimited
         "max_seats": 5,
         "drive_integration": True,
         "reports": True,
+        "mfa": True,              # MFA always available for security
+        "advanced_tasks": False,
+        "api_access": False,
     },
     "agency": {
         "name": "Agency",
         "plan_code": settings.paystack_agency_plan_code,
-        "amount_kobo": 7_900_000,   # ₦79,000/month
+        "amount_kobo": 5_000_000,   # ₦50,000/month
         "max_matters": None,
         "max_seats": None,           # unlimited
         "drive_integration": True,
         "reports": True,
+        "mfa": True,              # MFA always available for security
+        "advanced_tasks": True,
+        "api_access": True,
     },
+    "trial": {
+        "name": "Free Trial",
+        "plan_code": "",
+        "amount_kobo": 0,
+        "max_matters": None,        # full access during trial
+        "max_seats": 5,
+        "drive_integration": True,
+        "reports": True,
+        "mfa": True,
+        "advanced_tasks": True,
+        "api_access": False,
+    },
+
 }
+
+def _load_plan_codes() -> None:
+    """Inject Paystack plan codes from settings at startup."""
+    PLAN_FEATURES["free"]["plan_code"] = settings.paystack_free_plan_code
+    PLAN_FEATURES["pro"]["plan_code"] = settings.paystack_pro_plan_code
+    PLAN_FEATURES["agency"]["plan_code"] = settings.paystack_agency_plan_code
+
+
+_load_plan_codes()
+
+# ── Webhook verification ──────────────────────────────────────────────────────
 
 
 def verify_paystack_signature(payload: bytes, signature: str) -> bool:
@@ -61,6 +95,42 @@ def verify_paystack_signature(payload: bytes, signature: str) -> bool:
     # Use hmac.compare_digest for constant-time comparison (prevents timing attacks)
     return hmac.compare_digest(computed, signature)
 
+# ── Effective plan resolution ─────────────────────────────────────────────────
+
+def get_effective_plan(org: Organisation) -> tuple[str, dict]:
+    """
+    Determine what plan features the org actually gets right now.
+
+    Resolution order (highest priority first):
+      1. Per-org feature_flags overrides (set by platform admin)
+      2. Active trial (trial_ends_at > now and trial_used is False)
+      3. Paid plan
+
+    Returns (effective_plan_name, features_dict).
+    The features_dict has all feature keys with their resolved values.
+    """
+    now = datetime.now(timezone.utc)
+
+    # Determine base plan
+    if (
+        org.trial_ends_at
+        and org.trial_ends_at.replace(tzinfo=timezone.utc) > now
+        and not org.trial_used
+    ):
+        plan_name = "trial"
+    else:
+        plan_name = org.plan
+
+    # Start from plan defaults
+    features = dict(PLAN_FEATURES.get(plan_name, PLAN_FEATURES["free"]))
+
+    # Apply per-org overrides (platform admin can set individual flags)
+    if org.feature_flags:
+        for key, value in org.feature_flags.items():
+            if key in features:
+                features[key] = value
+
+    return plan_name, features
 
 class BillingService:
 
@@ -107,10 +177,9 @@ class BillingService:
                 detail=f"Paystack customer creation failed: {response.message}",
             )
 
-        customer_code = response.data.customer_code
-        org.paystack_customer_code = customer_code
+        org.paystack_customer_code = response.data.customer_code
         await self.db.commit()
-        return customer_code
+        return response.data.customer_code
 
     # ── Initialise transaction / subscription ─────────────────────────────
 
@@ -129,14 +198,13 @@ class BillingService:
         After payment Paystack calls our webhook and we activate the plan.
         """
         from pypaystack2 import AsyncPaystackClient
-
-        if plan not in PLANS or plan == "free":
+        if plan not in PLAN_FEATURES or plan in ("free", "trial"):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid plan: {plan}. Choose 'pro' or 'agency'.",
             )
 
-        plan_config = PLANS[plan]
+        plan_config = PLAN_FEATURES[plan]
         if not plan_config["plan_code"]:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -181,16 +249,42 @@ class BillingService:
 
         if not org_id_str or not plan:
             return  # Not a LegalOps subscription charge — ignore
-
         try:
             org_id = uuid.UUID(org_id_str)
         except ValueError:
             return
 
         org = await self._get_org(org_id)
-        if plan in PLANS:
+        if plan in PLAN_FEATURES:
             org.plan = plan
+                        # Upgrading to paid plan ends the trial
+            org.trial_used=True
             await self.db.commit()
+
+    async def handle_subscription_create(self, event_data: dict) -> None:
+        """
+        subscription.create — new subscription activated.
+        Stores the subscription code for future management.
+        """
+        customer = event_data.get("customer", {})
+        customer_code = customer.get("customer_code")
+        plan_code = event_data.get("plan", {}).get("plan_code")
+        if not customer_code:
+            return
+        org = (await self.db.execute(
+            select(Organisation).where(
+                Organisation.paystack_customer_code == customer_code
+            )
+        )).scalar_one_or_none()
+        if not org:
+            return
+        for plan_name, plan_config in PLAN_FEATURES.items():
+            if plan_config["plan_code"] == plan_code:
+                org.plan = plan_name
+                org.trial_used = True
+                break
+        await self.db.commit()
+
 
     async def handle_subscription_disable(self, event_data: dict) -> None:
         """
@@ -212,35 +306,6 @@ class BillingService:
             org.plan = "free"
             await self.db.commit()
 
-    async def handle_subscription_create(self, event_data: dict) -> None:
-        """
-        subscription.create — new subscription activated.
-        Stores the subscription code for future management.
-        """
-        customer = event_data.get("customer", {})
-        customer_code = customer.get("customer_code")
-        plan_code = event_data.get("plan", {}).get("plan_code")
-
-        if not customer_code:
-            return
-
-        result = await self.db.execute(
-            select(Organisation).where(
-                Organisation.paystack_customer_code == customer_code
-            )
-        )
-        org = result.scalar_one_or_none()
-        if not org:
-            return
-
-        # Map Paystack plan code back to our plan name
-        for plan_name, plan_config in PLANS.items():
-            if plan_config["plan_code"] == plan_code:
-                org.plan = plan_name
-                break
-
-        await self.db.commit()
-
     # ── Plan information ──────────────────────────────────────────────────
 
     async def get_subscription(self, org_id: uuid.UUID) -> dict:
@@ -249,25 +314,32 @@ class BillingService:
         Includes plan limits and Paystack customer info.
         """
         org = await self._get_org(org_id)
-        plan_config = PLANS.get(org.plan, PLANS["free"])
-
+        effective_plan, features = get_effective_plan(org)
+        now = datetime.now(timezone.utc)
+        trial_active = (
+            org.trial_ends_at is not None
+            and org.trial_ends_at.replace(tzinfo=timezone.utc) > now
+            and not org.trial_used
+        )
         return {
             "plan": org.plan,
-            "plan_name": plan_config["name"],
-            "amount_kobo": plan_config["amount_kobo"],
-            "amount_ngn": plan_config["amount_kobo"] / 100,
+            "effective_plan": effective_plan,
+            "plan_name": PLAN_FEATURES.get(effective_plan, PLAN_FEATURES["free"])["name"],
+            "amount_ngn": features["amount_kobo"] / 100,
+            "trial_active": trial_active,
+            "trial_ends_at": org.trial_ends_at.isoformat() if org.trial_ends_at else None,
+            "features": {
+                k: v for k, v in features.items()
+                if k not in ("name", "plan_code", "amount_kobo")
+            },
             "limits": {
-                "max_matters": plan_config["max_matters"],
-                "max_seats": plan_config["max_seats"],
-                "drive_integration": plan_config["drive_integration"],
-                "reports": plan_config["reports"],
+                "max_matters": features["max_matters"],
+                "max_seats": features["max_seats"],
             },
             "paystack_customer_code": org.paystack_customer_code,
         }
 
-    async def manage_subscription_portal(
-        self, org_id: uuid.UUID
-    ) -> dict:
+    async def manage_subscription_portal( self, org_id: uuid.UUID) -> dict:
         """
         Return the Paystack customer portal URL where the customer
         can manage or cancel their subscription.
@@ -285,6 +357,33 @@ class BillingService:
             "portal_url": "https://paystack.com/account/subscriptions",
             "message": "Manage your subscription on the Paystack customer portal",
         }
+    # ── Feature flag admin override ───────────────────────────────────────
+
+    async def set_feature_flags(
+        self,
+        org_id: uuid.UUID,
+        flags: dict,
+    ) -> dict:
+        """
+        Platform admin: override specific feature flags for an org.
+        Only keys present in PLAN_FEATURES are accepted.
+        Pass null to clear all overrides and revert to plan defaults.
+        """
+        org = await self._get_org(org_id)
+        valid_keys = {
+            k for k in PLAN_FEATURES["free"]
+            if k not in ("name", "plan_code", "amount_kobo", "max_matters", "max_seats")
+        }
+        invalid = set(flags.keys()) - valid_keys
+        if invalid:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Invalid feature keys: {invalid}. Valid: {valid_keys}",
+            )
+        org.feature_flags = flags if flags else None
+        await self.db.commit()
+        _, features = get_effective_plan(org)
+        return features
 
     # ── Plan enforcement ──────────────────────────────────────────────────
 
@@ -297,8 +396,9 @@ class BillingService:
         from app.models.matter import Matter, MatterStatus
 
         org = await self._get_org(org_id)
-        plan_config = PLANS.get(org.plan, PLANS["free"])
-        max_matters = plan_config["max_matters"]
+        # plan_config = PLANS.get(org.plan, PLANS["free"])
+        _, features = get_effective_plan(org)
+        max_matters = features["max_matters"]
 
         if max_matters is None:
             return  # Unlimited
@@ -329,8 +429,8 @@ class BillingService:
         from app.models.user import OrganisationMember
 
         org = await self._get_org(org_id)
-        plan_config = PLANS.get(org.plan, PLANS["free"])
-        max_seats = plan_config["max_seats"]
+        _, features = get_effective_plan(org)
+        max_seats = features["max_seats"]
 
         if max_seats is None:
             return  # Unlimited
@@ -361,9 +461,9 @@ class BillingService:
         Called before Drive/Docs/Gmail API operations and report generation.
         """
         org = await self._get_org(org_id)
-        plan_config = PLANS.get(org.plan, PLANS["free"])
+        _, features = get_effective_plan(org)
 
-        if not plan_config.get(feature):
+        if not features.get(feature):
             feature_label = feature.replace("_", " ").title()
             raise HTTPException(
                 status_code=status.HTTP_402_PAYMENT_REQUIRED,

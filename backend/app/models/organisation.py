@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from sqlalchemy import String, DateTime, Boolean, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from app.core.database import Base
 
 
@@ -29,6 +29,11 @@ class Organisation(Base):
     # Drive webhook channel (Phase 6)
     drive_webhook_channel_id: Mapped[str | None] = mapped_column(String(255))
     drive_webhook_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    # Trial and feature flags
+    trial_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    trial_used: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    feature_flags: Mapped[dict | list | None] = mapped_column(JSONB)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow, nullable=False

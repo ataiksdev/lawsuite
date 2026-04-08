@@ -19,8 +19,17 @@ async def get_admin_token(client: AsyncClient) -> str:
 # ─── GET /billing/subscription ────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_get_subscription_default_free(client: AsyncClient):
+async def test_get_subscription_default_free(client: AsyncClient, db_session):
+    from app.models.organisation import Organisation
+    from sqlalchemy import select
     token = await get_admin_token(client)
+    
+    # End trial to test pure free plan
+    result = await db_session.execute(select(Organisation))
+    org = result.scalar_one()
+    org.trial_used = True
+    await db_session.commit()
+
     resp = await client.get(
         "/billing/subscription",
         headers={"Authorization": f"Bearer {token}"},
@@ -30,8 +39,8 @@ async def test_get_subscription_default_free(client: AsyncClient):
     assert body["plan"] == "free"
     assert body["limits"]["max_matters"] == 5
     assert body["limits"]["max_seats"] == 1
-    assert body["limits"]["drive_integration"] is False
-    assert body["limits"]["reports"] is False
+    assert body["features"]["drive_integration"] is False
+    assert body["features"]["reports"] is False
 
 
 # ─── POST /billing/checkout ───────────────────────────────────────────────────
@@ -53,8 +62,7 @@ async def test_checkout_pro_returns_authorization_url(client: AsyncClient):
     mock_cust_response.data = MagicMock(customer_code="CUS_testcustomer")
 
     with patch(
-        "app.services.billing_service.AsyncPaystackClient",
-        autospec=True,
+        "pypaystack2.AsyncPaystackClient",
     ) as MockClient:
         mock_instance = MockClient.return_value
         mock_instance.customers.create = AsyncMock(return_value=mock_cust_response)
@@ -103,10 +111,9 @@ async def test_billing_portal_without_subscription(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_billing_portal_with_subscription(client: AsyncClient):
+async def test_billing_portal_with_subscription(client: AsyncClient, db_session):
     from app.models.organisation import Organisation
     from sqlalchemy import select
-    from app.core.database import AsyncSessionLocal
 
     reg = await client.post("/auth/register", json={
         **REGISTER, "email": "portal@billingtest.ng", "org_name": "Portal Org"
@@ -114,11 +121,10 @@ async def test_billing_portal_with_subscription(client: AsyncClient):
     token = reg.json()["tokens"]["access_token"]
     org_id = reg.json()["organisation"]["id"]
 
-    async with AsyncSessionLocal() as db:
-        result = await db.execute(select(Organisation).where(Organisation.id == org_id))
-        org = result.scalar_one()
-        org.paystack_customer_code = "CUS_testportal"
-        await db.commit()
+    result = await db_session.execute(select(Organisation).where(Organisation.id == org_id))
+    org = result.scalar_one()
+    org.paystack_customer_code = "CUS_testportal"
+    await db_session.commit()
 
     resp = await client.get(
         "/billing/portal",
@@ -145,12 +151,11 @@ async def test_webhook_invalid_signature_rejected(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_webhook_charge_success_activates_plan(client: AsyncClient):
+async def test_webhook_charge_success_activates_plan(client: AsyncClient, db_session):
     import hmac
     import hashlib
     import json
 
-    from app.core.database import AsyncSessionLocal
     from app.models.organisation import Organisation
     from sqlalchemy import select
 
@@ -174,35 +179,52 @@ async def test_webhook_charge_success_activates_plan(client: AsyncClient):
         hashlib.sha512,
     ).hexdigest()
 
-    resp = await client.post(
-        "/webhooks/paystack",
-        content=payload,
-        headers={
-            "Content-Type": "application/json",
-            "x-paystack-signature": sig,
-        },
-    )
+    from contextlib import asynccontextmanager
+    from unittest.mock import patch
+    
+    @asynccontextmanager
+    async def override_session_local():
+        yield db_session
+
+    with patch("app.api.webhooks.AsyncSessionLocal", side_effect=override_session_local):
+        resp = await client.post(
+            "/webhooks/paystack",
+            content=payload,
+            headers={
+                "Content-Type": "application/json",
+                "x-paystack-signature": sig,
+            },
+        )
     assert resp.status_code == 200
 
     # Give the background task time to run
     import asyncio
     await asyncio.sleep(0.1)
 
-    async with AsyncSessionLocal() as db:
-        result = await db.execute(select(Organisation).where(Organisation.id == org_id))
-        org = result.scalar_one()
-        assert org.plan == "pro"
+    result = await db_session.execute(select(Organisation).where(Organisation.id == org_id))
+    org = result.scalar_one()
+    assert org.plan == "pro"
 
 
 # ─── Plan limit enforcement ───────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_matter_limit_enforced_on_free_plan(client: AsyncClient):
+async def test_matter_limit_enforced_on_free_plan(client: AsyncClient, db_session):
+    from app.models.organisation import Organisation
+    from sqlalchemy import select
     """Free plan allows max 5 matters — 6th should return 402."""
     reg = await client.post("/auth/register", json={
         **REGISTER, "email": "limit@billingtest.ng", "org_name": "Limit Org"
     })
     token = reg.json()["tokens"]["access_token"]
+    org_id = reg.json()["organisation"]["id"]
+
+    # End trial
+    result = await db_session.execute(select(Organisation).where(Organisation.id == org_id))
+    org = result.scalar_one()
+    org.trial_used = True
+    await db_session.commit()
+
     headers = {"Authorization": f"Bearer {token}"}
 
     cl = await client.post("/clients/", json={"name": "Limit Client"}, headers=headers)
@@ -225,12 +247,22 @@ async def test_matter_limit_enforced_on_free_plan(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_seat_limit_enforced_on_free_plan(client: AsyncClient):
+async def test_seat_limit_enforced_on_free_plan(client: AsyncClient, db_session):
+    from app.models.organisation import Organisation
+    from sqlalchemy import select
     """Free plan allows 1 seat — inviting a second member should return 402."""
     reg = await client.post("/auth/register", json={
         **REGISTER, "email": "seat@billingtest.ng", "org_name": "Seat Org"
     })
     token = reg.json()["tokens"]["access_token"]
+    org_id = reg.json()["organisation"]["id"]
+
+    # End trial
+    result = await db_session.execute(select(Organisation).where(Organisation.id == org_id))
+    org = result.scalar_one()
+    org.trial_used = True
+    await db_session.commit()
+
     headers = {"Authorization": f"Bearer {token}"}
 
     resp = await client.post("/auth/invite", json={

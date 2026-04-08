@@ -122,6 +122,9 @@ class MatterService:
         user_id: uuid.UUID,
         data: MatterCreate,
     ) -> Matter:
+        from app.services.billing_service import BillingService
+
+        await BillingService(self.db).check_matter_limit(org_id)
         await self._verify_client(data.client_id, org_id)
 
         reference_no = await _generate_reference(self.db, org_id)

@@ -3,7 +3,7 @@ import uuid
 import secrets
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, update
 from fastapi import HTTPException, status
 
 from app.core.config import settings
@@ -23,11 +23,14 @@ from app.schemas.auth import (
     RefreshRequest,
     InviteRequest,
     AcceptInviteRequest,
+    UpdateMemberRoleRequest,
+    UpdateProfileRequest,
+    ChangePasswordRequest,
+    UpdateOrgRequest,
 )
 
 
 def _make_slug(name: str) -> str:
-    """Convert org name to a URL-safe slug."""
     import re
     slug = name.lower().strip()
     slug = re.sub(r"[^a-z0-9]+", "-", slug)
@@ -60,7 +63,6 @@ class AuthService:
     # ── Register ──────────────────────────────────────────────────────────
 
     async def register(self, data: RegisterRequest) -> tuple[User, Organisation, TokenResponse]:
-        # Check email not already taken
         existing = await self.db.execute(
             select(User).where(User.email == data.email.lower())
         )
@@ -70,7 +72,6 @@ class AuthService:
                 detail="An account with this email already exists",
             )
 
-        # Generate unique slug
         base_slug = _make_slug(data.org_name)
         slug = base_slug
         counter = 1
@@ -83,16 +84,20 @@ class AuthService:
             slug = f"{base_slug}-{counter}"
             counter += 1
 
-        # Create organisation
+        from datetime import timedelta, timezone as tz
+        import datetime as dt
+
+        trial_ends = dt.datetime.now(tz.utc) + dt.timedelta(days=settings.trial_days)
         org = Organisation(
             name=data.org_name.strip(),
             slug=slug,
             plan="free",
+            trial_ends_at=trial_ends,
+            trial_used=False,
         )
         self.db.add(org)
         await self.db.flush()
 
-        # Create admin user
         user = User(
             email=data.email.lower(),
             hashed_password=hash_password(data.password),
@@ -103,7 +108,6 @@ class AuthService:
         self.db.add(user)
         await self.db.flush()
 
-        # Link user to org as admin
         membership = OrganisationMember(
             organisation_id=org.id,
             user_id=user.id,
@@ -120,7 +124,6 @@ class AuthService:
     # ── Login ─────────────────────────────────────────────────────────────
 
     async def login(self, data: LoginRequest) -> tuple[User, Organisation, TokenResponse]:
-        # Fetch user
         result = await self.db.execute(
             select(User).where(User.email == data.email.lower())
         )
@@ -131,20 +134,17 @@ class AuthService:
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid email or password",
             )
-
         if not verify_password(data.password, user.hashed_password):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid email or password",
             )
-
         if not user.is_active:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Account is deactivated",
             )
 
-        # Fetch membership to get org + role
         mem_result = await self.db.execute(
             select(OrganisationMember)
             .where(OrganisationMember.user_id == user.id)
@@ -168,8 +168,14 @@ class AuthService:
                 detail="Organisation not found or inactive",
             )
 
+        # If MFA is enabled, return a short-lived pending token instead of full access
+        if user.mfa_enabled:
+            from app.services.mfa_service import MFAService
+            mfa_token = MFAService.create_mfa_pending_token(user.id, org.id, membership.role)
+            return user, org, mfa_token, True  # mfa_required=True
+
         tokens = _build_tokens(user.id, org.id, membership.role)
-        return user, org, tokens
+        return user, org, tokens, False  # mfa_required=False
 
     # ── Refresh ───────────────────────────────────────────────────────────
 
@@ -191,10 +197,7 @@ class AuthService:
         user_id = uuid.UUID(payload["sub"])
         org_id = uuid.UUID(payload["org_id"])
 
-        # Verify user still active
-        user_result = await self.db.execute(
-            select(User).where(User.id == user_id)
-        )
+        user_result = await self.db.execute(select(User).where(User.id == user_id))
         user = user_result.scalar_one_or_none()
         if not user or not user.is_active:
             raise HTTPException(
@@ -202,7 +205,6 @@ class AuthService:
                 detail="User not found or inactive",
             )
 
-        # Get current role
         mem_result = await self.db.execute(
             select(OrganisationMember).where(
                 OrganisationMember.user_id == user_id,
@@ -225,17 +227,16 @@ class AuthService:
         data: InviteRequest,
         org_id: uuid.UUID,
         invited_by: uuid.UUID,
-    ) -> User:
-        # Check seat limit (Phase 10 — skip for now)
+    ) -> tuple[User, str]:
+        from app.services.billing_service import BillingService
+        await BillingService(self.db).check_seat_limit(org_id)
 
-        # Check if email already in org
         existing_user = await self.db.execute(
             select(User).where(User.email == data.email.lower())
         )
         user = existing_user.scalar_one_or_none()
 
         if user:
-            # Check if already a member
             already_member = await self.db.execute(
                 select(OrganisationMember).where(
                     OrganisationMember.user_id == user.id,
@@ -248,7 +249,6 @@ class AuthService:
                     detail="User is already a member of this organisation",
                 )
 
-        # Create or update user with invite token
         invite_token = secrets.token_urlsafe(32)
         invite_expires = datetime.now(timezone.utc) + timedelta(days=7)
 
@@ -268,7 +268,6 @@ class AuthService:
 
         await self.db.flush()
 
-        # Create pending membership
         membership = OrganisationMember(
             organisation_id=org_id,
             user_id=user.id,
@@ -278,17 +277,46 @@ class AuthService:
         await self.db.commit()
         await self.db.refresh(user)
 
-        # TODO Phase 8: send invite email via Gmail
-        # For now, log the invite URL to console
         invite_url = f"{settings.frontend_url}/accept-invite?token={invite_token}"
         print(f"[INVITE] {data.email} → {invite_url}")
+        return user, invite_url
 
-        return user
+    # ── Resend invite ─────────────────────────────────────────────────────
+
+    async def resend_invite(
+        self, user_id: uuid.UUID, org_id: uuid.UUID
+    ) -> tuple[User, str]:
+        result = await self.db.execute(
+            select(User, OrganisationMember)
+            .join(OrganisationMember, OrganisationMember.user_id == User.id)
+            .where(
+                User.id == user_id,
+                OrganisationMember.organisation_id == org_id,
+                User.is_active == False,
+            )
+        )
+        row = result.first()
+        if not row:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Pending member not found",
+            )
+
+        user, _ = row
+        invite_token = secrets.token_urlsafe(32)
+        user.invite_token = invite_token
+        user.invite_expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+
+        await self.db.commit()
+        await self.db.refresh(user)
+
+        invite_url = f"{settings.frontend_url}/accept-invite?token={invite_token}"
+        print(f"[RESEND INVITE] {user.email} → {invite_url}")
+        return user, invite_url
 
     # ── Accept invite ─────────────────────────────────────────────────────
 
     async def accept_invite(self, data: AcceptInviteRequest) -> tuple[User, Organisation, TokenResponse]:
-        # Find user by token
         result = await self.db.execute(
             select(User).where(User.invite_token == data.token)
         )
@@ -299,23 +327,19 @@ class AuthService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Invalid invite token",
             )
-
         if user.invite_expires_at and user.invite_expires_at < datetime.now(timezone.utc):
             raise HTTPException(
                 status_code=status.HTTP_410_GONE,
                 detail="Invite token has expired",
             )
 
-        # Activate the user
         user.hashed_password = hash_password(data.password)
         user.is_active = True
         user.is_verified = True
         user.invite_token = None
         user.invite_expires_at = None
-
         await self.db.flush()
 
-        # Get membership + org
         mem_result = await self.db.execute(
             select(OrganisationMember)
             .where(OrganisationMember.user_id == user.id)
@@ -340,7 +364,7 @@ class AuthService:
         tokens = _build_tokens(user.id, org.id, membership.role)
         return user, org, tokens
 
-    # ── List org members ──────────────────────────────────────────────────
+    # ── List members ──────────────────────────────────────────────────────
 
     async def list_members(self, org_id: uuid.UUID) -> list[dict]:
         result = await self.db.execute(
@@ -357,7 +381,185 @@ class AuthService:
                 "full_name": user.full_name,
                 "role": member.role,
                 "is_active": user.is_active,
+                "is_verified": user.is_verified,
                 "joined_at": member.joined_at,
+                "has_pending_invite": bool(user.invite_token),
             }
             for user, member in rows
         ]
+
+    # ── Update member role ────────────────────────────────────────────────
+
+    async def update_member_role(
+        self,
+        target_user_id: uuid.UUID,
+        org_id: uuid.UUID,
+        requesting_user_id: uuid.UUID,
+        data: UpdateMemberRoleRequest,
+    ) -> dict:
+        if target_user_id == requesting_user_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="You cannot change your own role",
+            )
+
+        result = await self.db.execute(
+            select(User, OrganisationMember)
+            .join(OrganisationMember, OrganisationMember.user_id == User.id)
+            .where(
+                User.id == target_user_id,
+                OrganisationMember.organisation_id == org_id,
+            )
+        )
+        row = result.first()
+        if not row:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Member not found",
+            )
+
+        user, membership = row
+        old_role = membership.role
+        membership.role = UserRole(data.role)
+
+        await self.db.commit()
+        await self.db.refresh(membership)
+
+        return {
+            "id": user.id,
+            "email": user.email,
+            "full_name": user.full_name,
+            "role": membership.role,
+            "is_active": user.is_active,
+            "is_verified": user.is_verified,
+            "joined_at": membership.joined_at,
+            "has_pending_invite": bool(user.invite_token),
+        }
+
+    # ── Remove member ─────────────────────────────────────────────────────
+
+    async def remove_member(
+        self,
+        target_user_id: uuid.UUID,
+        org_id: uuid.UUID,
+        requesting_user_id: uuid.UUID,
+    ) -> None:
+        if target_user_id == requesting_user_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="You cannot remove yourself from the organisation",
+            )
+
+        result = await self.db.execute(
+            select(OrganisationMember).where(
+                OrganisationMember.user_id == target_user_id,
+                OrganisationMember.organisation_id == org_id,
+            )
+        )
+        membership = result.scalar_one_or_none()
+        if not membership:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Member not found",
+            )
+
+        # Deactivate user if they have no other memberships
+        other_orgs = await self.db.execute(
+            select(OrganisationMember).where(
+                OrganisationMember.user_id == target_user_id,
+                OrganisationMember.organisation_id != org_id,
+            )
+        )
+        if not other_orgs.scalars().first():
+            user_result = await self.db.execute(
+                select(User).where(User.id == target_user_id)
+            )
+            user = user_result.scalar_one_or_none()
+            if user:
+                user.is_active = False
+
+        await self.db.delete(membership)
+        await self.db.commit()
+
+    # ── Update member profile (self) ──────────────────────────────────────
+
+    async def update_profile(
+        self,
+        user_id: uuid.UUID,
+        data: UpdateProfileRequest,
+    ) -> User:
+        result = await self.db.execute(select(User).where(User.id == user_id))
+        user = result.scalar_one_or_none()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        if data.email and data.email.lower() != user.email:
+            existing = await self.db.execute(
+                select(User).where(User.email == data.email.lower())
+            )
+            if existing.scalar_one_or_none():
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Email already in use",
+                )
+            user.email = data.email.lower()
+
+        if data.full_name:
+            user.full_name = data.full_name.strip()
+
+        await self.db.commit()
+        await self.db.refresh(user)
+        return user
+
+    # ── Change password (self) ────────────────────────────────────────────
+
+    async def change_password(
+        self,
+        user_id: uuid.UUID,
+        data: ChangePasswordRequest,
+    ) -> None:
+        result = await self.db.execute(select(User).where(User.id == user_id))
+        user = result.scalar_one_or_none()
+        if not user or not user.hashed_password:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        if not verify_password(data.current_password, user.hashed_password):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Current password is incorrect",
+            )
+
+        user.hashed_password = hash_password(data.new_password)
+        await self.db.commit()
+
+    # ── Update organisation ───────────────────────────────────────────────
+
+    async def update_organisation(
+        self,
+        org_id: uuid.UUID,
+        data: UpdateOrgRequest,
+    ) -> Organisation:
+        result = await self.db.execute(
+            select(Organisation).where(Organisation.id == org_id)
+        )
+        org = result.scalar_one_or_none()
+        if not org:
+            raise HTTPException(status_code=404, detail="Organisation not found")
+
+        if data.name:
+            org.name = data.name.strip()
+
+        await self.db.commit()
+        await self.db.refresh(org)
+        return org
+
+    # ── Get organisation ──────────────────────────────────────────────────
+
+    async def get_organisation(self, org_id: uuid.UUID) -> Organisation:
+        result = await self.db.execute(
+            select(Organisation).where(Organisation.id == org_id)
+        )
+        org = result.scalar_one_or_none()
+        if not org:
+            raise HTTPException(status_code=404, detail="Organisation not found")
+        return org

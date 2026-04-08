@@ -28,6 +28,10 @@ async def generate_report(
     """
     from app.services.report_service import ReportService
     from app.services.google_auth_service import GoogleAuthService
+    from app.services.billing_service import BillingService
+
+    # Gate: reports feature required
+    await BillingService(db).check_feature_access(current_user.org_id, "reports")
 
     # Get Google credentials if available — non-fatal if not connected
     credentials = None

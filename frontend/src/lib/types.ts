@@ -620,9 +620,11 @@ export interface PaginatedResponse<T> {
   total: number;
   page: number;
   page_size: number;
-  total_pages: number;
-  has_next: boolean;
-  has_prev: boolean;
+  // FIX: Backend returns 'pages' not 'total_pages'
+  pages: number;
+  // Computed convenience fields (not returned by backend — derive in components if needed)
+  // has_next: boolean;
+  // has_prev: boolean;
 }
 
 export interface PaginationParams {

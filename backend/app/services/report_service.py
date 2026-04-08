@@ -1,24 +1,25 @@
 # backend/app/services/report_service.py
 import uuid
-from datetime import datetime, date, timedelta, timezone
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_
+from datetime import date, datetime, timedelta, timezone
+
 from fastapi import HTTPException, status
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.activity_log import ActivityLog
-from app.models.matter import Matter, MatterStatus
 from app.models.client import Client
-from app.models.task import Task, TaskStatus
-from app.models.matter_document import MatterDocument, DocumentStatus
+from app.models.matter import Matter, MatterStatus
+from app.models.matter_document import DocumentStatus, MatterDocument
 from app.models.organisation import Organisation
 from app.models.report import Report
+from app.models.task import Task, TaskStatus
 from app.schemas.report import (
-    ReportGenerateRequest,
-    ReportData,
     ClientActivity,
-    MatterActivity,
-    TaskSummary,
     DocumentSummary,
+    MatterActivity,
+    ReportData,
+    ReportGenerateRequest,
+    TaskSummary,
 )
 
 
@@ -63,7 +64,6 @@ def _resolve_period(
 
 
 class ReportService:
-
     def __init__(self, db: AsyncSession):
         self.db = db
 
@@ -84,18 +84,18 @@ class ReportService:
         dt_to = datetime.combine(date_to, datetime.max.time()).replace(tzinfo=timezone.utc)
 
         # ── Org name ──────────────────────────────────────────────────────
-        org_result = await self.db.execute(
-            select(Organisation).where(Organisation.id == org_id)
-        )
+        org_result = await self.db.execute(select(Organisation).where(Organisation.id == org_id))
         org = org_result.scalar_one()
 
         # ── All activity in period ─────────────────────────────────────────
         activity_result = await self.db.execute(
-            select(ActivityLog).where(
+            select(ActivityLog)
+            .where(
                 ActivityLog.organisation_id == org_id,
                 ActivityLog.created_at >= dt_from,
                 ActivityLog.created_at <= dt_to,
-            ).order_by(ActivityLog.created_at)
+            )
+            .order_by(ActivityLog.created_at)
         )
         all_logs = activity_result.scalars().all()
         total_events = len(all_logs)
@@ -117,12 +117,10 @@ class ReportService:
 
         # Count opened/closed during period
         matters_opened = sum(
-            1 for m in all_matters
-            if m.opened_at and dt_from <= m.opened_at.replace(tzinfo=timezone.utc) <= dt_to
+            1 for m in all_matters if m.opened_at and dt_from <= m.opened_at.replace(tzinfo=timezone.utc) <= dt_to
         )
         matters_closed = sum(
-            1 for m in all_matters
-            if m.closed_at and dt_from <= m.closed_at.replace(tzinfo=timezone.utc) <= dt_to
+            1 for m in all_matters if m.closed_at and dt_from <= m.closed_at.replace(tzinfo=timezone.utc) <= dt_to
         )
 
         # ── Build per-client structure ─────────────────────────────────────
@@ -134,9 +132,7 @@ class ReportService:
 
         for client_id, matters in matters_by_client.items():
             # Fetch client
-            cl_result = await self.db.execute(
-                select(Client).where(Client.id == client_id)
-            )
+            cl_result = await self.db.execute(select(Client).where(Client.id == client_id))
             client = cl_result.scalar_one_or_none()
             if not client:
                 continue
@@ -149,9 +145,7 @@ class ReportService:
                 # Count events by type
                 events_by_type: dict[str, int] = {}
                 for log in matter_logs:
-                    events_by_type[log.event_type] = (
-                        events_by_type.get(log.event_type, 0) + 1
-                    )
+                    events_by_type[log.event_type] = events_by_type.get(log.event_type, 0) + 1
 
                 # Task summary for this matter
                 task_summary = await self._task_summary(matter.id, dt_to)
@@ -204,9 +198,7 @@ class ReportService:
             clients=client_activities,
         )
 
-    async def _task_summary(
-        self, matter_id: uuid.UUID, as_of: datetime
-    ) -> TaskSummary:
+    async def _task_summary(self, matter_id: uuid.UUID, as_of: datetime) -> TaskSummary:
         result = await self.db.execute(
             select(Task).where(
                 Task.matter_id == matter_id,
@@ -219,15 +211,13 @@ class ReportService:
             total=len(tasks),
             completed=sum(1 for t in tasks if t.status == TaskStatus.done),
             overdue=sum(
-                1 for t in tasks
-                if t.due_date and t.due_date < today
-                and t.status not in (TaskStatus.done, TaskStatus.cancelled)
+                1
+                for t in tasks
+                if t.due_date and t.due_date < today and t.status not in (TaskStatus.done, TaskStatus.cancelled)
             ),
         )
 
-    async def _document_summary(
-        self, matter_id: uuid.UUID, dt_from: datetime, dt_to: datetime
-    ) -> DocumentSummary:
+    async def _document_summary(self, matter_id: uuid.UUID, dt_from: datetime, dt_to: datetime) -> DocumentSummary:
         result = await self.db.execute(
             select(MatterDocument).where(
                 MatterDocument.matter_id == matter_id,
@@ -235,10 +225,7 @@ class ReportService:
             )
         )
         docs = result.scalars().all()
-        added_in_period = sum(
-            1 for d in docs
-            if dt_from <= d.added_at.replace(tzinfo=timezone.utc) <= dt_to
-        )
+        added_in_period = sum(1 for d in docs if dt_from <= d.added_at.replace(tzinfo=timezone.utc) <= dt_to)
         versioned = sum(1 for d in docs if d.current_version > 1)
         signed = sum(1 for d in docs if d.status == DocumentStatus.signed)
         return DocumentSummary(
@@ -266,13 +253,17 @@ class ReportService:
 
         # Create a blank Google Doc
         title = f"LegalOps Report — {data.period_label}"
-        doc = drive.files().create(
-            body={
-                "name": title,
-                "mimeType": "application/vnd.google-apps.document",
-            },
-            fields="id,webViewLink",
-        ).execute()
+        doc = (
+            drive.files()
+            .create(
+                body={
+                    "name": title,
+                    "mimeType": "application/vnd.google-apps.document",
+                },
+                fields="id,webViewLink",
+            )
+            .execute()
+        )
 
         file_id = doc["id"]
         drive_url = doc.get("webViewLink", "")
@@ -323,9 +314,7 @@ class ReportService:
         page_size: int = 20,
     ) -> tuple[list[Report], int]:
         count_result = await self.db.execute(
-            select(func.count()).select_from(Report).where(
-                Report.organisation_id == org_id
-            )
+            select(func.count()).select_from(Report).where(Report.organisation_id == org_id)
         )
         total = count_result.scalar_one()
 
@@ -373,6 +362,7 @@ class ReportService:
 
         if req.send_email and req.recipient_email and drive_url and credentials:
             from app.services.gmail_service import GmailService
+
             gmail = GmailService(credentials)
             await gmail.send_report_email(
                 recipient=req.recipient_email,
@@ -397,6 +387,7 @@ class ReportService:
 
 
 # ── Doc content builder ───────────────────────────────────────────────────────
+
 
 def _build_doc_requests(data: ReportData) -> list[dict]:
     """
@@ -439,13 +430,9 @@ def _build_doc_requests(data: ReportData) -> list[dict]:
                     lines.append(f"    - {readable}: {count}\n")
 
             t = matter.tasks
-            lines.append(
-                f"  Tasks: {t.total} total, {t.completed} completed, {t.overdue} overdue\n"
-            )
+            lines.append(f"  Tasks: {t.total} total, {t.completed} completed, {t.overdue} overdue\n")
             d = matter.documents
-            lines.append(
-                f"  Documents: {d.added} added, {d.signed} signed\n"
-            )
+            lines.append(f"  Documents: {d.added} added, {d.signed} signed\n")
             lines.append("\n")
 
         lines.append("\n")

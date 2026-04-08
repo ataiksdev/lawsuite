@@ -1,7 +1,9 @@
 # backend/app/api/webhooks.py
 import json
-from fastapi import APIRouter, Request, BackgroundTasks, Response, HTTPException, status
+
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Response, status
 from sqlalchemy import select
+
 from app.core.database import AsyncSessionLocal
 from app.models.organisation import Organisation
 
@@ -9,6 +11,7 @@ router = APIRouter()
 
 
 # ─── Google Drive webhook ─────────────────────────────────────────────────────
+
 
 @router.post("/google-drive")
 async def google_drive_webhook(
@@ -47,16 +50,13 @@ async def google_drive_webhook(
 
 async def _enqueue_drive_change(channel_id: str, resource_id: str) -> None:
     async with AsyncSessionLocal() as db:
-        result = await db.execute(
-            select(Organisation).where(
-                Organisation.drive_webhook_channel_id == channel_id
-            )
-        )
+        result = await db.execute(select(Organisation).where(Organisation.drive_webhook_channel_id == channel_id))
         org = result.scalar_one_or_none()
         if not org:
             return
 
     from app.workers.tasks import process_drive_change
+
     process_drive_change.delay(
         file_id=resource_id,
         org_id=str(org.id),
@@ -64,6 +64,7 @@ async def _enqueue_drive_change(channel_id: str, resource_id: str) -> None:
 
 
 # ─── Paystack webhook ─────────────────────────────────────────────────────────
+
 
 @router.post("/paystack")
 async def paystack_webhook(
@@ -94,6 +95,7 @@ async def paystack_webhook(
 
     # Always verify before processing
     from app.services.billing_service import verify_paystack_signature
+
     if not verify_paystack_signature(payload, signature):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

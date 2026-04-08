@@ -1,12 +1,14 @@
 # backend/app/schemas/matter.py
 import uuid
 from datetime import datetime
+
 from pydantic import BaseModel, Field
+
 from app.models.matter import MatterStatus, MatterType
 from app.schemas.client import ClientSummary
 
-
 # ─── Requests ────────────────────────────────────────────────────────────────
+
 
 class MatterCreate(BaseModel):
     client_id: uuid.UUID
@@ -33,6 +35,7 @@ class StatusUpdate(BaseModel):
 
 # ─── Email link schemas ───────────────────────────────────────────────────────
 
+
 class EmailLinkRequest(BaseModel):
     gmail_thread_id: str = Field(..., min_length=1)
 
@@ -50,6 +53,7 @@ class MatterEmailResponse(BaseModel):
 
 # ─── Template doc schemas ─────────────────────────────────────────────────────
 
+
 class GenerateFromTemplateRequest(BaseModel):
     template_file_id: str = Field(..., min_length=1)
     document_name: str = Field(..., min_length=1, max_length=255)
@@ -58,6 +62,7 @@ class GenerateFromTemplateRequest(BaseModel):
 
 
 # ─── Responses ───────────────────────────────────────────────────────────────
+
 
 class ActivityLogResponse(BaseModel):
     id: uuid.UUID
@@ -92,6 +97,7 @@ class MatterResponse(BaseModel):
 
 class MatterListResponse(BaseModel):
     """Paginated matter list."""
+
     items: list[MatterResponse]
     total: int
     page: int

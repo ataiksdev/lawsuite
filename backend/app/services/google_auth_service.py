@@ -1,18 +1,18 @@
 # backend/app/services/google_auth_service.py
-import uuid
 import json
-from datetime import datetime, timezone, timedelta
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+import uuid
+from datetime import datetime, timedelta, timezone
+
 from fastapi import HTTPException, status
-from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.security import encrypt, decrypt
+from app.core.security import decrypt, encrypt
 from app.models.organisation import Organisation
-
 
 # Scopes required across all Google connectors
 GOOGLE_SCOPES = [
@@ -46,14 +46,11 @@ def _build_flow() -> Flow:
 
 
 class GoogleAuthService:
-
     def __init__(self, db: AsyncSession):
         self.db = db
 
     async def _get_org(self, org_id: uuid.UUID) -> Organisation:
-        result = await self.db.execute(
-            select(Organisation).where(Organisation.id == org_id)
-        )
+        result = await self.db.execute(select(Organisation).where(Organisation.id == org_id))
         org = result.scalar_one_or_none()
         if not org:
             raise HTTPException(
@@ -79,7 +76,7 @@ class GoogleAuthService:
             "scope": " ".join(GOOGLE_SCOPES),
             "access_type": "offline",
             "include_granted_scopes": "true",
-            "prompt": "consent",            # always ask for refresh token
+            "prompt": "consent",  # always ask for refresh token
             "state": str(org_id),
         }
 
@@ -115,9 +112,7 @@ class GoogleAuthService:
         await self.db.refresh(org)
         return org
 
-    async def _store_tokens(
-        self, org: Organisation, credentials: Credentials
-    ) -> None:
+    async def _store_tokens(self, org: Organisation, credentials: Credentials) -> None:
         """Encrypt and persist Google tokens on the organisation record."""
         org.google_access_token = encrypt(credentials.token)
         org.google_refresh_token = (
@@ -173,10 +168,7 @@ class GoogleAuthService:
             "scopes": json.loads(org.google_scopes) if org.google_scopes else [],
             "token_expiry": org.google_token_expiry.isoformat() if org.google_token_expiry else None,
             "webhook_active": bool(org.drive_webhook_channel_id),
-            "webhook_expires_at": (
-                org.drive_webhook_expires_at.isoformat()
-                if org.drive_webhook_expires_at else None
-            ),
+            "webhook_expires_at": (org.drive_webhook_expires_at.isoformat() if org.drive_webhook_expires_at else None),
         }
 
     async def revoke(self, org_id: uuid.UUID) -> None:
@@ -185,6 +177,7 @@ class GoogleAuthService:
         Also clears the Drive webhook channel ID.
         """
         import httpx
+
         org = await self._get_org(org_id)
 
         if org.google_access_token:

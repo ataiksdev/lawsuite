@@ -1,11 +1,12 @@
 # backend/app/api/billing.py
-from fastapi import APIRouter, Request
-from fastapi.responses import RedirectResponse
-from app.core.deps import AuthUser, AdminUser, DB
-from app.services.billing_service import BillingService
-from app.core.config import settings
-from pydantic import BaseModel
 from typing import Literal
+
+from fastapi import APIRouter
+from pydantic import BaseModel
+
+from app.core.config import settings
+from app.core.deps import DB, AdminUser, AuthUser
+from app.services.billing_service import BillingService
 
 router = APIRouter()
 
@@ -36,12 +37,11 @@ async def create_checkout(
       6. Paystack redirects user to /settings/billing?reference=xxx
     """
     from sqlalchemy import select
+
     from app.models.user import User
 
     # Fetch the admin user's email for Paystack customer creation
-    user_result = await db.execute(
-        select(User).where(User.id == current_user.user_id)
-    )
+    user_result = await db.execute(select(User).where(User.id == current_user.user_id))
     user = user_result.scalar_one()
 
     service = BillingService(db)

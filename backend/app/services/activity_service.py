@@ -1,8 +1,10 @@
 # backend/app/services/activity_service.py
 import uuid
 from datetime import datetime, timezone
+
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc
+
 from app.models.activity_log import ActivityLog
 
 
@@ -45,7 +47,9 @@ class ActivityService:
         from sqlalchemy import func
 
         count_result = await self.db.execute(
-            select(func.count()).select_from(ActivityLog).where(
+            select(func.count())
+            .select_from(ActivityLog)
+            .where(
                 ActivityLog.matter_id == matter_id,
                 ActivityLog.organisation_id == org_id,
             )

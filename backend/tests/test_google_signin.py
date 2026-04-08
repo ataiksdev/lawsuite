@@ -10,8 +10,10 @@ Tests verify:
   - Conflicting Google accounts are rejected
   - Trial is started on Google OAuth signup
 """
+
+from unittest.mock import AsyncMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
 from httpx import AsyncClient
 
 REGISTER = {
@@ -41,6 +43,7 @@ def mock_google_fetch(user_info: dict = GOOGLE_USER):
 
 
 # ─── New user flow ────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_new_google_user_gets_provisional_token(client: AsyncClient):
@@ -81,10 +84,13 @@ async def test_new_google_user_complete_signup_creates_org_with_trial(client: As
     provisional_token = location.split("provisional=")[1]
 
     # Complete signup
-    resp = await client.post("/auth/google/complete-signup", json={
-        "provisional_token": provisional_token,
-        "org_name": "Google Signup Firm",
-    })
+    resp = await client.post(
+        "/auth/google/complete-signup",
+        json={
+            "provisional_token": provisional_token,
+            "org_name": "Google Signup Firm",
+        },
+    )
     assert resp.status_code == 201
     body = resp.json()
     assert "tokens" in body
@@ -117,19 +123,26 @@ async def test_provisional_token_cannot_be_reused(client: AsyncClient):
         )
     provisional = redirect.headers["location"].split("provisional=")[1]
 
-    await client.post("/auth/google/complete-signup", json={
-        "provisional_token": provisional,
-        "org_name": "First Org",
-    })
+    await client.post(
+        "/auth/google/complete-signup",
+        json={
+            "provisional_token": provisional,
+            "org_name": "First Org",
+        },
+    )
     # Second attempt
-    resp = await client.post("/auth/google/complete-signup", json={
-        "provisional_token": provisional,
-        "org_name": "Second Org",
-    })
+    resp = await client.post(
+        "/auth/google/complete-signup",
+        json={
+            "provisional_token": provisional,
+            "org_name": "Second Org",
+        },
+    )
     assert resp.status_code == 409
 
 
 # ─── Existing user account linking ───────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_existing_email_user_gets_google_linked(client: AsyncClient):
@@ -168,10 +181,13 @@ async def test_existing_google_user_logs_in_directly(client: AsyncClient):
             follow_redirects=False,
         )
     provisional = r1.headers["location"].split("provisional=")[1]
-    await client.post("/auth/google/complete-signup", json={
-        "provisional_token": provisional,
-        "org_name": "Returning User Firm",
-    })
+    await client.post(
+        "/auth/google/complete-signup",
+        json={
+            "provisional_token": provisional,
+            "org_name": "Returning User Firm",
+        },
+    )
 
     # Second sign-in — should redirect to /login with tokens directly
     with mock_google_fetch(new_user):
@@ -198,10 +214,13 @@ async def test_conflicting_google_accounts_rejected(client: AsyncClient):
             follow_redirects=False,
         )
     provisional = r1.headers["location"].split("provisional=")[1]
-    await client.post("/auth/google/complete-signup", json={
-        "provisional_token": provisional,
-        "org_name": "Conflict Firm",
-    })
+    await client.post(
+        "/auth/google/complete-signup",
+        json={
+            "provisional_token": provisional,
+            "org_name": "Conflict Firm",
+        },
+    )
 
     # Try to sign in with DIFFERENT Google ID but same email
     conflict_user = {**new_user, "sub": "conflict-id-B"}
@@ -217,6 +236,7 @@ async def test_conflicting_google_accounts_rejected(client: AsyncClient):
 
 # ─── Trial on regular registration ───────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_regular_registration_starts_trial(client: AsyncClient):
     """
@@ -227,10 +247,12 @@ async def test_regular_registration_starts_trial(client: AsyncClient):
     assert resp.status_code == 201
     token = resp.json()["tokens"]["access_token"]
 
-    sub = (await client.get(
-        "/billing/subscription",
-        headers={"Authorization": f"Bearer {token}"},
-    )).json()
+    sub = (
+        await client.get(
+            "/billing/subscription",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    ).json()
     assert sub["trial_active"] is True
     assert sub["effective_plan"] == "trial"
     assert sub["features"]["drive_integration"] is True
@@ -249,9 +271,13 @@ async def test_trial_plan_allows_unlimited_matters(client: AsyncClient):
 
     # Create 6 matters — free plan only allows 5, but trial allows unlimited
     for i in range(6):
-        r = await client.post("/matters/", json={
-            "title": f"Trial Matter {i+1}",
-            "matter_type": "advisory",
-            "client_id": cl["id"],
-        }, headers=headers)
+        r = await client.post(
+            "/matters/",
+            json={
+                "title": f"Trial Matter {i+1}",
+                "matter_type": "advisory",
+                "client_id": cl["id"],
+            },
+            headers=headers,
+        )
         assert r.status_code == 201, f"Matter {i+1} failed: {r.json()}"

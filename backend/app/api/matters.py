@@ -1,23 +1,25 @@
 # backend/app/api/matters.py
-import uuid
 import math
-from fastapi import APIRouter, Query, status, HTTPException
-from app.core.deps import AuthUser, GoogleCreds, DB
-from app.services.matter_service import MatterService
+import uuid
+
+from fastapi import APIRouter, HTTPException, Query, status
+from sqlalchemy import select
+
+from app.core.deps import DB, AuthUser, GoogleCreds
+from app.models.matter import MatterStatus
+from app.models.matter_document import MatterEmail
+from app.schemas.matter import (
+    ActivityLogResponse,
+    EmailLinkRequest,
+    MatterCreate,
+    MatterListResponse,
+    MatterResponse,
+    MatterUpdate,
+    StatusUpdate,
+)
 from app.services.activity_service import ActivityService
 from app.services.gmail_service import GmailService
-from app.models.matter_document import MatterEmail
-from sqlalchemy import select
-from app.schemas.matter import (
-    MatterCreate,
-    MatterUpdate,
-    MatterResponse,
-    MatterListResponse,
-    EmailLinkRequest,
-    StatusUpdate,
-    ActivityLogResponse,
-)
-from app.models.matter import MatterStatus
+from app.services.matter_service import MatterService
 
 router = APIRouter()
 
@@ -166,6 +168,7 @@ async def get_activity(
 
 # ─── Phase 8: Gmail thread linking ────────────────────────────────────────────
 
+
 @router.post("/{matter_id}/emails", response_model=dict, status_code=status.HTTP_201_CREATED)
 async def link_email_thread(
     matter_id: uuid.UUID,
@@ -179,7 +182,6 @@ async def link_email_thread(
     Fetches thread subject + snippet from Gmail API and stores the reference.
     Logs an email_linked activity entry.
     """
-
 
     # Verify matter belongs to org
     matter_service = MatterService(db)
@@ -198,7 +200,7 @@ async def link_email_thread(
     )
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=409, detail="Thread already linked to this matter")
-    
+
     email_link = MatterEmail(
         matter_id=matter_id,
         organisation_id=current_user.org_id,
@@ -240,10 +242,12 @@ async def list_linked_emails(matter_id: uuid.UUID, current_user: AuthUser, db: D
     await matter_service.get_matter(matter_id, current_user.org_id)
 
     result = await db.execute(
-        select(MatterEmail).where(
+        select(MatterEmail)
+        .where(
             MatterEmail.matter_id == matter_id,
             MatterEmail.organisation_id == current_user.org_id,
-        ).order_by(MatterEmail.linked_at.desc())
+        )
+        .order_by(MatterEmail.linked_at.desc())
     )
     emails = result.scalars().all()
 

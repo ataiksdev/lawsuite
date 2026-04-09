@@ -18,24 +18,29 @@ Endpoints:
   GET  /admin/stats                  — platform-level metrics
   PATCH  /admin/organisations/{id}/features
 """
+
+import math
 import uuid
+from typing import Annotated, Literal
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
-from typing import Literal, Annotated
-from sqlalchemy import select, func
-# from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, select
 
-from app.core.deps import AuthUser, DB, CurrentUser
 from app.core.config import settings
-from app.models.organisation import Organisation
-from app.models.user import User, OrganisationMember
+
+# from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.deps import DB, AuthUser, CurrentUser
 from app.models.matter import Matter, MatterStatus
+from app.models.organisation import Organisation
 from app.models.report import Report
+from app.models.user import OrganisationMember, User
 
 router = APIRouter()
 
 
 # ── Platform admin guard ──────────────────────────────────────────────────────
+
 
 async def require_platform_admin(current_user: AuthUser) -> CurrentUser:
     """
@@ -63,14 +68,17 @@ async def require_platform_admin(current_user: AuthUser) -> CurrentUser:
         )
     return current_user
 
+
 PlatformAdmin = Annotated[CurrentUser, Depends(require_platform_admin)]
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
 
+
 class PlanOverrideRequest(BaseModel):
     plan: Literal["free", "pro", "agency"]
     reason: str | None = None
+
 
 class FeatureFlagsRequest(BaseModel):
     """
@@ -80,7 +88,9 @@ class FeatureFlagsRequest(BaseModel):
     Valid boolean feature keys:
       drive_integration, reports, mfa, advanced_tasks, api_access
     """
+
     flags: dict[str, bool] = {}
+
 
 class OrgDetailResponse(BaseModel):
     id: uuid.UUID
@@ -97,54 +107,55 @@ class OrgDetailResponse(BaseModel):
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 
+
 @router.get("/stats", response_model=dict)
 async def platform_stats(
     db: DB,
     current_user: PlatformAdmin,
 ):
     """High-level platform metrics for the operator dashboard."""
-    total_orgs = (await db.execute(
-        select(func.count()).select_from(Organisation)
-    )).scalar_one()
+    total_orgs = (await db.execute(select(func.count()).select_from(Organisation))).scalar_one()
 
-    active_orgs = (await db.execute(
-        select(func.count()).select_from(Organisation)
-        .where(Organisation.is_active == True)
-    )).scalar_one()
+    active_orgs = (
+        await db.execute(select(func.count()).select_from(Organisation).where(Organisation.is_active == True))
+    ).scalar_one()
 
     plan_counts = {}
     for plan in ("free", "pro", "agency"):
-        count = (await db.execute(
-            select(func.count()).select_from(Organisation)
-            .where(Organisation.plan == plan, Organisation.is_active == True)
-        )).scalar_one()
+        count = (
+            await db.execute(
+                select(func.count())
+                .select_from(Organisation)
+                .where(Organisation.plan == plan, Organisation.is_active == True)
+            )
+        ).scalar_one()
         plan_counts[plan] = count
 
     # Count orgs in active trial
     from datetime import datetime, timezone
+
     now = datetime.now(timezone.utc)
-    trial_active = (await db.execute(
-        select(func.count()).select_from(Organisation)
-        .where(
-            Organisation.trial_ends_at > now,
-            Organisation.trial_used == False,
-            Organisation.is_active == True,
+    trial_active = (
+        await db.execute(
+            select(func.count())
+            .select_from(Organisation)
+            .where(
+                Organisation.trial_ends_at > now,
+                Organisation.trial_used == False,
+                Organisation.is_active == True,
+            )
         )
-    )).scalar_one()
+    ).scalar_one()
 
-    total_users = (await db.execute(
-        select(func.count()).select_from(User)
-        .where(User.is_active == True)
-    )).scalar_one()
+    total_users = (await db.execute(select(func.count()).select_from(User).where(User.is_active == True))).scalar_one()
 
-    total_matters = (await db.execute(
-        select(func.count()).select_from(Matter)
-    )).scalar_one()
+    total_matters = (await db.execute(select(func.count()).select_from(Matter))).scalar_one()
 
-    google_connected = (await db.execute(
-        select(func.count()).select_from(Organisation)
-        .where(Organisation.google_refresh_token.isnot(None))
-    )).scalar_one()
+    google_connected = (
+        await db.execute(
+            select(func.count()).select_from(Organisation).where(Organisation.google_refresh_token.isnot(None))
+        )
+    ).scalar_one()
 
     return {
         "organisations": {
@@ -177,15 +188,11 @@ async def list_organisations(
     page_size: int = Query(25, ge=1, le=100),
 ):
     """List all organisations on the platform with summary, Supports search, plan, trial filters"""
-    import math
     from datetime import datetime, timezone
 
     query = select(Organisation)
     if search:
-        query = query.where(
-            Organisation.name.ilike(f"%{search}%") |
-            Organisation.slug.ilike(f"%{search}%")
-        )
+        query = query.where(Organisation.name.ilike(f"%{search}%") | Organisation.slug.ilike(f"%{search}%"))
     if plan:
         query = query.where(Organisation.plan == plan)
     if trial_active is True:
@@ -197,37 +204,37 @@ async def list_organisations(
     elif trial_active is False:
         now = datetime.now(timezone.utc)
         query = query.where(
-            (Organisation.trial_ends_at == None) |
-            (Organisation.trial_ends_at <= now) |
-            (Organisation.trial_used == True)
+            (Organisation.trial_ends_at == None)
+            | (Organisation.trial_ends_at <= now)
+            | (Organisation.trial_used == True)
         )
 
     count_q = select(func.count()).select_from(query.subquery())
     total = (await db.execute(count_q)).scalar_one()
 
-    query = (
-        query.order_by(Organisation.created_at.desc())
-        .offset((page - 1) * page_size)
-        .limit(page_size)
-    )
+    query = query.order_by(Organisation.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
     orgs = (await db.execute(query)).scalars().all()
 
     now = datetime.now(timezone.utc)
 
     items = []
     for org in orgs:
-        member_count = (await db.execute(
-            select(func.count()).select_from(OrganisationMember)
-            .where(OrganisationMember.organisation_id == org.id)
-        )).scalar_one()
-
-        matter_count = (await db.execute(
-            select(func.count()).select_from(Matter)
-            .where(
-                Matter.organisation_id == org.id,
-                Matter.status != MatterStatus.archived,
+        member_count = (
+            await db.execute(
+                select(func.count()).select_from(OrganisationMember).where(OrganisationMember.organisation_id == org.id)
             )
-        )).scalar_one()
+        ).scalar_one()
+
+        matter_count = (
+            await db.execute(
+                select(func.count())
+                .select_from(Matter)
+                .where(
+                    Matter.organisation_id == org.id,
+                    Matter.status != MatterStatus.archived,
+                )
+            )
+        ).scalar_one()
 
         trial_on = (
             org.trial_ends_at is not None
@@ -235,21 +242,23 @@ async def list_organisations(
             and not org.trial_used
         )
 
-        items.append({
-            "id": str(org.id),
-            "name": org.name,
-            "slug": org.slug,
-            "plan": org.plan,
-            "is_active": org.is_active,
-            "trial_active": trial_on,
-            "trial_ends_at": org.trial_ends_at.isoformat() if org.trial_ends_at else None,
-            "paystack_customer_code": org.paystack_customer_code,
-            "google_connected": bool(org.google_refresh_token),
-            "feature_flags": org.feature_flags,
-            "member_count": member_count,
-            "matter_count": matter_count,
-            "created_at": org.created_at.isoformat(),
-        })
+        items.append(
+            {
+                "id": str(org.id),
+                "name": org.name,
+                "slug": org.slug,
+                "plan": org.plan,
+                "is_active": org.is_active,
+                "trial_active": trial_on,
+                "trial_ends_at": org.trial_ends_at.isoformat() if org.trial_ends_at else None,
+                "paystack_customer_code": org.paystack_customer_code,
+                "google_connected": bool(org.google_refresh_token),
+                "feature_flags": org.feature_flags,
+                "member_count": member_count,
+                "matter_count": matter_count,
+                "created_at": org.created_at.isoformat(),
+            }
+        )
 
     return {
         "items": items,
@@ -259,7 +268,9 @@ async def list_organisations(
         "pages": math.ceil(total / page_size) if total else 0,
     }
 
+
 # ── Organisation detail ───────────────────────────────────────────────────────
+
 
 @router.get("/organisations/{org_id}", response_model=dict)
 async def get_organisation_detail(
@@ -270,35 +281,31 @@ async def get_organisation_detail(
     """Full detail for a single organisation including subscription and usage."""
     from datetime import datetime, timezone
 
-    org = (await db.execute(
-        select(Organisation).where(Organisation.id == org_id)
-    )).scalar_one_or_none()
+    org = (await db.execute(select(Organisation).where(Organisation.id == org_id))).scalar_one_or_none()
 
     if not org:
         raise HTTPException(status_code=404, detail="Organisation not found")
 
-    members = (await db.execute(
-        select(User, OrganisationMember)
-        .join(OrganisationMember, OrganisationMember.user_id == User.id)
-        .where(OrganisationMember.organisation_id == org_id)
-        .order_by(OrganisationMember.joined_at)
-    )).all()
+    members = (
+        await db.execute(
+            select(User, OrganisationMember)
+            .join(OrganisationMember, OrganisationMember.user_id == User.id)
+            .where(OrganisationMember.organisation_id == org_id)
+            .order_by(OrganisationMember.joined_at)
+        )
+    ).all()
 
-    matter_count = (await db.execute(
-        select(func.count()).select_from(Matter)
-        .where(Matter.organisation_id == org_id)
-    )).scalar_one()
+    matter_count = (
+        await db.execute(select(func.count()).select_from(Matter).where(Matter.organisation_id == org_id))
+    ).scalar_one()
 
-    report_count = (await db.execute(
-        select(func.count()).select_from(Report)
-        .where(Report.organisation_id == org_id)
-    )).scalar_one()
+    report_count = (
+        await db.execute(select(func.count()).select_from(Report).where(Report.organisation_id == org_id))
+    ).scalar_one()
 
     now = datetime.now(timezone.utc)
     trial_on = (
-        org.trial_ends_at is not None
-        and org.trial_ends_at.replace(tzinfo=timezone.utc) > now
-        and not org.trial_used
+        org.trial_ends_at is not None and org.trial_ends_at.replace(tzinfo=timezone.utc) > now and not org.trial_used
     )
 
     return {
@@ -314,8 +321,7 @@ async def get_organisation_detail(
         "google_connected": bool(org.google_refresh_token),
         "drive_webhook_active": bool(org.drive_webhook_channel_id),
         "drive_webhook_expires_at": (
-            org.drive_webhook_expires_at.isoformat()
-            if org.drive_webhook_expires_at else None
+            org.drive_webhook_expires_at.isoformat() if org.drive_webhook_expires_at else None
         ),
         "feature_flags": org.feature_flags,
         "created_at": org.created_at.isoformat(),
@@ -339,7 +345,9 @@ async def get_organisation_detail(
         ],
     }
 
+
 # ── Subscription detail ───────────────────────────────────────────────────────
+
 
 @router.get("/organisations/{org_id}/subscription", response_model=dict)
 async def get_org_subscription(
@@ -352,10 +360,13 @@ async def get_org_subscription(
     feature overrides, Paystack link, and plan limits.
     """
     from app.services.billing_service import BillingService
+
     service = BillingService(db)
     return await service.get_subscription(org_id)
 
+
 # ── Plan override ─────────────────────────────────────────────────────────────
+
 
 @router.post("/organisations/{org_id}/plan", response_model=dict)
 async def override_plan(
@@ -370,9 +381,7 @@ async def override_plan(
     Setting a paid plan also marks trial_used=True to end the trial.
     Use for comping accounts, fixing billing issues, or testing.
     """
-    org = (await db.execute(
-        select(Organisation).where(Organisation.id == org_id)
-    )).scalar_one_or_none()
+    org = (await db.execute(select(Organisation).where(Organisation.id == org_id))).scalar_one_or_none()
 
     if not org:
         raise HTTPException(status_code=404, detail="Organisation not found")
@@ -390,7 +399,9 @@ async def override_plan(
         "reason": payload.reason,
     }
 
+
 # ── Feature flag overrides ────────────────────────────────────────────────────
+
 
 @router.patch("/organisations/{org_id}/features", response_model=dict)
 async def set_feature_flags(
@@ -411,6 +422,7 @@ async def set_feature_flags(
     The effective feature set is returned so you can confirm the result.
     """
     from app.services.billing_service import BillingService
+
     service = BillingService(db)
     effective = await service.set_feature_flags(org_id, payload.flags)
     return {
@@ -421,6 +433,7 @@ async def set_feature_flags(
 
 
 # ── Extend trial ──────────────────────────────────────────────────────────────
+
 
 class ExtendTrialRequest(BaseModel):
     days: int
@@ -438,7 +451,7 @@ async def extend_trial(
     If the trial has already expired or been used, this resets it.
     Useful for sales conversations or support escalations.
     """
-    from datetime import datetime, timezone, timedelta
+    from datetime import datetime, timedelta, timezone
 
     if payload.days < 1 or payload.days > 365:
         raise HTTPException(
@@ -446,18 +459,13 @@ async def extend_trial(
             detail="days must be between 1 and 365",
         )
 
-    org = (await db.execute(
-        select(Organisation).where(Organisation.id == org_id)
-    )).scalar_one_or_none()
+    org = (await db.execute(select(Organisation).where(Organisation.id == org_id))).scalar_one_or_none()
     if not org:
         raise HTTPException(status_code=404, detail="Organisation not found")
 
     now = datetime.now(timezone.utc)
     # If trial is still active, extend from current end date
-    current_end = (
-        org.trial_ends_at.replace(tzinfo=timezone.utc)
-        if org.trial_ends_at else now
-    )
+    current_end = org.trial_ends_at.replace(tzinfo=timezone.utc) if org.trial_ends_at else now
     new_end = max(current_end, now) + timedelta(days=payload.days)
 
     org.trial_ends_at = new_end
@@ -470,7 +478,9 @@ async def extend_trial(
         "days_extended": payload.days,
     }
 
+
 # ── Activate / Deactivate ─────────────────────────────────────────────────────
+
 
 @router.post("/organisations/{org_id}/deactivate", response_model=dict)
 async def deactivate_organisation(
@@ -479,9 +489,7 @@ async def deactivate_organisation(
     current_user: PlatformAdmin,
 ):
     """Suspend an organisation — members can no longer log in."""
-    org = (await db.execute(
-        select(Organisation).where(Organisation.id == org_id)
-    )).scalar_one_or_none()
+    org = (await db.execute(select(Organisation).where(Organisation.id == org_id))).scalar_one_or_none()
 
     if not org:
         raise HTTPException(status_code=404, detail="Organisation not found")
@@ -501,9 +509,7 @@ async def activate_organisation(
     current_user: PlatformAdmin,
 ):
     """Reactivate a suspended organisation."""
-    org = (await db.execute(
-        select(Organisation).where(Organisation.id == org_id)
-    )).scalar_one_or_none()
+    org = (await db.execute(select(Organisation).where(Organisation.id == org_id))).scalar_one_or_none()
 
     if not org:
         raise HTTPException(status_code=404, detail="Organisation not found")

@@ -1,10 +1,11 @@
 # backend/app/core/deps.py
-from typing import Annotated
-from fastapi import Depends, HTTPException, Security, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.ext.asyncio import AsyncSession
-from google.oauth2.credentials import Credentials
 import uuid
+from typing import Annotated
+
+from fastapi import Depends, HTTPException, Security, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from google.oauth2.credentials import Credentials
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import decode_token
@@ -81,13 +82,14 @@ async def get_google_credentials(
     Used by Drive, Docs, Gmail, and Calendar connectors.
     """
     from app.services.google_auth_service import GoogleAuthService
+
     service = GoogleAuthService(db)
     return await service.get_valid_credentials(current_user.org_id)
 
 
 # ─── Annotated shorthands for route signatures ────────────────────────────────
 
-AuthUser   = Annotated[CurrentUser, Depends(get_current_user)]
-AdminUser  = Annotated[CurrentUser, Depends(require_admin)]
-DB         = Annotated[AsyncSession, Depends(get_db)]
+AuthUser = Annotated[CurrentUser, Depends(get_current_user)]
+AdminUser = Annotated[CurrentUser, Depends(require_admin)]
+DB = Annotated[AsyncSession, Depends(get_db)]
 GoogleCreds = Annotated[Credentials, Depends(get_google_credentials)]

@@ -1,10 +1,11 @@
 # backend/app/schemas/auth.py
-from pydantic import BaseModel, EmailStr, Field, field_validator
 import uuid
 from datetime import datetime
 
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 # ─── Register ────────────────────────────────────────────────────────────────
+
 
 class RegisterRequest(BaseModel):
     org_name: str = Field(..., min_length=2, max_length=255)
@@ -29,6 +30,7 @@ class RegisterRequest(BaseModel):
 
 # ─── Login ───────────────────────────────────────────────────────────────────
 
+
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
@@ -43,11 +45,13 @@ class TokenResponse(BaseModel):
 
 # ─── Refresh ─────────────────────────────────────────────────────────────────
 
+
 class RefreshRequest(BaseModel):
     refresh_token: str
 
 
 # ─── Invite ──────────────────────────────────────────────────────────────────
+
 
 class InviteRequest(BaseModel):
     email: EmailStr
@@ -70,6 +74,7 @@ class AcceptInviteRequest(BaseModel):
 
 
 # ─── Member management ────────────────────────────────────────────────────────
+
 
 class UpdateMemberRoleRequest(BaseModel):
     role: str = Field(..., pattern="^(admin|member|viewer)$")
@@ -114,11 +119,13 @@ class ResetPasswordRequest(BaseModel):
 
 # ─── Organisation management ─────────────────────────────────────────────────
 
+
 class UpdateOrgRequest(BaseModel):
     name: str | None = Field(None, min_length=2, max_length=255)
 
 
 # ─── Responses ───────────────────────────────────────────────────────────────
+
 
 class UserResponse(BaseModel):
     id: uuid.UUID

@@ -1,9 +1,12 @@
+import enum
 import uuid
 from datetime import datetime
-from sqlalchemy import String, DateTime, ForeignKey, Text, Enum as SAEnum, Integer, Boolean
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID
-import enum
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
 from app.core.database import Base
 
 
@@ -27,27 +30,16 @@ class DocumentStatus(str, enum.Enum):
 class MatterDocument(Base):
     __tablename__ = "matter_documents"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     matter_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("matters.id", ondelete="CASCADE"),
-        nullable=False, index=True
+        UUID(as_uuid=True), ForeignKey("matters.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    organisation_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), nullable=False, index=True
-    )
-    added_by: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")
-    )
+    organisation_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    added_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
 
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    doc_type: Mapped[DocumentType] = mapped_column(
-        SAEnum(DocumentType), default=DocumentType.other, nullable=False
-    )
-    status: Mapped[DocumentStatus] = mapped_column(
-        SAEnum(DocumentStatus), default=DocumentStatus.draft, nullable=False
-    )
+    doc_type: Mapped[DocumentType] = mapped_column(SAEnum(DocumentType), default=DocumentType.other, nullable=False)
+    status: Mapped[DocumentStatus] = mapped_column(SAEnum(DocumentStatus), default=DocumentStatus.draft, nullable=False)
     current_version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
 
     # Current Drive file (denormalised from latest version for fast lookup)
@@ -55,19 +47,15 @@ class MatterDocument(Base):
     drive_url: Mapped[str | None] = mapped_column(Text)
 
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    added_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, nullable=False
-    )
+    added_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow,
-        onupdate=datetime.utcnow, nullable=False
+        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
     )
 
     # Relationships
     matter: Mapped["Matter"] = relationship(back_populates="documents")
     versions: Mapped[list["MatterDocumentVersion"]] = relationship(
-        back_populates="document", cascade="all, delete-orphan",
-        order_by="MatterDocumentVersion.version_number"
+        back_populates="document", cascade="all, delete-orphan", order_by="MatterDocumentVersion.version_number"
     )
 
     def __repr__(self) -> str:
@@ -77,12 +65,9 @@ class MatterDocument(Base):
 class MatterDocumentVersion(Base):
     __tablename__ = "matter_document_versions"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     document_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("matter_documents.id", ondelete="CASCADE"),
-        nullable=False, index=True
+        UUID(as_uuid=True), ForeignKey("matter_documents.id", ondelete="CASCADE"), nullable=False, index=True
     )
     uploaded_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")
@@ -94,9 +79,7 @@ class MatterDocumentVersion(Base):
     drive_url: Mapped[str] = mapped_column(Text, nullable=False)
     notes: Mapped[str | None] = mapped_column(Text)
 
-    uploaded_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, nullable=False
-    )
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
 
     # Relationships
     document: Mapped["MatterDocument"] = relationship(back_populates="versions")
@@ -108,27 +91,18 @@ class MatterDocumentVersion(Base):
 class MatterEmail(Base):
     __tablename__ = "matter_emails"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     matter_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("matters.id", ondelete="CASCADE"),
-        nullable=False, index=True
+        UUID(as_uuid=True), ForeignKey("matters.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    organisation_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), nullable=False, index=True
-    )
-    linked_by: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")
-    )
+    organisation_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    linked_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
 
     gmail_thread_id: Mapped[str] = mapped_column(String(255), nullable=False)
     subject: Mapped[str | None] = mapped_column(String(500))
     snippet: Mapped[str | None] = mapped_column(Text)
 
-    linked_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, nullable=False
-    )
+    linked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
 
     # Relationships
     matter: Mapped["Matter"] = relationship(back_populates="emails")

@@ -19,24 +19,24 @@ Flow:
   2. Google: redirects to /auth/google/callback?code=xxx&state=yyy
   3. Backend: exchanges code → verifies ID token → upserts user → returns tokens
 """
+
 import uuid
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+
 from fastapi import HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.security import create_access_token, create_refresh_token
-from app.models.user import User, OrganisationMember, UserRole
 from app.models.organisation import Organisation
+from app.models.user import OrganisationMember, User, UserRole
 from app.schemas.auth import TokenResponse
-
 
 GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
 SCOPES = ["openid", "email", "profile"]
 
 
 class GoogleSignInService:
-
     def __init__(self, db: AsyncSession):
         self.db = db
 
@@ -56,14 +56,12 @@ class GoogleSignInService:
         url, _ = client.create_authorization_url(
             "https://accounts.google.com/o/oauth2/v2/auth",
             state=state,
-            access_type="online",   # identity only — no refresh token needed
+            access_type="online",  # identity only — no refresh token needed
             prompt="select_account",
         )
         return url
 
-    async def exchange_code_and_login(
-        self, code: str, state: str
-    ) -> tuple[User, Organisation, TokenResponse, bool]:
+    async def exchange_code_and_login(self, code: str, state: str) -> tuple[User, Organisation, TokenResponse, bool]:
         """
         Exchange the authorization code for user info, then upsert the user.
 
@@ -83,9 +81,9 @@ class GoogleSignInService:
         avatar_url = user_info.get("picture")
 
         # 1. Look up by google_oauth_id first
-        existing_by_google = (await self.db.execute(
-            select(User).where(User.google_oauth_id == google_id)
-        )).scalar_one_or_none()
+        existing_by_google = (
+            await self.db.execute(select(User).where(User.google_oauth_id == google_id))
+        ).scalar_one_or_none()
 
         if existing_by_google:
             user = existing_by_google
@@ -94,9 +92,7 @@ class GoogleSignInService:
 
         else:
             # 2. Look up by email
-            existing_by_email = (await self.db.execute(
-                select(User).where(User.email == email)
-            )).scalar_one_or_none()
+            existing_by_email = (await self.db.execute(select(User).where(User.email == email))).scalar_one_or_none()
 
             if existing_by_email:
                 if existing_by_email.google_oauth_id and existing_by_email.google_oauth_id != google_id:
@@ -130,21 +126,23 @@ class GoogleSignInService:
         await self.db.flush()
 
         # Get org membership if user already has one
-        membership = (await self.db.execute(
-            select(OrganisationMember)
-            .where(OrganisationMember.user_id == user.id)
-            .order_by(OrganisationMember.joined_at)
-            .limit(1)
-        )).scalar_one_or_none()
+        membership = (
+            await self.db.execute(
+                select(OrganisationMember)
+                .where(OrganisationMember.user_id == user.id)
+                .order_by(OrganisationMember.joined_at)
+                .limit(1)
+            )
+        ).scalar_one_or_none()
 
         if not membership and not is_new:
             # Existing user has no org — treat as new for onboarding
             is_new = True
 
         if membership:
-            org = (await self.db.execute(
-                select(Organisation).where(Organisation.id == membership.organisation_id)
-            )).scalar_one()
+            org = (
+                await self.db.execute(select(Organisation).where(Organisation.id == membership.organisation_id))
+            ).scalar_one()
             role = membership.role
         else:
             # New user — no org yet. Return a provisional token with no org_id.
@@ -180,26 +178,21 @@ class GoogleSignInService:
         )
         return user, org, tokens, is_new
 
-    async def complete_signup(
-        self, user_id: uuid.UUID, org_name: str
-    ) -> tuple[User, Organisation, TokenResponse]:
+    async def complete_signup(self, user_id: uuid.UUID, org_name: str) -> tuple[User, Organisation, TokenResponse]:
         """
         Called after OAuth sign-in when a new Google user needs to create their org.
         Validates the provisional token server-side (token type check done in route).
         """
-        from datetime import timedelta
 
-        user = (await self.db.execute(
-            select(User).where(User.id == user_id)
-        )).scalar_one_or_none()
+        user = (await self.db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
 
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
         # Verify user doesn't already have an org
-        existing_mem = (await self.db.execute(
-            select(OrganisationMember).where(OrganisationMember.user_id == user_id)
-        )).scalar_one_or_none()
+        existing_mem = (
+            await self.db.execute(select(OrganisationMember).where(OrganisationMember.user_id == user_id))
+        ).scalar_one_or_none()
         if existing_mem:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -207,17 +200,16 @@ class GoogleSignInService:
             )
 
         # Create org with 30-day trial
-        from app.services.auth_service import _make_slug
-        from datetime import timezone as tz
         import datetime as dt
+        from datetime import timezone as tz
+
+        from app.services.auth_service import _make_slug
 
         base_slug = _make_slug(org_name)
         slug = base_slug
         counter = 1
         while True:
-            taken = (await self.db.execute(
-                select(Organisation).where(Organisation.slug == slug)
-            )).scalar_one_or_none()
+            taken = (await self.db.execute(select(Organisation).where(Organisation.slug == slug))).scalar_one_or_none()
             if not taken:
                 break
             slug = f"{base_slug}-{counter}"
@@ -307,10 +299,10 @@ def _create_provisional_token(user_id: uuid.UUID) -> str:
     Type 'google_provisional' — only accepted by /auth/google/complete-signup.
     """
     from datetime import timedelta
+
     from jose import jwt
-    expire = __import__("datetime").datetime.now(
-        __import__("datetime").timezone.utc
-    ) + timedelta(minutes=10)
+
+    expire = __import__("datetime").datetime.now(__import__("datetime").timezone.utc) + timedelta(minutes=10)
     return jwt.encode(
         {
             "sub": str(user_id),

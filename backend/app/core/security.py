@@ -1,8 +1,10 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any
-from jose import jwt, JWTError
-from passlib.context import CryptContext
+
 from cryptography.fernet import Fernet
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+
 from app.core.config import settings
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -10,6 +12,7 @@ fernet = Fernet(settings.encryption_key.encode())
 
 
 # ─── Passwords ───────────────────────────────────────────────────────────────
+
 
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
@@ -21,10 +24,9 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 # ─── JWT ─────────────────────────────────────────────────────────────────────
 
+
 def create_access_token(subject: str, org_id: str, role: str) -> str:
-    expire = datetime.now(timezone.utc) + timedelta(
-        minutes=settings.access_token_expire_minutes
-    )
+    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
     payload = {
         "sub": subject,
         "org_id": org_id,
@@ -36,9 +38,7 @@ def create_access_token(subject: str, org_id: str, role: str) -> str:
 
 
 def create_refresh_token(subject: str, org_id: str) -> str:
-    expire = datetime.now(timezone.utc) + timedelta(
-        days=settings.refresh_token_expire_days
-    )
+    expire = datetime.now(timezone.utc) + timedelta(days=settings.refresh_token_expire_days)
     payload = {
         "sub": subject,
         "org_id": org_id,
@@ -60,6 +60,7 @@ def decode_token(token: str) -> dict[str, Any]:
 
 
 # ─── Encryption (for OAuth tokens at rest) ───────────────────────────────────
+
 
 def encrypt(value: str) -> str:
     return fernet.encrypt(value.encode()).decode()

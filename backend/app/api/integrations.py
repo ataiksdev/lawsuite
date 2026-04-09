@@ -1,9 +1,10 @@
 # backend/app/api/integrations.py
 from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
-from app.core.deps import AuthUser, AdminUser, DB
-from app.services.google_auth_service import GoogleAuthService
+
 from app.core.config import settings
+from app.core.deps import DB, AdminUser, AuthUser
+from app.services.google_auth_service import GoogleAuthService
 
 router = APIRouter()
 
@@ -17,6 +18,7 @@ async def google_connect(current_user: AdminUser, db: DB):
     Requires drive_integration feature (available on Pro, Agency, and trial).
     """
     from app.services.billing_service import BillingService
+
     await BillingService(db).check_feature_access(current_user.org_id, "drive_integration")
     service = GoogleAuthService(db)
     auth_url, state = service.get_authorization_url(current_user.org_id)
@@ -39,9 +41,7 @@ async def google_callback(
     await service.handle_callback(code=code, state=state)
 
     # Redirect to frontend settings with success flag
-    return RedirectResponse(
-        url=f"{settings.frontend_url}/settings/integrations?google=connected"
-    )
+    return RedirectResponse(url=f"{settings.frontend_url}/settings/integrations?google=connected")
 
 
 @router.get("/google/status")

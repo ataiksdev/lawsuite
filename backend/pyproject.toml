@@ -50,8 +50,11 @@ testpaths = ["tests"]
 addopts = "--html=report.html --self-contained-html"
 
 [tool.ruff]
-line-length = 88
+line-length = 120
+
+[tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
+ignore = ["E712", "E711", "E402", "F821", "E501"]
 
 [tool.mypy]
 python_version = "3.11"

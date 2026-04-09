@@ -1,37 +1,39 @@
 # backend/app/services/auth_service.py
-import uuid
 import secrets
+import uuid
 from datetime import datetime, timedelta, timezone
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update
+
 from fastapi import HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.security import (
-    hash_password,
-    verify_password,
     create_access_token,
     create_refresh_token,
     decode_token,
+    hash_password,
+    verify_password,
 )
 from app.models.organisation import Organisation
-from app.models.user import User, OrganisationMember, UserRole
+from app.models.user import OrganisationMember, User, UserRole
 from app.schemas.auth import (
-    RegisterRequest,
-    LoginRequest,
-    TokenResponse,
-    RefreshRequest,
-    InviteRequest,
     AcceptInviteRequest,
-    UpdateMemberRoleRequest,
-    UpdateProfileRequest,
     ChangePasswordRequest,
+    InviteRequest,
+    LoginRequest,
+    RefreshRequest,
+    RegisterRequest,
+    TokenResponse,
+    UpdateMemberRoleRequest,
     UpdateOrgRequest,
+    UpdateProfileRequest,
 )
 
 
 def _make_slug(name: str) -> str:
     import re
+
     slug = name.lower().strip()
     slug = re.sub(r"[^a-z0-9]+", "-", slug)
     slug = slug.strip("-")
@@ -56,16 +58,13 @@ def _build_tokens(user_id: uuid.UUID, org_id: uuid.UUID, role: str) -> TokenResp
 
 
 class AuthService:
-
     def __init__(self, db: AsyncSession):
         self.db = db
 
     # ── Register ──────────────────────────────────────────────────────────
 
     async def register(self, data: RegisterRequest) -> tuple[User, Organisation, TokenResponse]:
-        existing = await self.db.execute(
-            select(User).where(User.email == data.email.lower())
-        )
+        existing = await self.db.execute(select(User).where(User.email == data.email.lower()))
         if existing.scalar_one_or_none():
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -76,16 +75,14 @@ class AuthService:
         slug = base_slug
         counter = 1
         while True:
-            taken = await self.db.execute(
-                select(Organisation).where(Organisation.slug == slug)
-            )
+            taken = await self.db.execute(select(Organisation).where(Organisation.slug == slug))
             if not taken.scalar_one_or_none():
                 break
             slug = f"{base_slug}-{counter}"
             counter += 1
 
-        from datetime import timedelta, timezone as tz
         import datetime as dt
+        from datetime import timezone as tz
 
         trial_ends = dt.datetime.now(tz.utc) + dt.timedelta(days=settings.trial_days)
         org = Organisation(
@@ -124,9 +121,7 @@ class AuthService:
     # ── Login ─────────────────────────────────────────────────────────────
 
     async def login(self, data: LoginRequest) -> tuple[User, Organisation, TokenResponse]:
-        result = await self.db.execute(
-            select(User).where(User.email == data.email.lower())
-        )
+        result = await self.db.execute(select(User).where(User.email == data.email.lower()))
         user = result.scalar_one_or_none()
 
         if not user or not user.hashed_password:
@@ -158,9 +153,7 @@ class AuthService:
                 detail="User is not a member of any organisation",
             )
 
-        org_result = await self.db.execute(
-            select(Organisation).where(Organisation.id == membership.organisation_id)
-        )
+        org_result = await self.db.execute(select(Organisation).where(Organisation.id == membership.organisation_id))
         org = org_result.scalar_one_or_none()
         if not org or not org.is_active:
             raise HTTPException(
@@ -171,6 +164,7 @@ class AuthService:
         # If MFA is enabled, return a short-lived pending token instead of full access
         if user.mfa_enabled:
             from app.services.mfa_service import MFAService
+
             mfa_token = MFAService.create_mfa_pending_token(user.id, org.id, membership.role)
             return user, org, mfa_token, True  # mfa_required=True
 
@@ -229,11 +223,10 @@ class AuthService:
         invited_by: uuid.UUID,
     ) -> tuple[User, str]:
         from app.services.billing_service import BillingService
+
         await BillingService(self.db).check_seat_limit(org_id)
 
-        existing_user = await self.db.execute(
-            select(User).where(User.email == data.email.lower())
-        )
+        existing_user = await self.db.execute(select(User).where(User.email == data.email.lower()))
         user = existing_user.scalar_one_or_none()
 
         if user:
@@ -283,9 +276,7 @@ class AuthService:
 
     # ── Resend invite ─────────────────────────────────────────────────────
 
-    async def resend_invite(
-        self, user_id: uuid.UUID, org_id: uuid.UUID
-    ) -> tuple[User, str]:
+    async def resend_invite(self, user_id: uuid.UUID, org_id: uuid.UUID) -> tuple[User, str]:
         result = await self.db.execute(
             select(User, OrganisationMember)
             .join(OrganisationMember, OrganisationMember.user_id == User.id)
@@ -317,9 +308,7 @@ class AuthService:
     # ── Accept invite ─────────────────────────────────────────────────────
 
     async def accept_invite(self, data: AcceptInviteRequest) -> tuple[User, Organisation, TokenResponse]:
-        result = await self.db.execute(
-            select(User).where(User.invite_token == data.token)
-        )
+        result = await self.db.execute(select(User).where(User.invite_token == data.token))
         user = result.scalar_one_or_none()
 
         if not user:
@@ -353,9 +342,7 @@ class AuthService:
                 detail="No organisation membership found for this invite",
             )
 
-        org_result = await self.db.execute(
-            select(Organisation).where(Organisation.id == membership.organisation_id)
-        )
+        org_result = await self.db.execute(select(Organisation).where(Organisation.id == membership.organisation_id))
         org = org_result.scalar_one()
 
         await self.db.commit()
@@ -419,7 +406,6 @@ class AuthService:
             )
 
         user, membership = row
-        old_role = membership.role
         membership.role = UserRole(data.role)
 
         await self.db.commit()
@@ -471,9 +457,7 @@ class AuthService:
             )
         )
         if not other_orgs.scalars().first():
-            user_result = await self.db.execute(
-                select(User).where(User.id == target_user_id)
-            )
+            user_result = await self.db.execute(select(User).where(User.id == target_user_id))
             user = user_result.scalar_one_or_none()
             if user:
                 user.is_active = False
@@ -494,9 +478,7 @@ class AuthService:
             raise HTTPException(status_code=404, detail="User not found")
 
         if data.email and data.email.lower() != user.email:
-            existing = await self.db.execute(
-                select(User).where(User.email == data.email.lower())
-            )
+            existing = await self.db.execute(select(User).where(User.email == data.email.lower()))
             if existing.scalar_one_or_none():
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
@@ -539,9 +521,7 @@ class AuthService:
         org_id: uuid.UUID,
         data: UpdateOrgRequest,
     ) -> Organisation:
-        result = await self.db.execute(
-            select(Organisation).where(Organisation.id == org_id)
-        )
+        result = await self.db.execute(select(Organisation).where(Organisation.id == org_id))
         org = result.scalar_one_or_none()
         if not org:
             raise HTTPException(status_code=404, detail="Organisation not found")
@@ -600,9 +580,7 @@ class AuthService:
     # ── Get organisation ──────────────────────────────────────────────────
 
     async def get_organisation(self, org_id: uuid.UUID) -> Organisation:
-        result = await self.db.execute(
-            select(Organisation).where(Organisation.id == org_id)
-        )
+        result = await self.db.execute(select(Organisation).where(Organisation.id == org_id))
         org = result.scalar_one_or_none()
         if not org:
             raise HTTPException(status_code=404, detail="Organisation not found")

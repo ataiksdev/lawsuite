@@ -1,9 +1,10 @@
 # backend/tests/api/test_integrations.py
-import pytest
 import json
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 from httpx import AsyncClient
-from datetime import datetime, timezone, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 
 REGISTER = {
@@ -21,13 +22,12 @@ async def get_admin_token(client: AsyncClient) -> str:
 
 # ─── GET /integrations/google/connect ─────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_google_connect_returns_auth_url(client: AsyncClient):
     token = await get_admin_token(client)
 
-    with patch(
-        "app.services.google_auth_service.Flow.from_client_config"
-    ) as mock_flow_cls:
+    with patch("app.services.google_auth_service.Flow.from_client_config") as mock_flow_cls:
         mock_flow = MagicMock()
         mock_flow.authorization_url.return_value = (
             "https://accounts.google.com/o/oauth2/auth?mock=true",
@@ -55,6 +55,7 @@ async def test_google_connect_requires_admin(client: AsyncClient):
 
 # ─── GET /integrations/google/status ──────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_google_status_not_connected(client: AsyncClient):
     token = await get_admin_token(client)
@@ -72,24 +73,23 @@ async def test_google_status_not_connected(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_google_status_after_connect(client: AsyncClient, db_session: AsyncSession):
     """Simulate a connected org by patching token fields directly."""
-    from app.core.security import encrypt
-    from app.models.organisation import Organisation
     from sqlalchemy import select
 
-    token = await get_admin_token(client)
+    from app.core.security import encrypt
+    from app.models.organisation import Organisation
+
+    await get_admin_token(client)
 
     # Manually inject fake tokens into the org record
     # from app.core.database import AsyncSessionLocal
-    reg_resp = await client.post("/auth/register", json={
-        **REGISTER, "email": "connected@test.ng", "org_name": "Connected Org"
-    })
+    reg_resp = await client.post(
+        "/auth/register", json={**REGISTER, "email": "connected@test.ng", "org_name": "Connected Org"}
+    )
     org_id = reg_resp.json()["organisation"]["id"]
     conn_token = reg_resp.json()["tokens"]["access_token"]
 
     # async with AsyncSessionLocal() as db:
-    result = await db_session.execute(
-        select(Organisation).where(Organisation.id == org_id)
-    )
+    result = await db_session.execute(select(Organisation).where(Organisation.id == org_id))
     org = result.scalar_one()
     org.google_access_token = encrypt("fake-access-token")
     org.google_refresh_token = encrypt("fake-refresh-token")
@@ -109,15 +109,17 @@ async def test_google_status_after_connect(client: AsyncClient, db_session: Asyn
 
 # ─── GET /integrations/google/callback ────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_google_callback_stores_tokens(client: AsyncClient, db_session: AsyncSession):
-    from app.models.organisation import Organisation
     from sqlalchemy import select
+
+    from app.models.organisation import Organisation
     # from app.core.database import AsyncSessionLocal
 
-    reg = await client.post("/auth/register", json={
-        **REGISTER, "email": "callback@test.ng", "org_name": "Callback Org"
-    })
+    reg = await client.post(
+        "/auth/register", json={**REGISTER, "email": "callback@test.ng", "org_name": "Callback Org"}
+    )
     org_id = reg.json()["organisation"]["id"]
 
     mock_credentials = MagicMock()
@@ -144,9 +146,7 @@ async def test_google_callback_stores_tokens(client: AsyncClient, db_session: As
 
     # Tokens should now be stored (encrypted) on the org
     # async with AsyncSessionLocal() as db:
-    result = await db_session.execute(
-        select(Organisation).where(Organisation.id == org_id)
-    )
+    result = await db_session.execute(select(Organisation).where(Organisation.id == org_id))
     org = result.scalar_one()
     assert org.google_access_token is not None
     assert org.google_refresh_token is not None
@@ -154,16 +154,18 @@ async def test_google_callback_stores_tokens(client: AsyncClient, db_session: As
 
 # ─── DELETE /integrations/google ──────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_google_disconnect(client: AsyncClient, db_session: AsyncSession):
+    from sqlalchemy import select
+
     from app.core.security import encrypt
     from app.models.organisation import Organisation
-    from sqlalchemy import select
     # from app.core.database import AsyncSessionLocal
 
-    reg = await client.post("/auth/register", json={
-        **REGISTER, "email": "disconnect@test.ng", "org_name": "Disconnect Org"
-    })
+    reg = await client.post(
+        "/auth/register", json={**REGISTER, "email": "disconnect@test.ng", "org_name": "Disconnect Org"}
+    )
     org_id = reg.json()["organisation"]["id"]
     disc_token = reg.json()["tokens"]["access_token"]
 

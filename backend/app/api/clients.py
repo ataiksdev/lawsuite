@@ -1,10 +1,12 @@
 # backend/app/api/clients.py
-import uuid
-from fastapi import APIRouter, Query, status
-from app.core.deps import AuthUser, DB
-from app.services.client_service import ClientService
-from app.schemas.client import ClientCreate, ClientUpdate, ClientResponse
 import math
+import uuid
+
+from fastapi import APIRouter, Query, status
+
+from app.core.deps import DB, AuthUser
+from app.schemas.client import ClientCreate, ClientResponse, ClientUpdate
+from app.services.client_service import ClientService
 
 router = APIRouter()
 

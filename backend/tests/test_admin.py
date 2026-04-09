@@ -1,7 +1,8 @@
 # backend/tests/api/test_admin.py
+from unittest.mock import patch
+
 import pytest
 from httpx import AsyncClient
-from unittest.mock import patch
 
 REGISTER = {
     "org_name": "Admin Test Firm",
@@ -19,12 +20,11 @@ async def get_admin_token_and_org(client: AsyncClient, payload: dict = REGISTER)
 
 # ─── Member management ────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_list_members(client: AsyncClient):
     token, _ = await get_admin_token_and_org(client)
-    resp = await client.get(
-        "/auth/members", headers={"Authorization": f"Bearer {token}"}
-    )
+    resp = await client.get("/auth/members", headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 200
     members = resp.json()
     assert len(members) == 1
@@ -39,11 +39,15 @@ async def test_invite_and_resend(client: AsyncClient):
     headers = {"Authorization": f"Bearer {token}"}
 
     # Invite
-    invite_resp = await client.post("/auth/invite", json={
-        "email": "newbie@admintest.ng",
-        "full_name": "New Member",
-        "role": "member",
-    }, headers=headers)
+    invite_resp = await client.post(
+        "/auth/invite",
+        json={
+            "email": "newbie@admintest.ng",
+            "full_name": "New Member",
+            "role": "member",
+        },
+        headers=headers,
+    )
     assert invite_resp.status_code == 201
     user_id = invite_resp.json()["user_id"]
 
@@ -55,9 +59,7 @@ async def test_invite_and_resend(client: AsyncClient):
     assert pending[0]["is_active"] is False
 
     # Resend invite
-    resend = await client.post(
-        f"/auth/members/{user_id}/resend-invite", headers=headers
-    )
+    resend = await client.post(f"/auth/members/{user_id}/resend-invite", headers=headers)
     assert resend.status_code == 200
     assert "invite_url" in resend.json()
 
@@ -68,11 +70,15 @@ async def test_update_member_role(client: AsyncClient):
     headers = {"Authorization": f"Bearer {token}"}
 
     # Invite someone
-    inv = await client.post("/auth/invite", json={
-        "email": "roletest@admintest.ng",
-        "full_name": "Role Tester",
-        "role": "member",
-    }, headers=headers)
+    inv = await client.post(
+        "/auth/invite",
+        json={
+            "email": "roletest@admintest.ng",
+            "full_name": "Role Tester",
+            "role": "member",
+        },
+        headers=headers,
+    )
     user_id = inv.json()["user_id"]
 
     # Promote to admin
@@ -107,11 +113,15 @@ async def test_remove_member(client: AsyncClient):
     token, _ = await get_admin_token_and_org(client)
     headers = {"Authorization": f"Bearer {token}"}
 
-    inv = await client.post("/auth/invite", json={
-        "email": "remove@admintest.ng",
-        "full_name": "To Remove",
-        "role": "viewer",
-    }, headers=headers)
+    inv = await client.post(
+        "/auth/invite",
+        json={
+            "email": "remove@admintest.ng",
+            "full_name": "To Remove",
+            "role": "viewer",
+        },
+        headers=headers,
+    )
     user_id = inv.json()["user_id"]
 
     resp = await client.delete(f"/auth/members/{user_id}", headers=headers)
@@ -134,14 +144,13 @@ async def test_cannot_remove_self(client: AsyncClient):
 
 # ─── Profile + password ───────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_update_own_profile(client: AsyncClient):
     token, _ = await get_admin_token_and_org(client)
     headers = {"Authorization": f"Bearer {token}"}
 
-    resp = await client.patch(
-        "/auth/me", json={"full_name": "Sola Adeyemi Updated"}, headers=headers
-    )
+    resp = await client.patch("/auth/me", json={"full_name": "Sola Adeyemi Updated"}, headers=headers)
     assert resp.status_code == 200
     assert resp.json()["full_name"] == "Sola Adeyemi Updated"
 
@@ -151,16 +160,18 @@ async def test_change_password(client: AsyncClient):
     token, _ = await get_admin_token_and_org(client)
     headers = {"Authorization": f"Bearer {token}"}
 
-    resp = await client.post("/auth/me/change-password", json={
-        "current_password": "TestPass123",
-        "new_password": "NewPass456",
-    }, headers=headers)
+    resp = await client.post(
+        "/auth/me/change-password",
+        json={
+            "current_password": "TestPass123",
+            "new_password": "NewPass456",
+        },
+        headers=headers,
+    )
     assert resp.status_code == 204
 
     # Can login with new password
-    login = await client.post("/auth/login", json={
-        "email": REGISTER["email"], "password": "NewPass456"
-    })
+    login = await client.post("/auth/login", json={"email": REGISTER["email"], "password": "NewPass456"})
     assert login.status_code == 200
 
 
@@ -169,21 +180,24 @@ async def test_change_password_wrong_current(client: AsyncClient):
     token, _ = await get_admin_token_and_org(client)
     headers = {"Authorization": f"Bearer {token}"}
 
-    resp = await client.post("/auth/me/change-password", json={
-        "current_password": "WrongPass999",
-        "new_password": "NewPass456",
-    }, headers=headers)
+    resp = await client.post(
+        "/auth/me/change-password",
+        json={
+            "current_password": "WrongPass999",
+            "new_password": "NewPass456",
+        },
+        headers=headers,
+    )
     assert resp.status_code == 401
 
 
 # ─── Organisation management ──────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_get_organisation(client: AsyncClient):
     token, org_id = await get_admin_token_and_org(client)
-    resp = await client.get(
-        "/auth/organisation", headers={"Authorization": f"Bearer {token}"}
-    )
+    resp = await client.get("/auth/organisation", headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 200
     body = resp.json()
     assert body["id"] == org_id
@@ -211,6 +225,7 @@ async def test_update_organisation_requires_admin(client: AsyncClient):
 
 # ─── Platform admin (stats + org management) ──────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_platform_admin_blocked_without_config(client: AsyncClient):
     """Without PLATFORM_ADMIN_ORG_ID set, /admin/* returns 403."""
@@ -220,9 +235,7 @@ async def test_platform_admin_blocked_without_config(client: AsyncClient):
         "platform_admin_org_id",
         "",
     ):
-        resp = await client.get(
-            "/admin/stats", headers={"Authorization": f"Bearer {token}"}
-        )
+        resp = await client.get("/admin/stats", headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 403
 
 
@@ -236,9 +249,7 @@ async def test_platform_admin_stats(client: AsyncClient):
         "platform_admin_org_id",
         org_id,
     ):
-        resp = await client.get(
-            "/admin/stats", headers={"Authorization": f"Bearer {token}"}
-        )
+        resp = await client.get("/admin/stats", headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 200
     body = resp.json()
     assert "organisations" in body
@@ -256,9 +267,7 @@ async def test_platform_admin_list_orgs(client: AsyncClient):
         "platform_admin_org_id",
         org_id,
     ):
-        resp = await client.get(
-            "/admin/organisations", headers={"Authorization": f"Bearer {token}"}
-        )
+        resp = await client.get("/admin/organisations", headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 200
     body = resp.json()
     assert body["total"] >= 1
@@ -270,9 +279,9 @@ async def test_platform_admin_plan_override(client: AsyncClient):
     token, org_id = await get_admin_token_and_org(client)
 
     # Register a second org to override
-    reg2 = await client.post("/auth/register", json={
-        **REGISTER, "email": "target@admintest.ng", "org_name": "Target Org"
-    })
+    reg2 = await client.post(
+        "/auth/register", json={**REGISTER, "email": "target@admintest.ng", "org_name": "Target Org"}
+    )
     target_org_id = reg2.json()["organisation"]["id"]
 
     with patch.object(
@@ -293,9 +302,9 @@ async def test_platform_admin_plan_override(client: AsyncClient):
 async def test_platform_admin_deactivate_reactivate(client: AsyncClient):
     token, org_id = await get_admin_token_and_org(client)
 
-    reg2 = await client.post("/auth/register", json={
-        **REGISTER, "email": "suspend@admintest.ng", "org_name": "Suspend Org"
-    })
+    reg2 = await client.post(
+        "/auth/register", json={**REGISTER, "email": "suspend@admintest.ng", "org_name": "Suspend Org"}
+    )
     target_org_id = reg2.json()["organisation"]["id"]
 
     with patch.object(
@@ -306,13 +315,9 @@ async def test_platform_admin_deactivate_reactivate(client: AsyncClient):
         headers = {"Authorization": f"Bearer {token}"}
 
         # Deactivate
-        resp = await client.post(
-            f"/admin/organisations/{target_org_id}/deactivate", headers=headers
-        )
+        resp = await client.post(f"/admin/organisations/{target_org_id}/deactivate", headers=headers)
         assert resp.status_code == 200
 
         # Reactivate
-        resp = await client.post(
-            f"/admin/organisations/{target_org_id}/activate", headers=headers
-        )
+        resp = await client.post(f"/admin/organisations/{target_org_id}/activate", headers=headers)
         assert resp.status_code == 200

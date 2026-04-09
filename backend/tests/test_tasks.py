@@ -1,6 +1,7 @@
 # backend/tests/api/test_tasks.py
-import pytest
 from datetime import date, timedelta
+
+import pytest
 from httpx import AsyncClient
 
 REGISTER = {
@@ -25,15 +26,22 @@ async def setup(client: AsyncClient) -> tuple[str, str, str]:
     cl = await client.post("/clients/", json={"name": "Task Client"}, headers=headers)
     client_id = cl.json()["id"]
 
-    m = await client.post("/matters/", json={
-        "title": "Test Matter", "matter_type": "advisory", "client_id": client_id,
-    }, headers=headers)
+    m = await client.post(
+        "/matters/",
+        json={
+            "title": "Test Matter",
+            "matter_type": "advisory",
+            "client_id": client_id,
+        },
+        headers=headers,
+    )
     matter_id = m.json()["id"]
 
     return token, client_id, matter_id
 
 
 # ─── Create ───────────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_create_task(client: AsyncClient):
@@ -56,14 +64,20 @@ async def test_create_task_with_due_date(client: AsyncClient):
     headers = {"Authorization": f"Bearer {token}"}
     due = str(date.today() + timedelta(days=7))
 
-    resp = await client.post(f"/matters/{matter_id}/tasks", json={
-        **TASK_PAYLOAD, "due_date": due,
-    }, headers=headers)
+    resp = await client.post(
+        f"/matters/{matter_id}/tasks",
+        json={
+            **TASK_PAYLOAD,
+            "due_date": due,
+        },
+        headers=headers,
+    )
     assert resp.status_code == 201
     assert resp.json()["due_date"] == due
 
 
 # ─── List ─────────────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_list_tasks(client: AsyncClient):
@@ -99,6 +113,7 @@ async def test_list_tasks_filter_by_status(client: AsyncClient):
 
 # ─── Update ───────────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_update_task_fields(client: AsyncClient):
     token, _, matter_id = await setup(client)
@@ -107,9 +122,14 @@ async def test_update_task_fields(client: AsyncClient):
     t = await client.post(f"/matters/{matter_id}/tasks", json=TASK_PAYLOAD, headers=headers)
     task_id = t.json()["id"]
 
-    resp = await client.patch(f"/matters/{matter_id}/tasks/{task_id}", json={
-        "title": "Updated title", "priority": "low",
-    }, headers=headers)
+    resp = await client.patch(
+        f"/matters/{matter_id}/tasks/{task_id}",
+        json={
+            "title": "Updated title",
+            "priority": "low",
+        },
+        headers=headers,
+    )
     assert resp.status_code == 200
     assert resp.json()["title"] == "Updated title"
     assert resp.json()["priority"] == "low"
@@ -146,6 +166,7 @@ async def test_complete_task_logs_activity(client: AsyncClient):
 
 # ─── Delete (soft) ────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_soft_delete_task(client: AsyncClient):
     token, _, matter_id = await setup(client)
@@ -167,11 +188,13 @@ async def test_delete_task_not_found(client: AsyncClient):
     token, _, matter_id = await setup(client)
     headers = {"Authorization": f"Bearer {token}"}
     import uuid
+
     resp = await client.delete(f"/matters/{matter_id}/tasks/{uuid.uuid4()}", headers=headers)
     assert resp.status_code == 404
 
 
 # ─── Overdue ──────────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_overdue_tasks(client: AsyncClient):
@@ -182,12 +205,24 @@ async def test_overdue_tasks(client: AsyncClient):
     future = str(date.today() + timedelta(days=3))
 
     # Create one overdue and one future task
-    await client.post(f"/matters/{matter_id}/tasks", json={
-        **TASK_PAYLOAD, "title": "Overdue task", "due_date": past,
-    }, headers=headers)
-    await client.post(f"/matters/{matter_id}/tasks", json={
-        **TASK_PAYLOAD, "title": "Future task", "due_date": future,
-    }, headers=headers)
+    await client.post(
+        f"/matters/{matter_id}/tasks",
+        json={
+            **TASK_PAYLOAD,
+            "title": "Overdue task",
+            "due_date": past,
+        },
+        headers=headers,
+    )
+    await client.post(
+        f"/matters/{matter_id}/tasks",
+        json={
+            **TASK_PAYLOAD,
+            "title": "Future task",
+            "due_date": future,
+        },
+        headers=headers,
+    )
 
     resp = await client.get("/tasks/overdue", headers=headers)
     assert resp.status_code == 200
@@ -204,9 +239,14 @@ async def test_completed_tasks_not_overdue(client: AsyncClient):
     headers = {"Authorization": f"Bearer {token}"}
 
     past = str(date.today() - timedelta(days=3))
-    t = await client.post(f"/matters/{matter_id}/tasks", json={
-        **TASK_PAYLOAD, "due_date": past,
-    }, headers=headers)
+    t = await client.post(
+        f"/matters/{matter_id}/tasks",
+        json={
+            **TASK_PAYLOAD,
+            "due_date": past,
+        },
+        headers=headers,
+    )
     task_id = t.json()["id"]
 
     # Mark it done
@@ -221,13 +261,23 @@ async def test_task_isolation(client: AsyncClient):
     """Tasks from org A must not appear in org B's overdue list."""
     token_a, _, matter_id = await setup(client)
     past = str(date.today() - timedelta(days=1))
-    await client.post(f"/matters/{matter_id}/tasks", json={
-        **TASK_PAYLOAD, "due_date": past,
-    }, headers={"Authorization": f"Bearer {token_a}"})
+    await client.post(
+        f"/matters/{matter_id}/tasks",
+        json={
+            **TASK_PAYLOAD,
+            "due_date": past,
+        },
+        headers={"Authorization": f"Bearer {token_a}"},
+    )
 
-    reg_b = await client.post("/auth/register", json={
-        **REGISTER, "email": "orgb@tasktest.ng", "org_name": "Org B Tasks",
-    })
+    reg_b = await client.post(
+        "/auth/register",
+        json={
+            **REGISTER,
+            "email": "orgb@tasktest.ng",
+            "org_name": "Org B Tasks",
+        },
+    )
     token_b = reg_b.json()["tokens"]["access_token"]
 
     resp = await client.get("/tasks/overdue", headers={"Authorization": f"Bearer {token_b}"})

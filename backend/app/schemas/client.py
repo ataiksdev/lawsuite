@@ -1,10 +1,11 @@
 # backend/app/schemas/client.py
 import uuid
 from datetime import datetime
+
 from pydantic import BaseModel, EmailStr, Field
 
-
 # ─── Requests ────────────────────────────────────────────────────────────────
+
 
 class ClientCreate(BaseModel):
     name: str = Field(..., min_length=2, max_length=255)
@@ -24,6 +25,7 @@ class ClientUpdate(BaseModel):
 
 # ─── Responses ───────────────────────────────────────────────────────────────
 
+
 class ClientResponse(BaseModel):
     id: uuid.UUID
     organisation_id: uuid.UUID
@@ -41,6 +43,7 @@ class ClientResponse(BaseModel):
 
 class ClientSummary(BaseModel):
     """Lightweight client shape used inside matter responses."""
+
     id: uuid.UUID
     name: str
     email: str | None

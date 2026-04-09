@@ -1,6 +1,6 @@
 # backend/tests/api/test_documents.py
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 from httpx import AsyncClient
 
 REGISTER = {
@@ -25,23 +25,27 @@ async def setup(client: AsyncClient) -> tuple[str, str]:
     token = reg.json()["tokens"]["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
     cl = await client.post("/clients/", json={"name": "Doc Client"}, headers=headers)
-    m = await client.post("/matters/", json={
-        "title": "Document Matter", "matter_type": "drafting",
-        "client_id": cl.json()["id"],
-    }, headers=headers)
+    m = await client.post(
+        "/matters/",
+        json={
+            "title": "Document Matter",
+            "matter_type": "drafting",
+            "client_id": cl.json()["id"],
+        },
+        headers=headers,
+    )
     return token, m.json()["id"]
 
 
 # ─── Link document ────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_link_document(client: AsyncClient):
     token, matter_id = await setup(client)
     headers = {"Authorization": f"Bearer {token}"}
 
-    resp = await client.post(
-        f"/matters/{matter_id}/documents", json=LINK_PAYLOAD, headers=headers
-    )
+    resp = await client.post(f"/matters/{matter_id}/documents", json=LINK_PAYLOAD, headers=headers)
     assert resp.status_code == 201
     body = resp.json()
     assert body["name"] == "Engagement Letter"
@@ -58,9 +62,15 @@ async def test_list_documents(client: AsyncClient):
     headers = {"Authorization": f"Bearer {token}"}
 
     await client.post(f"/matters/{matter_id}/documents", json=LINK_PAYLOAD, headers=headers)
-    await client.post(f"/matters/{matter_id}/documents", json={
-        **LINK_PAYLOAD, "name": "NDA", "drive_file_id": "another-id",
-    }, headers=headers)
+    await client.post(
+        f"/matters/{matter_id}/documents",
+        json={
+            **LINK_PAYLOAD,
+            "name": "NDA",
+            "drive_file_id": "another-id",
+        },
+        headers=headers,
+    )
 
     resp = await client.get(f"/matters/{matter_id}/documents", headers=headers)
     assert resp.status_code == 200
@@ -69,14 +79,13 @@ async def test_list_documents(client: AsyncClient):
 
 # ─── Add version ──────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_add_version(client: AsyncClient):
     token, matter_id = await setup(client)
     headers = {"Authorization": f"Bearer {token}"}
 
-    doc = await client.post(
-        f"/matters/{matter_id}/documents", json=LINK_PAYLOAD, headers=headers
-    )
+    doc = await client.post(f"/matters/{matter_id}/documents", json=LINK_PAYLOAD, headers=headers)
     doc_id = doc.json()["id"]
 
     resp = await client.post(
@@ -103,19 +112,20 @@ async def test_version_history_newest_first(client: AsyncClient):
     token, matter_id = await setup(client)
     headers = {"Authorization": f"Bearer {token}"}
 
-    doc = await client.post(
-        f"/matters/{matter_id}/documents", json=LINK_PAYLOAD, headers=headers
-    )
+    doc = await client.post(f"/matters/{matter_id}/documents", json=LINK_PAYLOAD, headers=headers)
     doc_id = doc.json()["id"]
 
-    await client.post(f"/matters/{matter_id}/documents/{doc_id}/versions", json={
-        "drive_file_id": "v2-file", "drive_url": "https://docs.google.com/v2",
-        "label": "revised draft",
-    }, headers=headers)
-
-    resp = await client.get(
-        f"/matters/{matter_id}/documents/{doc_id}/versions", headers=headers
+    await client.post(
+        f"/matters/{matter_id}/documents/{doc_id}/versions",
+        json={
+            "drive_file_id": "v2-file",
+            "drive_url": "https://docs.google.com/v2",
+            "label": "revised draft",
+        },
+        headers=headers,
     )
+
+    resp = await client.get(f"/matters/{matter_id}/documents/{doc_id}/versions", headers=headers)
     assert resp.status_code == 200
     versions = resp.json()
     assert len(versions) == 2
@@ -126,14 +136,13 @@ async def test_version_history_newest_first(client: AsyncClient):
 
 # ─── Status update ────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_update_document_status(client: AsyncClient):
     token, matter_id = await setup(client)
     headers = {"Authorization": f"Bearer {token}"}
 
-    doc = await client.post(
-        f"/matters/{matter_id}/documents", json=LINK_PAYLOAD, headers=headers
-    )
+    doc = await client.post(f"/matters/{matter_id}/documents", json=LINK_PAYLOAD, headers=headers)
     doc_id = doc.json()["id"]
 
     resp = await client.patch(
@@ -147,19 +156,16 @@ async def test_update_document_status(client: AsyncClient):
 
 # ─── Soft delete ──────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_delete_document(client: AsyncClient):
     token, matter_id = await setup(client)
     headers = {"Authorization": f"Bearer {token}"}
 
-    doc = await client.post(
-        f"/matters/{matter_id}/documents", json=LINK_PAYLOAD, headers=headers
-    )
+    doc = await client.post(f"/matters/{matter_id}/documents", json=LINK_PAYLOAD, headers=headers)
     doc_id = doc.json()["id"]
 
-    resp = await client.delete(
-        f"/matters/{matter_id}/documents/{doc_id}", headers=headers
-    )
+    resp = await client.delete(f"/matters/{matter_id}/documents/{doc_id}", headers=headers)
     assert resp.status_code == 204
 
     list_resp = await client.get(f"/matters/{matter_id}/documents", headers=headers)
@@ -168,14 +174,13 @@ async def test_delete_document(client: AsyncClient):
 
 # ─── Activity log entries ─────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_document_link_logs_activity(client: AsyncClient):
     token, matter_id = await setup(client)
     headers = {"Authorization": f"Bearer {token}"}
 
-    await client.post(
-        f"/matters/{matter_id}/documents", json=LINK_PAYLOAD, headers=headers
-    )
+    await client.post(f"/matters/{matter_id}/documents", json=LINK_PAYLOAD, headers=headers)
 
     activity = await client.get(f"/matters/{matter_id}/activity", headers=headers)
     event_types = [e["event_type"] for e in activity.json()["items"]]
@@ -187,15 +192,18 @@ async def test_document_version_logs_activity(client: AsyncClient):
     token, matter_id = await setup(client)
     headers = {"Authorization": f"Bearer {token}"}
 
-    doc = await client.post(
-        f"/matters/{matter_id}/documents", json=LINK_PAYLOAD, headers=headers
-    )
+    doc = await client.post(f"/matters/{matter_id}/documents", json=LINK_PAYLOAD, headers=headers)
     doc_id = doc.json()["id"]
 
-    await client.post(f"/matters/{matter_id}/documents/{doc_id}/versions", json={
-        "drive_file_id": "v2", "drive_url": "https://docs.google.com/v2",
-        "label": "signed copy",
-    }, headers=headers)
+    await client.post(
+        f"/matters/{matter_id}/documents/{doc_id}/versions",
+        json={
+            "drive_file_id": "v2",
+            "drive_url": "https://docs.google.com/v2",
+            "label": "signed copy",
+        },
+        headers=headers,
+    )
 
     activity = await client.get(f"/matters/{matter_id}/activity", headers=headers)
     event_types = [e["event_type"] for e in activity.json()["items"]]
@@ -204,28 +212,30 @@ async def test_document_version_logs_activity(client: AsyncClient):
 
 # ─── Document isolation ───────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_document_isolation(client: AsyncClient):
     token_a, matter_id = await setup(client)
     doc = await client.post(
-        f"/matters/{matter_id}/documents", json=LINK_PAYLOAD,
-        headers={"Authorization": f"Bearer {token_a}"}
+        f"/matters/{matter_id}/documents", json=LINK_PAYLOAD, headers={"Authorization": f"Bearer {token_a}"}
     )
     doc_id = doc.json()["id"]
 
-    reg_b = await client.post("/auth/register", json={
-        **REGISTER, "email": "orgb@doctest.ng", "org_name": "Org B Docs"
-    })
+    reg_b = await client.post("/auth/register", json={**REGISTER, "email": "orgb@doctest.ng", "org_name": "Org B Docs"})
     token_b = reg_b.json()["tokens"]["access_token"]
     cl_b = await client.post("/clients/", json={"name": "B Client"}, headers={"Authorization": f"Bearer {token_b}"})
-    m_b = await client.post("/matters/", json={
-        "title": "B Matter", "matter_type": "advisory",
-        "client_id": cl_b.json()["id"],
-    }, headers={"Authorization": f"Bearer {token_b}"})
+    m_b = await client.post(
+        "/matters/",
+        json={
+            "title": "B Matter",
+            "matter_type": "advisory",
+            "client_id": cl_b.json()["id"],
+        },
+        headers={"Authorization": f"Bearer {token_b}"},
+    )
 
     # Org B tries to access Org A's document — should 404
     resp = await client.get(
-        f"/matters/{m_b.json()['id']}/documents/{doc_id}/versions",
-        headers={"Authorization": f"Bearer {token_b}"}
+        f"/matters/{m_b.json()['id']}/documents/{doc_id}/versions", headers={"Authorization": f"Bearer {token_b}"}
     )
     assert resp.status_code == 404

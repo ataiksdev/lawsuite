@@ -1,22 +1,25 @@
 # backend/app/api/tasks.py
-import uuid
 import math
+import uuid
+
 from fastapi import APIRouter, Query, status
-from app.core.deps import AuthUser, DB
-from app.services.task_service import TaskService
-from app.schemas.task import (
-    TaskCreate,
-    TaskUpdate,
-    TaskResponse,
-    TaskListResponse,
-    OverdueTaskResponse,
-)
+
+from app.core.deps import DB, AuthUser
 from app.models.task import TaskStatus
+from app.schemas.task import (
+    OverdueTaskResponse,
+    TaskCreate,
+    TaskListResponse,
+    TaskResponse,
+    TaskUpdate,
+)
+from app.services.task_service import TaskService
 
 router = APIRouter()
 
 
 # ─── Nested under /matters/{matter_id}/tasks ─────────────────────────────────
+
 
 @router.get("/{matter_id}/tasks", response_model=TaskListResponse)
 async def list_tasks(
@@ -107,6 +110,7 @@ async def delete_task(
 
 
 # ─── Standalone overdue endpoint ─────────────────────────────────────────────
+
 
 @router.get("/overdue", response_model=dict)
 async def get_overdue_tasks(

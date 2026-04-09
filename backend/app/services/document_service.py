@@ -1,22 +1,22 @@
 # backend/app/services/document_service.py
 import uuid
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
+
 from fastapi import HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.matter import Matter
 from app.models.matter_document import (
+    DocumentStatus,
     MatterDocument,
     MatterDocumentVersion,
-    DocumentStatus,
 )
 from app.schemas.document import DocumentLink, DocumentVersionUpload
 from app.services.activity_service import ActivityService
 
 
 class DocumentService:
-
     def __init__(self, db: AsyncSession):
         self.db = db
         self.activity = ActivityService(db)
@@ -38,9 +38,7 @@ class DocumentService:
             )
         return matter
 
-    async def _get_document(
-        self, doc_id: uuid.UUID, matter_id: uuid.UUID, org_id: uuid.UUID
-    ) -> MatterDocument:
+    async def _get_document(self, doc_id: uuid.UUID, matter_id: uuid.UUID, org_id: uuid.UUID) -> MatterDocument:
         result = await self.db.execute(
             select(MatterDocument)
             .options(selectinload(MatterDocument.versions))

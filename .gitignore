@@ -16,6 +16,5 @@
 frontend/.github
 frontend/.gitignore
 frontend/.next
-backend/alembic/env.py
 frontend/node_modules
 

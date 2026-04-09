@@ -43,6 +43,10 @@ class User(Base):
     invite_token: Mapped[str | None] = mapped_column(String(255), unique=True)
     invite_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
+    # Password reset flow
+    password_reset_token: Mapped[str | None] = mapped_column(String(255), unique=True)
+    password_reset_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow, nullable=False
     )

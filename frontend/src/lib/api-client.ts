@@ -29,44 +29,49 @@ export class ApiClientError extends Error {
 }
 
 export class NetworkError extends Error {
-  constructor(message: string) {
+  constructor(message = 'Network error. Please check your connection.') {
     super(message);
     this.name = 'NetworkError';
   }
 }
 
 export class UnauthorizedError extends Error {
-  status: number;
+  status = 401;
   detail: string;
-
   constructor(message: string) {
     super(message);
     this.name = 'UnauthorizedError';
-    this.status = 401;
     this.detail = message;
   }
 }
 
 export class ForbiddenError extends Error {
-  status: number;
+  status = 403;
   detail: string;
-
   constructor(message: string) {
     super(message);
     this.name = 'ForbiddenError';
-    this.status = 403;
+    this.detail = message;
+  }
+}
+
+/** Thrown when the backend returns HTTP 402 — plan limit or feature gate hit. */
+export class PaymentRequiredError extends Error {
+  status = 402;
+  detail: string;
+  constructor(message: string) {
+    super(message);
+    this.name = 'PaymentRequiredError';
     this.detail = message;
   }
 }
 
 export class NotFoundError extends Error {
-  status: number;
+  status = 404;
   detail: string;
-
   constructor(message: string) {
     super(message);
     this.name = 'NotFoundError';
-    this.status = 404;
     this.detail = message;
   }
 }
@@ -182,10 +187,7 @@ class ApiClient {
     if (!config.skipAuth) {
       const token = this.getAccessToken();
       if (token) {
-        config.headers = {
-          ...config.headers,
-          Authorization: `Bearer ${token}`,
-        };
+        config.headers = { ...config.headers, Authorization: `Bearer ${token}` };
       }
     }
 
@@ -204,18 +206,14 @@ class ApiClient {
         }
       });
       const paramString = searchParams.toString();
-      if (paramString) {
-        url += `?${paramString}`;
-      }
+      if (paramString) url += `?${paramString}`;
     }
 
-    // Build fetch options
     const fetchOptions: RequestInit = {
       method: config.method,
       headers: config.headers,
       signal: config.signal,
     };
-
     if (config.body && config.method !== 'GET') {
       fetchOptions.body = JSON.stringify(config.body);
     }
@@ -223,22 +221,13 @@ class ApiClient {
     try {
       const response = await fetch(url, fetchOptions);
 
-      // Handle 401 - Attempt token refresh
+      // Handle 401 — attempt token refresh once
       if (response.status === 401 && !config.skipAuth) {
         const newToken = await this.refreshToken();
         if (newToken) {
-          // Retry the request with new token
-          config.headers = {
-            ...config.headers,
-            Authorization: `Bearer ${newToken}`,
-          };
-          const retryResponse = await fetch(url, {
-            ...fetchOptions,
-            headers: config.headers,
-          });
-          if (!retryResponse.ok) {
-            throw await this.handleError(retryResponse);
-          }
+          config.headers = { ...config.headers, Authorization: `Bearer ${newToken}` };
+          const retryResponse = await fetch(url, { ...fetchOptions, headers: config.headers });
+          if (!retryResponse.ok) throw await this.handleError(retryResponse);
           const data = await retryResponse.json();
           return this.runResponseInterceptors(data) as T;
         } else {
@@ -247,23 +236,27 @@ class ApiClient {
         }
       }
 
-      if (!response.ok) {
-        throw await this.handleError(response);
-      }
+      if (!response.ok) throw await this.handleError(response);
 
-      // Handle 204 No Content
-      if (response.status === 204) {
-        return undefined as unknown as T;
-      }
+      // 204 No Content
+      if (response.status === 204) return undefined as unknown as T;
 
       const data = await response.json();
       return this.runResponseInterceptors(data) as T;
+
     } catch (error) {
-      if (error instanceof ApiClientError || error instanceof UnauthorizedError) {
+      if (
+        error instanceof ApiClientError ||
+        error instanceof PaymentRequiredError ||
+        error instanceof UnauthorizedError ||
+        error instanceof ForbiddenError ||
+        error instanceof NotFoundError
+      ) {
         throw await this.runErrorInterceptors(error);
       }
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        const networkError = new NetworkError('Network error. Please check your connection.');
+      // Network / connection failure
+      if (error instanceof TypeError && error.message.toLowerCase().includes('fetch')) {
+        const networkError = new NetworkError();
         throw await this.runErrorInterceptors(networkError);
       }
       throw await this.runErrorInterceptors(error as Error);
@@ -275,17 +268,11 @@ class ApiClient {
   // --------------------------------------------------------------------------
 
   private async refreshToken(): Promise<string | null> {
-    // If already refreshing, wait for the existing promise
-    if (this.isRefreshing && this.refreshPromise) {
-      return this.refreshPromise;
-    }
-
+    if (this.isRefreshing && this.refreshPromise) return this.refreshPromise;
     this.isRefreshing = true;
     this.refreshPromise = this.doRefreshToken();
-
     try {
-      const result = await this.refreshPromise;
-      return result;
+      return await this.refreshPromise;
     } finally {
       this.isRefreshing = false;
       this.refreshPromise = null;
@@ -294,22 +281,14 @@ class ApiClient {
 
   private async doRefreshToken(): Promise<string | null> {
     const refreshToken = this.getRefreshToken();
-    if (!refreshToken) {
-      return null;
-    }
-
+    if (!refreshToken) return null;
     try {
       const response = await fetch(`${this.baseUrl}/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refresh_token: refreshToken }),
       });
-
-      if (!response.ok) {
-        this.clearTokens();
-        return null;
-      }
-
+      if (!response.ok) { this.clearTokens(); return null; }
       const data = await response.json();
       this.setTokens(data.access_token, data.refresh_token);
       return data.access_token;
@@ -323,13 +302,12 @@ class ApiClient {
   // Error Handling
   // --------------------------------------------------------------------------
 
-  private async handleError(response: Response): Promise<ApiClientError> {
+  private async handleError(response: Response): Promise<Error> {
     let errorData: ApiError = { detail: 'An unexpected error occurred' };
-
     try {
       errorData = await response.json();
     } catch {
-      // Use default error if parsing fails
+      // Use default if JSON parse fails
     }
 
     switch (response.status) {
@@ -337,16 +315,24 @@ class ApiClient {
         return new ApiClientError(400, errorData.detail || 'Bad request', errorData.errors);
       case 401:
         return new UnauthorizedError(errorData.detail || 'Unauthorized');
+      case 402:
+        return new PaymentRequiredError(
+          errorData.detail || 'Plan limit reached. Upgrade to continue.'
+        );
       case 403:
-        return new ForbiddenError(errorData.detail || 'Forbidden');
+        return new ForbiddenError(errorData.detail || 'Access denied.');
       case 404:
         return new NotFoundError(errorData.detail || 'Not found');
       case 422:
-        return new ApiClientError(422, 'Validation error', errorData.errors);
+        return new ApiClientError(422, errorData.detail || 'Validation error', errorData.errors);
       case 429:
         return new ApiClientError(429, 'Too many requests. Please try again later.');
       case 500:
-        return new ApiClientError(500, 'Internal server error');
+        return new ApiClientError(500, 'Server error. Please try again in a moment.');
+      case 502:
+      case 503:
+      case 504:
+        return new NetworkError('The server is temporarily unavailable. Please try again.');
       default:
         return new ApiClientError(
           response.status,
@@ -400,35 +386,24 @@ class ApiClient {
   }
 
   // --------------------------------------------------------------------------
-  // Convenience: File Upload
+  // File Upload
   // --------------------------------------------------------------------------
 
   async upload<T>(path: string, file: File, fieldName = 'file', additionalData?: Record<string, string>): Promise<T> {
     const token = this.getAccessToken();
     const formData = new FormData();
     formData.append(fieldName, file);
-
     if (additionalData) {
-      Object.entries(additionalData).forEach(([key, value]) => {
-        formData.append(key, value);
-      });
+      Object.entries(additionalData).forEach(([key, value]) => formData.append(key, value));
     }
-
     const headers: Record<string, string> = {};
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
+    if (token) headers['Authorization'] = `Bearer ${token}`;
     const response = await fetch(`${this.baseUrl}${path}`, {
       method: 'POST',
       headers,
       body: formData,
     });
-
-    if (!response.ok) {
-      throw await this.handleError(response);
-    }
-
+    if (!response.ok) throw await this.handleError(response);
     return response.json() as Promise<T>;
   }
 }
@@ -438,5 +413,4 @@ class ApiClient {
 // ============================================================================
 
 export const apiClient = new ApiClient(BASE_URL);
-
 export default apiClient;

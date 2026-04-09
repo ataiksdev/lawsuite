@@ -21,6 +21,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/lib/auth-store';
 import { ApiClientError } from '@/lib/api-client';
+import { handleApiError, extractErrorMessage } from '@/lib/error-utils';
 import { UserRole } from '@/lib/types';
 import {
   inviteMember,
@@ -165,9 +166,7 @@ function InviteMemberDialog({
       setRole(UserRole.MEMBER);
       toast.success('Invitation sent', { description: response.message });
     } catch (error) {
-      const message =
-        error instanceof ApiClientError ? error.detail : `Could not invite ${email}.`;
-      toast.error(message);
+      handleApiError(error, `Could not invite ${email}.`);
     } finally {
       setSending(false);
     }
@@ -298,9 +297,7 @@ export function TeamPage() {
       const response = await listMembers();
       setMembers(response);
     } catch (err) {
-      const message =
-        err instanceof ApiClientError ? err.detail : 'Unable to load team members.';
-      setError(message);
+      setError(extractErrorMessage(err, 'Unable to load team members.'));
     } finally {
       setIsLoading(false);
     }
@@ -342,9 +339,7 @@ export function TeamPage() {
         description: `${updated.full_name} is now a ${newRole}.`,
       });
     } catch (error) {
-      const message =
-        error instanceof ApiClientError ? error.detail : 'Could not update member role.';
-      toast.error(message);
+      handleApiError(error, 'Could not update member role.');
     } finally {
       setBusyMemberId(null);
     }
@@ -359,9 +354,7 @@ export function TeamPage() {
         description: `${member.full_name} has been removed.`,
       });
     } catch (error) {
-      const message =
-        error instanceof ApiClientError ? error.detail : 'Could not remove member.';
-      toast.error(message);
+      handleApiError(error, 'Could not remove member.');
     } finally {
       setBusyMemberId(null);
     }
@@ -373,9 +366,7 @@ export function TeamPage() {
       const response = await resendInvite(member.id);
       toast.success('Invitation resent', { description: response.message });
     } catch (error) {
-      const message =
-        error instanceof ApiClientError ? error.detail : 'Could not resend invitation.';
-      toast.error(message);
+      handleApiError(error, 'Could not resend invitation.');
     } finally {
       setBusyMemberId(null);
     }

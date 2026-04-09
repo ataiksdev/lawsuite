@@ -28,24 +28,42 @@ ALTER TABLE activity_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE organisation_members ENABLE ROW LEVEL SECURITY;
 
 -- Policies: each row is visible only to the matching organisation
+-- We use DROP POLICY IF EXISTS to make this script idempotent.
+
+DROP POLICY IF EXISTS tenant_isolation ON clients;
 CREATE POLICY tenant_isolation ON clients
     USING (organisation_id::text = current_setting('app.current_org_id', true));
 
+DROP POLICY IF EXISTS tenant_isolation ON matters;
 CREATE POLICY tenant_isolation ON matters
     USING (organisation_id::text = current_setting('app.current_org_id', true));
 
+DROP POLICY IF EXISTS tenant_isolation ON tasks;
 CREATE POLICY tenant_isolation ON tasks
     USING (organisation_id::text = current_setting('app.current_org_id', true));
 
+DROP POLICY IF EXISTS tenant_isolation ON matter_documents;
 CREATE POLICY tenant_isolation ON matter_documents
     USING (organisation_id::text = current_setting('app.current_org_id', true));
 
+-- Special policy for document versions: check parent document's organisation
+DROP POLICY IF EXISTS tenant_isolation ON matter_document_versions;
+CREATE POLICY tenant_isolation ON matter_document_versions
+    USING (EXISTS (
+        SELECT 1 FROM matter_documents 
+        WHERE matter_documents.id = matter_document_versions.document_id 
+        AND matter_documents.organisation_id::text = current_setting('app.current_org_id', true)
+    ));
+
+DROP POLICY IF EXISTS tenant_isolation ON matter_emails;
 CREATE POLICY tenant_isolation ON matter_emails
     USING (organisation_id::text = current_setting('app.current_org_id', true));
 
+DROP POLICY IF EXISTS tenant_isolation ON activity_logs;
 CREATE POLICY tenant_isolation ON activity_logs
     USING (organisation_id::text = current_setting('app.current_org_id', true));
 
+DROP POLICY IF EXISTS tenant_isolation ON organisation_members;
 CREATE POLICY tenant_isolation ON organisation_members
     USING (organisation_id::text = current_setting('app.current_org_id', true));
 """
@@ -54,16 +72,20 @@ if __name__ == "__main__":
     import psycopg2
     from app.core.config import settings
 
-    # Use sync URL, strip asyncpg prefix
-    sync_url = settings.database_url_sync
-    conn = psycopg2.connect(sync_url)
-    conn.autocommit = True
-    cur = conn.cursor()
+    # Use sync URL, strip asyncpg/psycopg2 prefix for raw psycopg2 use
+    sync_url = settings.database_url_sync.replace("postgresql+psycopg2://", "postgresql://").replace("postgresql+asyncpg://", "postgresql://")
+    
     try:
-        cur.execute(RLS_STATEMENTS)
-        print("RLS policies applied successfully.")
+        conn = psycopg2.connect(sync_url)
+        conn.autocommit = True
+        cur = conn.cursor()
+        try:
+            cur.execute(RLS_STATEMENTS)
+            print("RLS policies applied successfully.")
+        except Exception as e:
+            print(f"RLS execution error: {e}")
+        finally:
+            cur.close()
+            conn.close()
     except Exception as e:
-        print(f"RLS error (may already exist): {e}")
-    finally:
-        cur.close()
-        conn.close()
+        print(f"Database connection error: {e}")

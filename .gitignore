@@ -5,7 +5,7 @@
 ../.github
 ../.gitignore
 ../alembic
-
+*.html
 .env
 .env.example
 
@@ -17,5 +17,9 @@ frontend/.github
 frontend/.gitignore
 frontend/.next
 backend/alembic/env.py
+backend/.coverage
 frontend/node_modules
+backend/report.html
+
+
 

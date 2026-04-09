@@ -18,6 +18,7 @@ import {
   Puzzle,
   CreditCard,
   Shield,
+  Sparkles,
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -88,6 +89,14 @@ const adminNavItems: NavItem[] = [
   { label: 'Billing', path: '/admin/billing', icon: CreditCard, adminOnly: true },
 ];
 
+// Shown only when user's org matches NEXT_PUBLIC_PLATFORM_ADMIN_ORG_ID
+const platformAdminNavItem: NavItem = {
+  label: 'Platform Admin',
+  path: '/platform',
+  icon: Sparkles,
+  adminOnly: true,
+};
+
 const bottomNavItems: NavItem[] = [
   { label: 'Settings', path: '/settings', icon: Settings },
 ];
@@ -152,16 +161,16 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const { user, organisation, logout } = useAuthStore();
   const isAdmin = user?.role === UserRole.ADMIN;
 
-  const unreadNotifications = mockNotifications.filter((n) => !n.is_read).length;
+  // Show Platform Admin link only when this org is the designated platform admin org
+  const platformAdminOrgId = process.env.NEXT_PUBLIC_PLATFORM_ADMIN_ORG_ID;
+  const isPlatformAdmin =
+    isAdmin &&
+    !!platformAdminOrgId &&
+    organisation?.id === platformAdminOrgId;
 
-  const tasksWithBadge = useMemo(() => {
-    if (unreadNotifications <= 0) return mainNavItems;
-    return mainNavItems.map((item) =>
-      item.path === '/tasks' ? { ...item, badge: unreadNotifications } : item
-    );
-  }, [unreadNotifications]);
-
-  const visibleAdminItems = isAdmin ? adminNavItems : [];
+  const visibleAdminItems = isAdmin
+    ? [...adminNavItems, ...(isPlatformAdmin ? [platformAdminNavItem] : [])]
+    : [];
 
   const handleNavClick = useCallback(
     (path: string) => {
@@ -193,7 +202,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         <div className="space-y-1">
           {/* Main Nav */}
           <div className="space-y-1">
-            {tasksWithBadge.map((item) => (
+            {mainNavItems.map((item) => (
               <NavItemButton
                 key={item.path}
                 item={item}

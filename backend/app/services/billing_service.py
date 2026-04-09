@@ -29,7 +29,7 @@ PLAN_FEATURES = {
     "pro": {
         "name": "Pro",
         "plan_code": settings.paystack_pro_plan_code,
-        "amount_kobo": 1_000_000,   # ₦10,000/month
+        "amount_kobo": 2_900_000,   # ₦29,000/month
         "max_matters": None,         # unlimited
         "max_seats": 5,
         "drive_integration": True,
@@ -41,7 +41,7 @@ PLAN_FEATURES = {
     "agency": {
         "name": "Agency",
         "plan_code": settings.paystack_agency_plan_code,
-        "amount_kobo": 5_000_000,   # ₦50,000/month
+        "amount_kobo": 7_900_000,   # ₦79,000/month
         "max_matters": None,
         "max_seats": None,           # unlimited
         "drive_integration": True,
@@ -321,11 +321,16 @@ class BillingService:
             and org.trial_ends_at.replace(tzinfo=timezone.utc) > now
             and not org.trial_used
         )
+        # Use the stored plan's price (not the trial plan's ₦0) so the UI
+        # shows what they'll pay when they upgrade, not "Free" while on trial.
+        stored_plan_config = PLAN_FEATURES.get(org.plan, PLAN_FEATURES["free"])
+        amount_kobo = stored_plan_config["amount_kobo"]
         return {
             "plan": org.plan,
             "effective_plan": effective_plan,
             "plan_name": PLAN_FEATURES.get(effective_plan, PLAN_FEATURES["free"])["name"],
-            "amount_ngn": features["amount_kobo"] / 100,
+            "amount_kobo": amount_kobo,
+            "amount_ngn": amount_kobo / 100,
             "trial_active": trial_active,
             "trial_ends_at": org.trial_ends_at.isoformat() if org.trial_ends_at else None,
             "features": {

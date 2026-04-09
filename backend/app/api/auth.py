@@ -17,6 +17,8 @@ from app.schemas.auth import (
     UpdateProfileRequest,
     ChangePasswordRequest,
     UpdateOrgRequest,
+    ForgotPasswordRequest,
+    ResetPasswordRequest,
     UserResponse,
     MemberResponse,
     OrgResponse,
@@ -44,6 +46,21 @@ async def register(payload: RegisterRequest, db: DB):
         ),
         tokens=tokens,
     )
+
+
+@router.post("/forgot-password", status_code=status.HTTP_200_OK)
+async def forgot_password(payload: ForgotPasswordRequest, db: DB):
+    """Initiate password reset flow. Prints link to console."""
+    service = AuthService(db)
+    await service.forgot_password(payload)
+    return {"message": "If an account with that email exists, a reset link has been sent."}
+
+
+@router.post("/reset-password", status_code=status.HTTP_204_NO_CONTENT)
+async def reset_password(payload: ResetPasswordRequest, db: DB):
+    """Reset password using a token."""
+    service = AuthService(db)
+    await service.reset_password(payload)
 
 
 @router.post("/login", response_model=dict)

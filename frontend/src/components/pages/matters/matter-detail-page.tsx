@@ -20,6 +20,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { navigate, useRouteParams } from '@/lib/router';
 import { ApiClientError } from '@/lib/api-client';
+import { handleApiError, extractErrorMessage } from '@/lib/error-utils';
 import {
   changeMatterStatus,
   getMatter,
@@ -227,9 +228,7 @@ function AddVersionDialog({
       toast.success(`Added version ${updated.current_version} to "${updated.name}".`);
       onOpenChange(false);
     } catch (error) {
-      const message =
-        error instanceof ApiClientError ? error.detail : 'Unable to add document version.';
-      toast.error(message);
+      handleApiError(error, 'Unable to add document version.');
     } finally {
       setSaving(false);
     }
@@ -387,13 +386,12 @@ function GenerateTemplateDialog({
       toast.success(`Generated "${response.name}" from template.`);
       onOpenChange(false);
     } catch (error) {
-      const message =
-        error instanceof SyntaxError
-          ? 'Extra substitutions must be valid JSON.'
-          : error instanceof ApiClientError
-            ? error.detail
-            : 'Unable to generate document from template.';
-      toast.error(message);
+      // SyntaxError means the extra substitutions JSON was malformed — show as-is
+      if (error instanceof SyntaxError) {
+        handleApiError(new Error('Extra substitutions must be valid JSON.'), 'Invalid JSON.');
+      } else {
+        handleApiError(error, 'Unable to generate document from template.');
+      }
     } finally {
       setSaving(false);
     }
@@ -731,9 +729,7 @@ export function MatterDetailPage() {
       upsertDocument(updated);
       toast.success(`Updated "${updated.name}" to ${documentStatusLabel(updated.status)}.`);
     } catch (error) {
-      const message =
-        error instanceof ApiClientError ? error.detail : 'Unable to update document status.';
-      toast.error(message);
+      handleApiError(error, 'Unable to update document status.');
     } finally {
       setUpdatingDocumentId(null);
     }
@@ -778,9 +774,7 @@ export function MatterDetailPage() {
       toast.success(`"${pendingDeleteDocument.name}" removed from this matter.`);
       setPendingDeleteDocument(null);
     } catch (error) {
-      const message =
-        error instanceof ApiClientError ? error.detail : 'Unable to remove document.';
-      toast.error(message);
+      handleApiError(error, 'Unable to remove document.');
     } finally {
       setIsDeletingDocument(false);
     }
@@ -797,9 +791,7 @@ export function MatterDetailPage() {
       setMatter(updatedMatter);
       toast.success(`Matter moved to ${statusLabel(updatedMatter.status)}.`);
     } catch (err) {
-      const message =
-        err instanceof ApiClientError ? err.detail : 'Unable to change matter status.';
-      toast.error(message);
+      handleApiError(err, 'Unable to change matter status.');
     } finally {
       setIsUpdatingStatus(false);
     }

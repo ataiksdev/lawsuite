@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { navigate } from '@/lib/router';
 import { ApiClientError } from '@/lib/api-client';
+import { handleApiError, extractErrorMessage } from '@/lib/error-utils';
 import { archiveClient, listClients, type BackendClient } from '@/lib/api/clients';
 
 import { Button } from '@/components/ui/button';
@@ -75,11 +76,7 @@ export function ClientListPage() {
         }
       } catch (err) {
         if (!cancelled) {
-          const message =
-            err instanceof ApiClientError
-              ? err.detail
-              : 'Unable to load clients right now.';
-          setError(message);
+          setError(extractErrorMessage(err, 'Unable to load clients right now.'));
         }
       } finally {
         if (!cancelled) {
@@ -155,9 +152,7 @@ export function ClientListPage() {
       );
       toast.success(`"${client.name}" has been archived.`);
     } catch (err) {
-      const message =
-        err instanceof ApiClientError ? err.detail : 'Unable to archive client.';
-      toast.error(message);
+      handleApiError(err, 'Unable to archive client.');
     } finally {
       setArchivingClientId(null);
     }

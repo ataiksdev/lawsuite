@@ -20,11 +20,12 @@ export interface RouteDefinition {
 }
 
 export const AUTH_ROUTES: RouteDefinition[] = [
-  { path: '/login', pattern: /^\/login\/?$/, name: 'Sign In' },
-  { path: '/register', pattern: /^\/register\/?$/, name: 'Create Account' },
-  { path: '/forgot-password', pattern: /^\/forgot-password\/?$/, name: 'Forgot Password' },
-  { path: '/accept-invite', pattern: /^\/accept-invite\/?$/, name: 'Accept Invitation' },
-  { path: '/onboarding', pattern: /^\/onboarding\/?$/, name: 'Onboarding' },
+  { path: '/login', pattern: /^\/login(\/?$|\?)/, name: 'Sign In' },
+  { path: '/register', pattern: /^\/register(\/?$|\?)/, name: 'Create Account' },
+  { path: '/forgot-password', pattern: /^\/forgot-password(\/?$|\?)/, name: 'Forgot Password' },
+  { path: '/reset-password', pattern: /^\/reset-password(\/?$|\?)/, name: 'Reset Password' },
+  { path: '/accept-invite', pattern: /^\/accept-invite(\/?$|\?)/, name: 'Accept Invitation' },
+  { path: '/onboarding', pattern: /^\/onboarding(\/?$|\?)/, name: 'Onboarding' },
 ];
 
 export const ROUTES: RouteDefinition[] = [
@@ -140,15 +141,19 @@ export function getBreadcrumbSegments(path: string): { name: string; path: strin
 // ============================================================================
 
 export function useCurrentRoute(): string {
-  const [route, setRoute] = useState<string>(getHashPath);
+  // Always start with '/' so SSR and the initial client render agree.
+  // getHashPath() is only safe to call after mount (window is available).
+  const [route, setRoute] = useState<string>('/');
 
   useEffect(() => {
+    // Sync to the real hash path after first mount (fixes hydration mismatch).
+    setRoute(getHashPath());
+
     const handleHashChange = () => {
       setRoute(getHashPath());
     };
 
     window.addEventListener('hashchange', handleHashChange);
-    // Also listen for popstate
     window.addEventListener('popstate', handleHashChange);
 
     return () => {

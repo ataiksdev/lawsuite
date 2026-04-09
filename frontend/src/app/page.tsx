@@ -12,6 +12,7 @@ import { LoginPage } from '@/components/pages/auth/login-page';
 import { RegisterPage } from '@/components/pages/auth/register-page';
 import { AcceptInvitePage } from '@/components/pages/auth/accept-invite-page';
 import { ForgotPasswordPage } from '@/components/pages/auth/forgot-password-page';
+import { ResetPasswordPage } from '@/components/pages/auth/reset-password-page';
 import { OnboardingPage } from '@/components/pages/auth/onboarding-page';
 
 // Dashboard Page
@@ -41,6 +42,9 @@ import { ReportsPage } from '@/components/pages/reports/reports-page';
 
 // Settings Page
 import { UserSettingsPage } from '@/components/pages/settings/user-settings-page';
+
+// Platform Admin Portal
+import { PlatformAdminPage } from '@/components/pages/platform/platform-admin-page';
 
 // ============================================================================
 // 404 Page Component
@@ -77,10 +81,12 @@ export const AUTH_ROUTES_EXTRA = [
 ];
 
 function AuthRouter({ route }: { route: string }) {
-  if (route === '/register') return <RegisterPage />;
-  if (route === '/forgot-password') return <ForgotPasswordPage />;
-  if (route === '/accept-invite') return <AcceptInvitePage />;
-  if (route === '/onboarding') return <OnboardingPage />;
+  const path = route.split('?')[0];
+  if (path === '/register') return <RegisterPage />;
+  if (path === '/forgot-password') return <ForgotPasswordPage />;
+  if (path === '/reset-password') return <ResetPasswordPage />;
+  if (path === '/accept-invite') return <AcceptInvitePage />;
+  if (path === '/onboarding') return <OnboardingPage />;
   return <LoginPage />;
 }
 
@@ -124,6 +130,9 @@ function AppRouter({ route }: { route: string }) {
   if (route === '/settings' || route === '/settings/') return <UserSettingsPage />;
   if (route === '/settings/integrations' || route === '/settings/integrations/') return <IntegrationsPage />;
   if (route === '/settings/billing' || route === '/settings/billing/') return <BillingPage />;
+
+  // Platform Admin Portal (operator-only)
+  if (route === '/platform' || route === '/platform/') return <PlatformAdminPage />;
 
   // 404
   return <NotFoundPage route={route} />;

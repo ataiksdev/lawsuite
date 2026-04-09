@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { UnauthenticatedLayout } from './unauthenticated-layout';
 import { navigate } from '@/lib/router';
+import apiClient from '@/lib/api-client';
 
 export function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -42,8 +43,7 @@ export function ForgotPasswordPage() {
 
     setIsLoading(true);
     try {
-      // In production, this calls the API to send a reset link
-      await new Promise((resolve) => setTimeout(resolve, 1200));
+      await apiClient.post('/auth/forgot-password', { email });
 
       setIsSubmitted(true);
       toast.success('Reset link sent!', {

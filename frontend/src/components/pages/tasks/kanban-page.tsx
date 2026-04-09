@@ -20,6 +20,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { navigate } from '@/lib/router';
 import { ApiClientError } from '@/lib/api-client';
+import { handleApiError, extractErrorMessage } from '@/lib/error-utils';
 import { listMatters, type BackendMatter } from '@/lib/api/matters';
 import { listMembers, type MemberSummary } from '@/lib/api/members';
 import {
@@ -359,9 +360,7 @@ export function KanbanPage() {
       setOverdueCount(overdueResponse.total);
       setTaskDialogState(emptyFormState(activeMatters[0]?.id || ''));
     } catch (error) {
-      const message =
-        error instanceof ApiClientError ? error.detail : 'Unable to load the task board.';
-      setError(message);
+      setError(extractErrorMessage(error, 'Unable to load the task board.'));
     } finally {
       setIsLoading(false);
     }
@@ -469,9 +468,7 @@ export function KanbanPage() {
       const overdueResponse = await listOverdueTasks({ page_size: 100 });
       setOverdueCount(overdueResponse.total);
     } catch (error) {
-      const message =
-        error instanceof ApiClientError ? error.detail : 'Unable to save task.';
-      toast.error(message);
+      handleApiError(error, 'Unable to save task.');
     } finally {
       setSavingTask(false);
     }
@@ -496,9 +493,7 @@ export function KanbanPage() {
       setOverdueCount(overdueResponse.total);
       toast.success(`Task moved to ${TASK_COLUMNS.find((column) => column.id === status)?.title}.`);
     } catch (error) {
-      const message =
-        error instanceof ApiClientError ? error.detail : 'Unable to update task status.';
-      toast.error(message);
+      handleApiError(error, 'Unable to update task status.');
     } finally {
       setBusyTaskId(null);
     }
@@ -513,9 +508,7 @@ export function KanbanPage() {
       setOverdueCount(overdueResponse.total);
       toast.success('Task deleted.');
     } catch (error) {
-      const message =
-        error instanceof ApiClientError ? error.detail : 'Unable to delete task.';
-      toast.error(message);
+      handleApiError(error, 'Unable to delete task.');
     } finally {
       setBusyTaskId(null);
     }

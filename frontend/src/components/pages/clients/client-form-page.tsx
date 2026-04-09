@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { navigate, useCurrentRoute, useRouteParams } from '@/lib/router';
 import { ApiClientError } from '@/lib/api-client';
+import { handleApiError, extractErrorMessage } from '@/lib/error-utils';
 import {
   createClient,
   getClient,
@@ -98,9 +99,7 @@ export function ClientFormPage() {
         }
       } catch (err) {
         if (!cancelled) {
-          const message =
-            err instanceof ApiClientError ? err.detail : 'Unable to load this client.';
-          setLoadError(message);
+          setLoadError(extractErrorMessage(err, 'Unable to load this client.'));
         }
       } finally {
         if (!cancelled) {
@@ -172,9 +171,7 @@ export function ClientFormPage() {
         navigate(`/clients/${createdClient.id}`);
       }
     } catch (err) {
-      const message =
-        err instanceof ApiClientError ? err.detail : 'Unable to save client right now.';
-      toast.error(message);
+      handleApiError(err, 'Unable to save client right now.');
     } finally {
       setIsSaving(false);
     }

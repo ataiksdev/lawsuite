@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { navigate, useCurrentRoute, useRouteParams } from '@/lib/router';
 import { ApiClientError } from '@/lib/api-client';
+import { handleApiError, extractErrorMessage } from '@/lib/error-utils';
 import { listClients, type BackendClient } from '@/lib/api/clients';
 import { listMembers, type MemberSummary } from '@/lib/api/members';
 import {
@@ -121,11 +122,7 @@ export function MatterFormPage() {
         }
       } catch (err) {
         if (!cancelled) {
-          const message =
-            err instanceof ApiClientError
-              ? err.detail
-              : 'Unable to load the matter form right now.';
-          setLoadError(message);
+          setLoadError(extractErrorMessage(err, 'Unable to load the matter form right now.'));
         }
       } finally {
         if (!cancelled) {
@@ -204,9 +201,7 @@ export function MatterFormPage() {
         navigate(`/matters/${createdMatter.id}`);
       }
     } catch (err) {
-      const message =
-        err instanceof ApiClientError ? err.detail : 'Unable to save matter right now.';
-      toast.error(message);
+      handleApiError(err, 'Unable to save matter right now.');
     } finally {
       setIsSaving(false);
     }

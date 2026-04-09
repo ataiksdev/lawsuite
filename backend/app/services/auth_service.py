@@ -277,7 +277,7 @@ class AuthService:
         await self.db.commit()
         await self.db.refresh(user)
 
-        invite_url = f"{settings.frontend_url}/accept-invite?token={invite_token}"
+        invite_url = f"{settings.frontend_url}/#/accept-invite?token={invite_token}"
         print(f"[INVITE] {data.email} → {invite_url}")
         return user, invite_url
 
@@ -310,7 +310,7 @@ class AuthService:
         await self.db.commit()
         await self.db.refresh(user)
 
-        invite_url = f"{settings.frontend_url}/accept-invite?token={invite_token}"
+        invite_url = f"{settings.frontend_url}/#/accept-invite?token={invite_token}"
         print(f"[RESEND INVITE] {user.email} → {invite_url}")
         return user, invite_url
 
@@ -552,6 +552,50 @@ class AuthService:
         await self.db.commit()
         await self.db.refresh(org)
         return org
+
+    # ── Password reset ──────────────────────────────────────────────────────────
+
+    async def forgot_password(self, data: ForgotPasswordRequest) -> str:
+        result = await self.db.execute(
+            select(User).where(User.email == data.email.lower(), User.is_active == True)
+        )
+        user = result.scalar_one_or_none()
+
+        # We return success even if user not found to prevent email enumeration
+        if not user:
+            return ""
+
+        reset_token = secrets.token_urlsafe(32)
+        user.password_reset_token = reset_token
+        user.password_reset_expires_at = datetime.now(timezone.utc) + timedelta(hours=24)
+
+        await self.db.commit()
+
+        reset_url = f"{settings.frontend_url}/#/reset-password?token={reset_token}"
+        print(f"[PASSWORD RESET] {user.email} → {reset_url}")
+        return reset_url
+
+    async def reset_password(self, data: ResetPasswordRequest) -> None:
+        result = await self.db.execute(
+            select(User).where(User.password_reset_token == data.token)
+        )
+        user = result.scalar_one_or_none()
+
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Invalid or expired reset token",
+            )
+        if user.password_reset_expires_at and user.password_reset_expires_at < datetime.now(timezone.utc):
+            raise HTTPException(
+                status_code=status.HTTP_410_GONE,
+                detail="Reset token has expired",
+            )
+
+        user.hashed_password = hash_password(data.password)
+        user.password_reset_token = None
+        user.password_reset_expires_at = None
+        await self.db.commit()
 
     # ── Get organisation ──────────────────────────────────────────────────
 

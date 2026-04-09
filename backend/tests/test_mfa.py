@@ -1,7 +1,7 @@
 # backend/tests/api/test_mfa.py
-import pytest
+
 import pyotp
-from unittest.mock import patch, AsyncMock
+import pytest
 from httpx import AsyncClient
 
 REGISTER = {
@@ -21,12 +21,11 @@ async def get_token(client: AsyncClient, payload: dict = REGISTER) -> str:
 
 # ─── MFA status ───────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_mfa_status_disabled_by_default(client: AsyncClient):
     token = await get_token(client)
-    resp = await client.get(
-        "/auth/mfa/status", headers={"Authorization": f"Bearer {token}"}
-    )
+    resp = await client.get("/auth/mfa/status", headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 200
     assert resp.json()["mfa_enabled"] is False
     assert resp.json()["backup_codes_remaining"] == 0
@@ -34,12 +33,11 @@ async def test_mfa_status_disabled_by_default(client: AsyncClient):
 
 # ─── MFA setup ────────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_mfa_setup_returns_qr_and_secret(client: AsyncClient):
     token = await get_token(client)
-    resp = await client.post(
-        "/auth/mfa/setup", headers={"Authorization": f"Bearer {token}"}
-    )
+    resp = await client.post("/auth/mfa/setup", headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 200
     body = resp.json()
     assert "qr_code_svg" in body
@@ -68,6 +66,7 @@ async def test_mfa_setup_twice_rejected(client: AsyncClient):
 
 # ─── MFA verify (activate) ────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_mfa_verify_activates_and_returns_backup_codes(client: AsyncClient):
     token = await get_token(client)
@@ -77,9 +76,7 @@ async def test_mfa_verify_activates_and_returns_backup_codes(client: AsyncClient
     secret = setup["secret"]
     code = pyotp.TOTP(secret).now()
 
-    resp = await client.post(
-        "/auth/mfa/verify", json={"code": code}, headers=headers
-    )
+    resp = await client.post("/auth/mfa/verify", json={"code": code}, headers=headers)
     assert resp.status_code == 200
     body = resp.json()
     assert "backup_codes" in body
@@ -99,13 +96,12 @@ async def test_mfa_verify_bad_code_rejected(client: AsyncClient):
 
     await client.post("/auth/mfa/setup", headers=headers)
 
-    resp = await client.post(
-        "/auth/mfa/verify", json={"code": "000000"}, headers=headers
-    )
+    resp = await client.post("/auth/mfa/verify", json={"code": "000000"}, headers=headers)
     assert resp.status_code == 401
 
 
 # ─── Login with MFA ───────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_login_returns_mfa_pending_when_mfa_enabled(client: AsyncClient):
@@ -120,10 +116,13 @@ async def test_login_returns_mfa_pending_when_mfa_enabled(client: AsyncClient):
     await client.post("/auth/mfa/verify", json={"code": code}, headers=headers)
 
     # Login — should return mfa_required=True
-    login_resp = await client.post("/auth/login", json={
-        "email": reg_data["email"],
-        "password": reg_data["password"],
-    })
+    login_resp = await client.post(
+        "/auth/login",
+        json={
+            "email": reg_data["email"],
+            "password": reg_data["password"],
+        },
+    )
     assert login_resp.status_code == 200
     body = login_resp.json()
     assert body["mfa_required"] is True
@@ -144,18 +143,24 @@ async def test_mfa_validate_completes_login(client: AsyncClient):
     await client.post("/auth/mfa/verify", json={"code": code}, headers=headers)
 
     # Login step 1 — get mfa_token
-    login_resp = await client.post("/auth/login", json={
-        "email": reg_data["email"],
-        "password": reg_data["password"],
-    })
+    login_resp = await client.post(
+        "/auth/login",
+        json={
+            "email": reg_data["email"],
+            "password": reg_data["password"],
+        },
+    )
     mfa_token = login_resp.json()["mfa_token"]
 
     # Login step 2 — validate TOTP
     fresh_code = pyotp.TOTP(secret).now()
-    validate_resp = await client.post("/auth/mfa/validate", json={
-        "mfa_token": mfa_token,
-        "code": fresh_code,
-    })
+    validate_resp = await client.post(
+        "/auth/mfa/validate",
+        json={
+            "mfa_token": mfa_token,
+            "code": fresh_code,
+        },
+    )
     assert validate_resp.status_code == 200
     body = validate_resp.json()
     assert "access_token" in body
@@ -173,19 +178,21 @@ async def test_mfa_validate_wrong_code_rejected(client: AsyncClient):
     code = pyotp.TOTP(secret).now()
     await client.post("/auth/mfa/verify", json={"code": code}, headers=headers)
 
-    login_resp = await client.post("/auth/login", json={
-        "email": reg_data["email"], "password": reg_data["password"]
-    })
+    login_resp = await client.post("/auth/login", json={"email": reg_data["email"], "password": reg_data["password"]})
     mfa_token = login_resp.json()["mfa_token"]
 
-    validate_resp = await client.post("/auth/mfa/validate", json={
-        "mfa_token": mfa_token,
-        "code": "999999",
-    })
+    validate_resp = await client.post(
+        "/auth/mfa/validate",
+        json={
+            "mfa_token": mfa_token,
+            "code": "999999",
+        },
+    )
     assert validate_resp.status_code == 401
 
 
 # ─── Backup codes ─────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_backup_code_works_as_mfa_code(client: AsyncClient):
@@ -196,21 +203,20 @@ async def test_backup_code_works_as_mfa_code(client: AsyncClient):
     setup = (await client.post("/auth/mfa/setup", headers=headers)).json()
     secret = setup["secret"]
     code = pyotp.TOTP(secret).now()
-    verify_resp = (await client.post(
-        "/auth/mfa/verify", json={"code": code}, headers=headers
-    )).json()
+    verify_resp = (await client.post("/auth/mfa/verify", json={"code": code}, headers=headers)).json()
     backup_code = verify_resp["backup_codes"][0]
 
-    login_resp = await client.post("/auth/login", json={
-        "email": reg_data["email"], "password": reg_data["password"]
-    })
+    login_resp = await client.post("/auth/login", json={"email": reg_data["email"], "password": reg_data["password"]})
     mfa_token = login_resp.json()["mfa_token"]
 
     # Use backup code instead of TOTP
-    validate_resp = await client.post("/auth/mfa/validate", json={
-        "mfa_token": mfa_token,
-        "code": backup_code,
-    })
+    validate_resp = await client.post(
+        "/auth/mfa/validate",
+        json={
+            "mfa_token": mfa_token,
+            "code": backup_code,
+        },
+    )
     assert validate_resp.status_code == 200
 
     # Backup code is now consumed — backup_codes_remaining should be 7
@@ -228,30 +234,21 @@ async def test_backup_code_cannot_be_reused(client: AsyncClient):
     setup = (await client.post("/auth/mfa/setup", headers=headers)).json()
     secret = setup["secret"]
     code = pyotp.TOTP(secret).now()
-    verify_resp = (await client.post(
-        "/auth/mfa/verify", json={"code": code}, headers=headers
-    )).json()
+    verify_resp = (await client.post("/auth/mfa/verify", json={"code": code}, headers=headers)).json()
     backup_code = verify_resp["backup_codes"][0]
 
     # Use it once
-    login1 = await client.post("/auth/login", json={
-        "email": reg_data["email"], "password": reg_data["password"]
-    })
-    await client.post("/auth/mfa/validate", json={
-        "mfa_token": login1.json()["mfa_token"], "code": backup_code
-    })
+    login1 = await client.post("/auth/login", json={"email": reg_data["email"], "password": reg_data["password"]})
+    await client.post("/auth/mfa/validate", json={"mfa_token": login1.json()["mfa_token"], "code": backup_code})
 
     # Try to reuse it
-    login2 = await client.post("/auth/login", json={
-        "email": reg_data["email"], "password": reg_data["password"]
-    })
-    resp = await client.post("/auth/mfa/validate", json={
-        "mfa_token": login2.json()["mfa_token"], "code": backup_code
-    })
+    login2 = await client.post("/auth/login", json={"email": reg_data["email"], "password": reg_data["password"]})
+    resp = await client.post("/auth/mfa/validate", json={"mfa_token": login2.json()["mfa_token"], "code": backup_code})
     assert resp.status_code == 401
 
 
 # ─── Disable MFA ─────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_disable_mfa(client: AsyncClient):
@@ -265,9 +262,7 @@ async def test_disable_mfa(client: AsyncClient):
     await client.post("/auth/mfa/verify", json={"code": code}, headers=headers)
 
     disable_code = pyotp.TOTP(secret).now()
-    resp = await client.post(
-        "/auth/mfa/disable", json={"code": disable_code}, headers=headers
-    )
+    resp = await client.post("/auth/mfa/disable", json={"code": disable_code}, headers=headers)
     assert resp.status_code == 204
 
     status_resp = (await client.get("/auth/mfa/status", headers=headers)).json()
@@ -276,14 +271,13 @@ async def test_disable_mfa(client: AsyncClient):
 
 # ─── Login without MFA (no regression) ───────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_login_without_mfa_returns_tokens_directly(client: AsyncClient):
     reg_data = {**REGISTER, "email": "nomfa@mfatest.ng", "org_name": "No MFA Org"}
     await client.post("/auth/register", json=reg_data)
 
-    resp = await client.post("/auth/login", json={
-        "email": reg_data["email"], "password": reg_data["password"]
-    })
+    resp = await client.post("/auth/login", json={"email": reg_data["email"], "password": reg_data["password"]})
     assert resp.status_code == 200
     body = resp.json()
     assert body["mfa_required"] is False

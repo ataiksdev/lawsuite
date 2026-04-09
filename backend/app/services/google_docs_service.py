@@ -1,8 +1,8 @@
 # backend/app/services/google_docs_service.py
+from fastapi import HTTPException, status
+from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from google.oauth2.credentials import Credentials
-from fastapi import HTTPException, status
 
 
 class GoogleDocsService:
@@ -144,25 +144,15 @@ class GoogleDocsService:
                 detail=f"Failed to list templates: {e.reason}",
             )
 
-    async def get_or_create_templates_folder(
-        self, org_name: str
-    ) -> str:
+    async def get_or_create_templates_folder(self, org_name: str) -> str:
         """
         Find or create the LegalOps Templates folder for this org.
         Returns the folder_id.
         """
         folder_name = f"LegalOps Templates — {org_name}"
-        query = (
-            f"name='{folder_name}' "
-            f"and mimeType='application/vnd.google-apps.folder' "
-            f"and trashed=false"
-        )
+        query = f"name='{folder_name}' " f"and mimeType='application/vnd.google-apps.folder' " f"and trashed=false"
         try:
-            results = (
-                self.drive.files()
-                .list(q=query, fields="files(id)", pageSize=1)
-                .execute()
-            )
+            results = self.drive.files().list(q=query, fields="files(id)", pageSize=1).execute()
             files = results.get("files", [])
             if files:
                 return files[0]["id"]

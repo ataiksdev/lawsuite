@@ -50,7 +50,9 @@ async def test_reference_number_increments(client: AsyncClient):
     headers = {"Authorization": f"Bearer {token}"}
 
     r1 = await client.post("/matters/", json={**MATTER_PAYLOAD, "client_id": client_id}, headers=headers)
-    r2 = await client.post("/matters/", json={**MATTER_PAYLOAD, "client_id": client_id, "title": "Second Matter"}, headers=headers)
+    r2 = await client.post(
+        "/matters/", json={**MATTER_PAYLOAD, "client_id": client_id, "title": "Second Matter"}, headers=headers
+    )
 
     ref1 = r1.json()["reference_no"]
     ref2 = r2.json()["reference_no"]
@@ -65,7 +67,9 @@ async def test_list_matters(client: AsyncClient):
     headers = {"Authorization": f"Bearer {token}"}
 
     await client.post("/matters/", json={**MATTER_PAYLOAD, "client_id": client_id}, headers=headers)
-    await client.post("/matters/", json={**MATTER_PAYLOAD, "title": "Second Matter", "client_id": client_id}, headers=headers)
+    await client.post(
+        "/matters/", json={**MATTER_PAYLOAD, "title": "Second Matter", "client_id": client_id}, headers=headers
+    )
 
     resp = await client.get("/matters/", headers=headers)
     assert resp.status_code == 200
@@ -182,9 +186,9 @@ async def test_matter_isolation(client: AsyncClient):
     )
     matter_id = m.json()["id"]
 
-    reg_b = await client.post("/auth/register", json={
-        **REGISTER, "email": "orgb@mattertest.ng", "org_name": "Org B Matters"
-    })
+    reg_b = await client.post(
+        "/auth/register", json={**REGISTER, "email": "orgb@mattertest.ng", "org_name": "Org B Matters"}
+    )
     token_b = reg_b.json()["tokens"]["access_token"]
 
     resp = await client.get(f"/matters/{matter_id}", headers={"Authorization": f"Bearer {token_b}"})

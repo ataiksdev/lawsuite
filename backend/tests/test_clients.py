@@ -24,10 +24,7 @@ async def get_token(client: AsyncClient) -> str:
 @pytest.mark.asyncio
 async def test_create_client(client: AsyncClient):
     token = await get_token(client)
-    resp = await client.post(
-        "/clients/", json=CLIENT_PAYLOAD,
-        headers={"Authorization": f"Bearer {token}"}
-    )
+    resp = await client.post("/clients/", json=CLIENT_PAYLOAD, headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 201
     body = resp.json()
     assert body["name"] == "Acme Industries"
@@ -116,6 +113,7 @@ async def test_client_not_found(client: AsyncClient):
     token = await get_token(client)
     headers = {"Authorization": f"Bearer {token}"}
     import uuid
+
     resp = await client.get(f"/clients/{uuid.uuid4()}", headers=headers)
     assert resp.status_code == 404
 
@@ -124,15 +122,10 @@ async def test_client_not_found(client: AsyncClient):
 async def test_client_isolation(client: AsyncClient):
     """Client from org A must not be visible to org B."""
     token_a = await get_token(client)
-    created = await client.post(
-        "/clients/", json=CLIENT_PAYLOAD,
-        headers={"Authorization": f"Bearer {token_a}"}
-    )
+    created = await client.post("/clients/", json=CLIENT_PAYLOAD, headers={"Authorization": f"Bearer {token_a}"})
     client_id = created.json()["id"]
 
-    reg_b = await client.post("/auth/register", json={
-        **REGISTER, "email": "orgb@test.ng", "org_name": "Org B"
-    })
+    reg_b = await client.post("/auth/register", json={**REGISTER, "email": "orgb@test.ng", "org_name": "Org B"})
     token_b = reg_b.json()["tokens"]["access_token"]
 
     resp = await client.get(f"/clients/{client_id}", headers={"Authorization": f"Bearer {token_b}"})

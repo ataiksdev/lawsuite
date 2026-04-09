@@ -1,31 +1,34 @@
 # backend/app/api/auth.py
-from fastapi import APIRouter, status, Request
 import uuid
+
+from fastapi import APIRouter, Request, status
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
-from app.core.deps import AuthUser, AdminUser, DB
-from app.services.auth_service import AuthService
+
+from app.core.deps import DB, AdminUser, AuthUser
 from app.schemas.auth import (
-    RegisterRequest,
-    RegisterResponse,
-    LoginRequest,
-    TokenResponse,
-    RefreshRequest,
-    InviteRequest,
     AcceptInviteRequest,
-    UpdateMemberRoleRequest,
-    UpdateProfileRequest,
     ChangePasswordRequest,
-    UpdateOrgRequest,
-    UserResponse,
+    InviteRequest,
+    LoginRequest,
     MemberResponse,
     OrgResponse,
+    RefreshRequest,
+    RegisterRequest,
+    RegisterResponse,
+    TokenResponse,
+    UpdateMemberRoleRequest,
+    UpdateOrgRequest,
+    UpdateProfileRequest,
+    UserResponse,
 )
+from app.services.auth_service import AuthService
 
 router = APIRouter()
 
 
 # ─── Registration ─────────────────────────────────────────────────────────────
+
 
 @router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
 async def register(payload: RegisterRequest, db: DB):
@@ -34,13 +37,21 @@ async def register(payload: RegisterRequest, db: DB):
     user, org, tokens = await service.register(payload)
     return RegisterResponse(
         user=UserResponse(
-            id=user.id, email=user.email, full_name=user.full_name,
-            role="admin", is_active=user.is_active, is_verified=user.is_verified,
+            id=user.id,
+            email=user.email,
+            full_name=user.full_name,
+            role="admin",
+            is_active=user.is_active,
+            is_verified=user.is_verified,
             created_at=user.created_at,
         ),
         organisation=OrgResponse(
-            id=org.id, name=org.name, slug=org.slug,
-            plan=org.plan, is_active=org.is_active, created_at=org.created_at,
+            id=org.id,
+            name=org.name,
+            slug=org.slug,
+            plan=org.plan,
+            is_active=org.is_active,
+            created_at=org.created_at,
         ),
         tokens=tokens,
     )
@@ -79,7 +90,9 @@ async def refresh(payload: RefreshRequest, db: DB):
     service = AuthService(db)
     return await service.refresh(payload)
 
+
 # ─── Google OAuth sign-in ─────────────────────────────────────────────────────
+
 
 @router.get("/google/login")
 async def google_login(request: Request):
@@ -90,6 +103,7 @@ async def google_login(request: Request):
     On success Google redirects to /auth/google/callback.
     """
     import secrets as _secrets
+
     from app.services.google_signin_service import GoogleSignInService
 
     state = _secrets.token_urlsafe(16)
@@ -109,9 +123,11 @@ async def google_callback(code: str, state: str = "", db: DB = None):
 
     The frontend decodes the tokens and stores them in localStorage.
     """
-    import json
     import base64
+    import json
+
     from fastapi.responses import RedirectResponse as Redirect
+
     from app.services.google_signin_service import GoogleSignInService
 
     service = GoogleSignInService(db)
@@ -121,17 +137,17 @@ async def google_callback(code: str, state: str = "", db: DB = None):
 
     if is_new:
         # New user — redirect to onboarding with provisional token
-        return Redirect(
-            url=f"{frontend}/onboarding?provisional={tokens.access_token}"
-        )
+        return Redirect(url=f"{frontend}/onboarding?provisional={tokens.access_token}")
 
     # Existing user — encode tokens in redirect
     token_payload = base64.urlsafe_b64encode(
-        json.dumps({
-            "access_token": tokens.access_token,
-            "refresh_token": tokens.refresh_token,
-            "expires_in": tokens.expires_in,
-        }).encode()
+        json.dumps(
+            {
+                "access_token": tokens.access_token,
+                "refresh_token": tokens.refresh_token,
+                "expires_in": tokens.expires_in,
+            }
+        ).encode()
     ).decode()
     return Redirect(url=f"{frontend}/login?tokens={token_payload}")
 
@@ -150,8 +166,9 @@ async def complete_google_signup(payload: CompleteGoogleSignupRequest, db: DB):
     Accepts the provisional_token from the /auth/google/callback redirect.
     Returns full tokens + org details on success.
     """
-    from app.core.security import decode_token
     from fastapi import HTTPException
+
+    from app.core.security import decode_token
 
     try:
         claims = decode_token(payload.provisional_token)
@@ -167,13 +184,21 @@ async def complete_google_signup(payload: CompleteGoogleSignupRequest, db: DB):
 
     return RegisterResponse(
         user=UserResponse(
-            id=user.id, email=user.email, full_name=user.full_name,
-            role="admin", is_active=user.is_active, is_verified=user.is_verified,
+            id=user.id,
+            email=user.email,
+            full_name=user.full_name,
+            role="admin",
+            is_active=user.is_active,
+            is_verified=user.is_verified,
             created_at=user.created_at,
         ),
         organisation=OrgResponse(
-            id=org.id, name=org.name, slug=org.slug,
-            plan=org.plan, is_active=org.is_active, created_at=org.created_at,
+            id=org.id,
+            name=org.name,
+            slug=org.slug,
+            plan=org.plan,
+            is_active=org.is_active,
+            created_at=org.created_at,
         ),
         tokens=tokens,
     )
@@ -181,8 +206,10 @@ async def complete_google_signup(payload: CompleteGoogleSignupRequest, db: DB):
 
 # ─── MFA ──────────────────────────────────────────────────────────────────────
 
+
 class MFACodeRequest(BaseModel):
     code: str
+
 
 class MFAValidateRequest(BaseModel):
     mfa_token: str
@@ -198,6 +225,7 @@ async def mfa_setup(current_user: AuthUser, db: DB):
     MFA is optional — any role can enable it.
     """
     from app.services.mfa_service import MFAService
+
     service = MFAService(db)
     return await service.setup(current_user.user_id)
 
@@ -209,6 +237,7 @@ async def mfa_verify(payload: MFACodeRequest, current_user: AuthUser, db: DB):
     Returns 8 single-use backup codes — show once, store securely.
     """
     from app.services.mfa_service import MFAService
+
     service = MFAService(db)
     return await service.verify_and_enable(current_user.user_id, payload.code)
 
@@ -220,10 +249,11 @@ async def mfa_validate(payload: MFAValidateRequest, db: DB):
     Submit the mfa_token from /auth/login + the 6-digit TOTP code.
     Returns full access + refresh tokens on success.
     """
-    from app.services.mfa_service import MFAService
-    from app.core.security import create_access_token, create_refresh_token
-    from app.core.config import settings as cfg
     import uuid
+
+    from app.core.config import settings as cfg
+    from app.core.security import create_access_token, create_refresh_token
+    from app.services.mfa_service import MFAService
 
     service = MFAService(db)
     claims = MFAService.decode_mfa_pending_token(payload.mfa_token)
@@ -248,6 +278,7 @@ async def mfa_disable(payload: MFACodeRequest, current_user: AuthUser, db: DB):
     Disable MFA. Requires current TOTP code or a backup code to confirm.
     """
     from app.services.mfa_service import MFAService
+
     service = MFAService(db)
     await service.disable(current_user.user_id, payload.code)
 
@@ -258,6 +289,7 @@ async def mfa_regenerate_backup_codes(payload: MFACodeRequest, current_user: Aut
     Regenerate backup codes. Requires current TOTP code. Old codes are invalidated.
     """
     from app.services.mfa_service import MFAService
+
     service = MFAService(db)
     codes = await service.regenerate_backup_codes(current_user.user_id, payload.code)
     return {
@@ -270,7 +302,9 @@ async def mfa_regenerate_backup_codes(payload: MFACodeRequest, current_user: Aut
 async def mfa_status(current_user: AuthUser, db: DB):
     """Return whether MFA is enabled for the current user."""
     from sqlalchemy import select
+
     from app.models.user import User
+
     result = await db.execute(select(User).where(User.id == current_user.user_id))
     user = result.scalar_one()
     return {
@@ -281,11 +315,13 @@ async def mfa_status(current_user: AuthUser, db: DB):
 
 # ─── Current user / profile ───────────────────────────────────────────────────
 
+
 @router.get("/me", response_model=UserResponse)
 async def me(current_user: AuthUser, db: DB):
     """Return the currently authenticated user's profile."""
     from sqlalchemy import select
-    from app.models.user import User, OrganisationMember
+
+    from app.models.user import OrganisationMember, User
 
     result = await db.execute(select(User).where(User.id == current_user.user_id))
     user = result.scalar_one()
@@ -297,9 +333,13 @@ async def me(current_user: AuthUser, db: DB):
     )
     membership = mem_result.scalar_one()
     return UserResponse(
-        id=user.id, email=user.email, full_name=user.full_name,
-        role=membership.role, is_active=user.is_active,
-        is_verified=user.is_verified, created_at=user.created_at,
+        id=user.id,
+        email=user.email,
+        full_name=user.full_name,
+        role=membership.role,
+        is_active=user.is_active,
+        is_verified=user.is_verified,
+        created_at=user.created_at,
     )
 
 
@@ -307,6 +347,7 @@ async def me(current_user: AuthUser, db: DB):
 async def update_profile(payload: UpdateProfileRequest, current_user: AuthUser, db: DB):
     """Update the current user's name or email."""
     from sqlalchemy import select
+
     from app.models.user import OrganisationMember
 
     service = AuthService(db)
@@ -320,9 +361,13 @@ async def update_profile(payload: UpdateProfileRequest, current_user: AuthUser, 
     )
     membership = mem_result.scalar_one()
     return UserResponse(
-        id=user.id, email=user.email, full_name=user.full_name,
-        role=membership.role, is_active=user.is_active,
-        is_verified=user.is_verified, created_at=user.created_at,
+        id=user.id,
+        email=user.email,
+        full_name=user.full_name,
+        role=membership.role,
+        is_active=user.is_active,
+        is_verified=user.is_verified,
+        created_at=user.created_at,
     )
 
 
@@ -335,14 +380,19 @@ async def change_password(payload: ChangePasswordRequest, current_user: AuthUser
 
 # ─── Organisation ─────────────────────────────────────────────────────────────
 
+
 @router.get("/organisation", response_model=OrgResponse)
 async def get_organisation(current_user: AuthUser, db: DB):
     """Get the current organisation's profile."""
     service = AuthService(db)
     org = await service.get_organisation(current_user.org_id)
     return OrgResponse(
-        id=org.id, name=org.name, slug=org.slug,
-        plan=org.plan, is_active=org.is_active, created_at=org.created_at,
+        id=org.id,
+        name=org.name,
+        slug=org.slug,
+        plan=org.plan,
+        is_active=org.is_active,
+        created_at=org.created_at,
     )
 
 
@@ -352,12 +402,17 @@ async def update_organisation(payload: UpdateOrgRequest, current_user: AdminUser
     service = AuthService(db)
     org = await service.update_organisation(current_user.org_id, payload)
     return OrgResponse(
-        id=org.id, name=org.name, slug=org.slug,
-        plan=org.plan, is_active=org.is_active, created_at=org.created_at,
+        id=org.id,
+        name=org.name,
+        slug=org.slug,
+        plan=org.plan,
+        is_active=org.is_active,
+        created_at=org.created_at,
     )
 
 
 # ─── Member management ────────────────────────────────────────────────────────
+
 
 @router.get("/members", response_model=list[MemberResponse])
 async def list_members(current_user: AuthUser, db: DB):
@@ -376,7 +431,6 @@ async def invite(payload: InviteRequest, current_user: AdminUser, db: DB):
         org_id=current_user.org_id,
         invited_by=current_user.user_id,
         # data=payload, org_id=current_user.org_id, invited_by=current_user.user_id,
-
     )
     return {
         "message": f"Invite sent to {user.email}",
@@ -409,7 +463,7 @@ async def update_member_role(
     db: DB,
 ):
     """Change a member's role (admin/member/viewer). Admin only. Cannot change own role."""
-# async def update_member_role(user_id: uuid.UUID, payload: UpdateMemberRoleRequest, current_user: AdminUser, db: DB):
+    # async def update_member_role(user_id: uuid.UUID, payload: UpdateMemberRoleRequest, current_user: AdminUser, db: DB):
     service = AuthService(db)
     member = await service.update_member_role(
         target_user_id=user_id,

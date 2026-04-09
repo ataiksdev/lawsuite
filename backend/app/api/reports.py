@@ -1,9 +1,11 @@
 # backend/app/api/reports.py
 import math
 import uuid
+
 from fastapi import APIRouter, Query, status
-from app.core.deps import AuthUser, DB
-from app.schemas.report import ReportGenerateRequest, ReportResponse, ReportData
+
+from app.core.deps import DB, AuthUser
+from app.schemas.report import ReportGenerateRequest, ReportResponse
 
 router = APIRouter()
 
@@ -26,9 +28,9 @@ async def generate_report(
     connected. If not connected they are silently skipped.
     Returns the aggregated report data + the persisted report record.
     """
-    from app.services.report_service import ReportService
-    from app.services.google_auth_service import GoogleAuthService
     from app.services.billing_service import BillingService
+    from app.services.google_auth_service import GoogleAuthService
+    from app.services.report_service import ReportService
 
     # Gate: reports feature required
     await BillingService(db).check_feature_access(current_user.org_id, "reports")
@@ -88,9 +90,10 @@ async def list_reports(
 @router.get("/{report_id}", response_model=ReportResponse)
 async def get_report(report_id: uuid.UUID, current_user: AuthUser, db: DB):
     """Get a single report record by ID."""
-    from sqlalchemy import select
-    from app.models.report import Report
     from fastapi import HTTPException
+    from sqlalchemy import select
+
+    from app.models.report import Report
 
     result = await db.execute(
         select(Report).where(

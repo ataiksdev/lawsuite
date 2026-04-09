@@ -1,14 +1,17 @@
 # backend/app/schemas/document.py
 import uuid
 from datetime import datetime
-from pydantic import BaseModel, Field
-from app.models.matter_document import DocumentType, DocumentStatus
 
+from pydantic import BaseModel, Field
+
+from app.models.matter_document import DocumentStatus, DocumentType
 
 # ─── Document requests ────────────────────────────────────────────────────────
 
+
 class DocumentLink(BaseModel):
     """Link an existing Drive file to a matter."""
+
     name: str = Field(..., min_length=1, max_length=255)
     drive_file_id: str = Field(..., min_length=1)
     drive_url: str = Field(..., min_length=1)
@@ -18,6 +21,7 @@ class DocumentLink(BaseModel):
 
 class DocumentVersionUpload(BaseModel):
     """Add a new version to an existing document record."""
+
     drive_file_id: str = Field(..., min_length=1)
     drive_url: str = Field(..., min_length=1)
     label: str | None = Field(None, max_length=255)  # e.g. "signed copy"
@@ -30,6 +34,7 @@ class DocumentStatusUpdate(BaseModel):
 
 class GenerateFromTemplateRequest(BaseModel):
     """Generate a new document from a Google Docs template file."""
+
     template_file_id: str = Field(..., min_length=1)
     document_name: str = Field(..., min_length=1, max_length=255)
     doc_type: str = "other"
@@ -37,6 +42,7 @@ class GenerateFromTemplateRequest(BaseModel):
 
 
 # ─── Document responses ───────────────────────────────────────────────────────
+
 
 class DocumentVersionResponse(BaseModel):
     id: uuid.UUID
@@ -72,8 +78,10 @@ class DocumentResponse(BaseModel):
 
 # ─── Drive file listing (from Drive API directly) ─────────────────────────────
 
+
 class DriveFileResponse(BaseModel):
     """Raw Drive file metadata returned from the Drive API listing."""
+
     id: str
     name: str
     mime_type: str

@@ -1,33 +1,34 @@
 # backend/app/services/matter_service.py
 import uuid
-import math
 from datetime import datetime, timezone
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
-from sqlalchemy.orm import selectinload
-from fastapi import HTTPException, status
 
-from app.models.matter import Matter, MatterStatus
+from fastapi import HTTPException, status
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
 from app.models.client import Client
+from app.models.matter import Matter, MatterStatus
 from app.schemas.matter import MatterCreate, MatterUpdate, StatusUpdate
 from app.services.activity_service import ActivityService
 
-
 # Valid stage transitions — prevents arbitrary jumps
 ALLOWED_TRANSITIONS: dict[MatterStatus, list[MatterStatus]] = {
-    MatterStatus.intake:    [MatterStatus.open, MatterStatus.archived],
-    MatterStatus.open:      [MatterStatus.pending, MatterStatus.in_review, MatterStatus.closed, MatterStatus.archived],
-    MatterStatus.pending:   [MatterStatus.open, MatterStatus.in_review, MatterStatus.closed, MatterStatus.archived],
+    MatterStatus.intake: [MatterStatus.open, MatterStatus.archived],
+    MatterStatus.open: [MatterStatus.pending, MatterStatus.in_review, MatterStatus.closed, MatterStatus.archived],
+    MatterStatus.pending: [MatterStatus.open, MatterStatus.in_review, MatterStatus.closed, MatterStatus.archived],
     MatterStatus.in_review: [MatterStatus.open, MatterStatus.pending, MatterStatus.closed, MatterStatus.archived],
-    MatterStatus.closed:    [MatterStatus.open, MatterStatus.archived],
-    MatterStatus.archived:  [MatterStatus.open],
+    MatterStatus.closed: [MatterStatus.open, MatterStatus.archived],
+    MatterStatus.archived: [MatterStatus.open],
 }
 
 
 async def _generate_reference(db: AsyncSession, org_id: uuid.UUID) -> str:
     year = datetime.now(timezone.utc).year
     count_result = await db.execute(
-        select(func.count()).select_from(Matter).where(
+        select(func.count())
+        .select_from(Matter)
+        .where(
             Matter.organisation_id == org_id,
             Matter.reference_no.like(f"MAT-{year}-%"),
         )
@@ -37,7 +38,6 @@ async def _generate_reference(db: AsyncSession, org_id: uuid.UUID) -> str:
 
 
 class MatterService:
-
     def __init__(self, db: AsyncSession):
         self.db = db
         self.activity = ActivityService(db)
@@ -84,11 +84,7 @@ class MatterService:
         page: int = 1,
         page_size: int = 25,
     ) -> tuple[list[Matter], int]:
-        query = (
-            select(Matter)
-            .options(selectinload(Matter.client))
-            .where(Matter.organisation_id == org_id)
-        )
+        query = select(Matter).options(selectinload(Matter.client)).where(Matter.organisation_id == org_id)
 
         if status_filter:
             query = query.where(Matter.status == status_filter)
@@ -97,19 +93,12 @@ class MatterService:
         if assigned_to:
             query = query.where(Matter.assigned_to == assigned_to)
         if search:
-            query = query.where(
-                Matter.title.ilike(f"%{search}%") |
-                Matter.reference_no.ilike(f"%{search}%")
-            )
+            query = query.where(Matter.title.ilike(f"%{search}%") | Matter.reference_no.ilike(f"%{search}%"))
 
         count_q = select(func.count()).select_from(query.subquery())
         total = (await self.db.execute(count_q)).scalar_one()
 
-        query = (
-            query.order_by(Matter.updated_at.desc())
-            .offset((page - 1) * page_size)
-            .limit(page_size)
-        )
+        query = query.order_by(Matter.updated_at.desc()).offset((page - 1) * page_size).limit(page_size)
         result = await self.db.execute(query)
         return list(result.scalars().all()), total
 

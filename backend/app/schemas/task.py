@@ -1,11 +1,13 @@
 # backend/app/schemas/task.py
 import uuid
-from datetime import datetime, date
-from pydantic import BaseModel, Field
-from app.models.task import TaskStatus, TaskPriority
+from datetime import date, datetime
 
+from pydantic import BaseModel, Field
+
+from app.models.task import TaskPriority, TaskStatus
 
 # ─── Requests ────────────────────────────────────────────────────────────────
+
 
 class TaskCreate(BaseModel):
     title: str = Field(..., min_length=2, max_length=255)
@@ -25,6 +27,7 @@ class TaskUpdate(BaseModel):
 
 
 # ─── Responses ───────────────────────────────────────────────────────────────
+
 
 class TaskResponse(BaseModel):
     id: uuid.UUID
@@ -55,6 +58,7 @@ class TaskListResponse(BaseModel):
 
 class OverdueTaskResponse(BaseModel):
     """Task with its parent matter reference for the overdue dashboard."""
+
     id: uuid.UUID
     matter_id: uuid.UUID
     matter_title: str

@@ -1,17 +1,17 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import String, DateTime, Boolean, Text
+
+from sqlalchemy import Boolean, DateTime, String, Text
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+
 from app.core.database import Base
 
 
 class Organisation(Base):
     __tablename__ = "organisations"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     slug: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
@@ -35,24 +35,17 @@ class Organisation(Base):
     trial_used: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     feature_flags: Mapped[dict | list | None] = mapped_column(JSONB)
 
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow,
-        onupdate=datetime.utcnow, nullable=False
+        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
     )
 
     # Relationships
     members: Mapped[list["OrganisationMember"]] = relationship(
         back_populates="organisation", cascade="all, delete-orphan"
     )
-    clients: Mapped[list["Client"]] = relationship(
-        back_populates="organisation", cascade="all, delete-orphan"
-    )
-    matters: Mapped[list["Matter"]] = relationship(
-        back_populates="organisation", cascade="all, delete-orphan"
-    )
+    clients: Mapped[list["Client"]] = relationship(back_populates="organisation", cascade="all, delete-orphan")
+    matters: Mapped[list["Matter"]] = relationship(back_populates="organisation", cascade="all, delete-orphan")
 
     def __repr__(self) -> str:
         return f"<Organisation id={self.id} name={self.name}>"

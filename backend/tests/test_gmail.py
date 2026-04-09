@@ -1,6 +1,7 @@
 # backend/tests/api/test_gmail.py
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 from httpx import AsyncClient
 
 REGISTER = {
@@ -17,10 +18,15 @@ async def setup(client: AsyncClient) -> tuple[str, str]:
     token = reg.json()["tokens"]["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
     cl = await client.post("/clients/", json={"name": "Gmail Client"}, headers=headers)
-    m = await client.post("/matters/", json={
-        "title": "Gmail Matter", "matter_type": "advisory",
-        "client_id": cl.json()["id"],
-    }, headers=headers)
+    m = await client.post(
+        "/matters/",
+        json={
+            "title": "Gmail Matter",
+            "matter_type": "advisory",
+            "client_id": cl.json()["id"],
+        },
+        headers=headers,
+    )
     return token, m.json()["id"]
 
 
@@ -28,12 +34,14 @@ def mock_google_creds():
     """Patch GoogleCreds dependency with a fake credentials object."""
     from app.core.deps import get_google_credentials
     from app.main import app
+
     fake_creds = MagicMock()
     app.dependency_overrides[get_google_credentials] = lambda: fake_creds
     return fake_creds
 
 
 # ─── Link thread ──────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_link_email_thread(client: AsyncClient):
@@ -77,8 +85,14 @@ async def test_link_duplicate_thread_rejected(client: AsyncClient):
     with patch(
         "app.services.gmail_service.GmailService.get_thread",
         new_callable=AsyncMock,
-        return_value={"thread_id": "dup123", "subject": "Dupe", "snippet": "x",
-                      "message_count": 1, "sender": None, "date": None},
+        return_value={
+            "thread_id": "dup123",
+            "subject": "Dupe",
+            "snippet": "x",
+            "message_count": 1,
+            "sender": None,
+            "date": None,
+        },
     ):
         await client.post(
             f"/matters/{matter_id}/emails",
@@ -96,6 +110,7 @@ async def test_link_duplicate_thread_rejected(client: AsyncClient):
 
 # ─── List threads ─────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_list_linked_emails(client: AsyncClient):
     token, matter_id = await setup(client)
@@ -105,8 +120,14 @@ async def test_list_linked_emails(client: AsyncClient):
     with patch(
         "app.services.gmail_service.GmailService.get_thread",
         new_callable=AsyncMock,
-        return_value={"thread_id": "t1", "subject": "Thread 1", "snippet": "s",
-                      "message_count": 1, "sender": None, "date": None},
+        return_value={
+            "thread_id": "t1",
+            "subject": "Thread 1",
+            "snippet": "s",
+            "message_count": 1,
+            "sender": None,
+            "date": None,
+        },
     ):
         await client.post(
             f"/matters/{matter_id}/emails",
@@ -122,6 +143,7 @@ async def test_list_linked_emails(client: AsyncClient):
 
 # ─── Unlink thread ────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_unlink_email_thread(client: AsyncClient):
     token, matter_id = await setup(client)
@@ -131,8 +153,14 @@ async def test_unlink_email_thread(client: AsyncClient):
     with patch(
         "app.services.gmail_service.GmailService.get_thread",
         new_callable=AsyncMock,
-        return_value={"thread_id": "t2", "subject": "Thread 2", "snippet": "s",
-                      "message_count": 1, "sender": None, "date": None},
+        return_value={
+            "thread_id": "t2",
+            "subject": "Thread 2",
+            "snippet": "s",
+            "message_count": 1,
+            "sender": None,
+            "date": None,
+        },
     ):
         link = await client.post(
             f"/matters/{matter_id}/emails",
@@ -154,6 +182,7 @@ async def test_unlink_email_thread(client: AsyncClient):
 
 # ─── Link logs activity ───────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_link_email_logs_activity(client: AsyncClient):
     token, matter_id = await setup(client)
@@ -163,8 +192,14 @@ async def test_link_email_logs_activity(client: AsyncClient):
     with patch(
         "app.services.gmail_service.GmailService.get_thread",
         new_callable=AsyncMock,
-        return_value={"thread_id": "act1", "subject": "Activity test", "snippet": "",
-                      "message_count": 1, "sender": None, "date": None},
+        return_value={
+            "thread_id": "act1",
+            "subject": "Activity test",
+            "snippet": "",
+            "message_count": 1,
+            "sender": None,
+            "date": None,
+        },
     ):
         await client.post(
             f"/matters/{matter_id}/emails",

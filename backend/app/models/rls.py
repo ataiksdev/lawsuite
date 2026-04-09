@@ -52,6 +52,7 @@ CREATE POLICY tenant_isolation ON organisation_members
 
 if __name__ == "__main__":
     import psycopg2
+
     from app.core.config import settings
 
     # Use sync URL, strip asyncpg prefix

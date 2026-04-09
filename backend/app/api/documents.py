@@ -1,26 +1,28 @@
 # backend/app/api/documents.py
 import uuid
-from fastapi import APIRouter, status
-from app.core.deps import AuthUser, GoogleCreds, DB
-from app.services.document_service import DocumentService
-from app.services.google_drive_service import GoogleDriveService
-from app.services.google_docs_service import GoogleDocsService
 from datetime import date
-from sqlalchemy import select
-from app.models.organisation import Organisation
-from app.models.matter import Matter
-from app.models.client import Client
-from app.models.matter_document import DocumentType
+
 import fastapi
+from fastapi import APIRouter, status
+from sqlalchemy import select
+
+from app.core.deps import DB, AuthUser, GoogleCreds
+from app.models.client import Client
+from app.models.matter import Matter
+from app.models.matter_document import DocumentType
+from app.models.organisation import Organisation
 from app.schemas.document import (
-    GenerateFromTemplateRequest,
     DocumentLink,
-    DocumentVersionUpload,
-    DocumentStatusUpdate,
     DocumentResponse,
+    DocumentStatusUpdate,
     DocumentVersionResponse,
+    DocumentVersionUpload,
     DriveFileResponse,
+    GenerateFromTemplateRequest,
 )
+from app.services.document_service import DocumentService
+from app.services.google_docs_service import GoogleDocsService
+from app.services.google_drive_service import GoogleDriveService
 
 router = APIRouter()
 
@@ -175,6 +177,7 @@ async def list_drive_files(
     matter = result.scalar_one_or_none()
     if not matter:
         from fastapi import HTTPException
+
         raise HTTPException(status_code=404, detail="Matter not found")
 
     if not matter.drive_folder_id:
@@ -197,6 +200,7 @@ async def list_drive_files(
 
 
 # ─── Phase 7: Generate document from template ─────────────────────────────────
+
 
 @router.post(
     "/{matter_id}/documents/from-template",
@@ -233,19 +237,17 @@ async def generate_from_template(
     if not matter:
         raise fastapi.HTTPException(status_code=404, detail="Matter not found")
 
-    client_result = await db.execute(
-        select(Client).where(Client.id == matter.client_id)
-    )
+    client_result = await db.execute(select(Client).where(Client.id == matter.client_id))
     client = client_result.scalar_one_or_none()
 
     # Build standard substitutions
     substitutions = {
-        "{{client_name}}":  client.name if client else "",
-        "{{matter_ref}}":   matter.reference_no,
+        "{{client_name}}": client.name if client else "",
+        "{{matter_ref}}": matter.reference_no,
         "{{matter_title}}": matter.title,
-        "{{matter_type}}":  matter.matter_type.value.replace("_", " ").title(),
-        "{{date}}":         date.today().strftime("%d %B %Y"),
-        "{{lawyer_name}}":  "",  # filled from user profile in future
+        "{{matter_type}}": matter.matter_type.value.replace("_", " ").title(),
+        "{{date}}": date.today().strftime("%d %B %Y"),
+        "{{lawyer_name}}": "",  # filled from user profile in future
     }
     substitutions.update(payload.extra_substitutions)
 
@@ -278,7 +280,7 @@ async def generate_from_template(
         ),
     )
     return DocumentResponse.model_validate(doc)
-    
+
 
 @router.get("/{matter_id}/templates", response_model=list[dict])
 async def list_templates(
@@ -291,9 +293,7 @@ async def list_templates(
     List available document templates from the org's Drive templates folder.
     Requires Google Workspace to be connected.
     """
-    org_result = await db.execute(
-        select(Organisation).where(Organisation.id == current_user.org_id)
-    )
+    org_result = await db.execute(select(Organisation).where(Organisation.id == current_user.org_id))
     org = org_result.scalar_one()
 
     docs_service = GoogleDocsService(google_creds)

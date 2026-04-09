@@ -1,20 +1,18 @@
 # backend/app/services/task_service.py
 import uuid
-import math
-from datetime import datetime, date, timezone
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_
-from sqlalchemy.orm import selectinload
-from fastapi import HTTPException, status
+from datetime import date, datetime, timezone
 
-from app.models.task import Task, TaskStatus
+from fastapi import HTTPException, status
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.models.matter import Matter
+from app.models.task import Task, TaskStatus
 from app.schemas.task import TaskCreate, TaskUpdate
 from app.services.activity_service import ActivityService
 
 
 class TaskService:
-
     def __init__(self, db: AsyncSession):
         self.db = db
         self.activity = ActivityService(db)
@@ -36,9 +34,7 @@ class TaskService:
             )
         return matter
 
-    async def _get_task(
-        self, task_id: uuid.UUID, matter_id: uuid.UUID, org_id: uuid.UUID
-    ) -> Task:
+    async def _get_task(self, task_id: uuid.UUID, matter_id: uuid.UUID, org_id: uuid.UUID) -> Task:
         result = await self.db.execute(
             select(Task).where(
                 Task.id == task_id,
@@ -236,11 +232,7 @@ class TaskService:
         count_q = select(func.count()).select_from(query.subquery())
         total = (await self.db.execute(count_q)).scalar_one()
 
-        query = (
-            query.order_by(Task.due_date.asc())
-            .offset((page - 1) * page_size)
-            .limit(page_size)
-        )
+        query = query.order_by(Task.due_date.asc()).offset((page - 1) * page_size).limit(page_size)
         rows = (await self.db.execute(query)).all()
 
         return [

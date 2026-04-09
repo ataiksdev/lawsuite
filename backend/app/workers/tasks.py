@@ -1,6 +1,7 @@
 # backend/app/workers/tasks.py
 import asyncio
 import uuid
+
 from app.workers.celery_app import celery_app
 
 
@@ -11,6 +12,7 @@ def healthcheck() -> str:
 
 
 # ─── Phase 6: Drive webhook processing ───────────────────────────────────────
+
 
 @celery_app.task(name="tasks.process_drive_change", bind=True, max_retries=3)
 def process_drive_change(self, file_id: str, org_id: str) -> None:
@@ -30,11 +32,10 @@ def process_drive_change(self, file_id: str, org_id: str) -> None:
 
 
 async def _process_drive_change(file_id: str, org_id: str, task) -> None:
-    from sqlalchemy import select
     from app.core.database import AsyncSessionLocal
+    from app.services.document_service import DocumentService
     from app.services.google_auth_service import GoogleAuthService
     from app.services.google_drive_activity_service import GoogleDriveActivityService
-    from app.services.document_service import DocumentService
 
     async with AsyncSessionLocal() as db:
         try:
@@ -68,10 +69,11 @@ async def _process_drive_change(file_id: str, org_id: str, task) -> None:
 
         except Exception as exc:
             # Retry with exponential backoff: 60s, 120s, 240s
-            raise task.retry(exc=exc, countdown=60 * (2 ** task.request.retries))
+            raise task.retry(exc=exc, countdown=60 * (2**task.request.retries))
 
 
 # ─── Phase 6: Drive folder creation ──────────────────────────────────────────
+
 
 @celery_app.task(name="tasks.create_drive_folder", bind=True, max_retries=3)
 def create_drive_folder(self, matter_id: str, org_id: str) -> None:
@@ -86,11 +88,12 @@ def create_drive_folder(self, matter_id: str, org_id: str) -> None:
 
 async def _create_drive_folder(matter_id: str, org_id: str, task) -> None:
     from sqlalchemy import select
+
     from app.core.database import AsyncSessionLocal
+    from app.models.client import Client
+    from app.models.matter import Matter
     from app.services.google_auth_service import GoogleAuthService
     from app.services.google_drive_service import GoogleDriveService
-    from app.models.matter import Matter
-    from app.models.client import Client
 
     async with AsyncSessionLocal() as db:
         try:
@@ -98,16 +101,12 @@ async def _create_drive_folder(matter_id: str, org_id: str, task) -> None:
             org_uuid = uuid.UUID(org_id)
 
             # Fetch matter + client name
-            matter_result = await db.execute(
-                select(Matter).where(Matter.id == matter_uuid)
-            )
+            matter_result = await db.execute(select(Matter).where(Matter.id == matter_uuid))
             matter = matter_result.scalar_one_or_none()
             if not matter:
                 return
 
-            client_result = await db.execute(
-                select(Client).where(Client.id == matter.client_id)
-            )
+            client_result = await db.execute(select(Client).where(Client.id == matter.client_id))
             client = client_result.scalar_one_or_none()
             client_name = client.name if client else "Unknown Client"
 
@@ -128,10 +127,11 @@ async def _create_drive_folder(matter_id: str, org_id: str, task) -> None:
             await db.commit()
 
         except Exception as exc:
-            raise task.retry(exc=exc, countdown=60 * (2 ** task.request.retries))
+            raise task.retry(exc=exc, countdown=60 * (2**task.request.retries))
 
 
 # ─── Phase 6: Webhook channel renewal ────────────────────────────────────────
+
 
 @celery_app.task(name="tasks.renew_expiring_webhook_channels")
 def renew_expiring_webhook_channels() -> None:
@@ -147,12 +147,14 @@ def renew_expiring_webhook_channels() -> None:
 
 
 async def _renew_expiring_channels() -> None:
-    from datetime import datetime, timezone, timedelta
+    from datetime import datetime, timedelta, timezone
+
     from sqlalchemy import select
+
     from app.core.database import AsyncSessionLocal
+    from app.models.organisation import Organisation
     from app.services.google_auth_service import GoogleAuthService
     from app.services.google_drive_service import GoogleDriveService
-    from app.models.organisation import Organisation
 
     renewal_threshold = datetime.now(timezone.utc) + timedelta(hours=24)
 
@@ -173,9 +175,7 @@ async def _renew_expiring_channels() -> None:
                 drive_service = GoogleDriveService(db, credentials)
                 channel = await drive_service.register_webhook_channel(org.id)
 
-                expires_at = datetime.fromtimestamp(
-                    int(channel["expiration"]) / 1000, tz=timezone.utc
-                )
+                expires_at = datetime.fromtimestamp(int(channel["expiration"]) / 1000, tz=timezone.utc)
                 await drive_service.persist_webhook_channel(
                     org_id=org.id,
                     channel_id=channel["id"],

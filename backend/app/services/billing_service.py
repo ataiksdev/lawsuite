@@ -1,16 +1,16 @@
 # backend/app/services/billing_service.py
-import uuid
-import hmac
 import hashlib
+import hmac
+import uuid
 from datetime import datetime, timezone
 from typing import Literal
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+
 from fastapi import HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models.organisation import Organisation
-
 
 # Plan definitions — amounts in Kobo (NGN × 100)
 PLAN_FEATURES = {
@@ -29,24 +29,24 @@ PLAN_FEATURES = {
     "pro": {
         "name": "Pro",
         "plan_code": settings.paystack_pro_plan_code,
-        "amount_kobo": 1_000_000,   # ₦10,000/month
-        "max_matters": None,         # unlimited
+        "amount_kobo": 1_000_000,  # ₦10,000/month
+        "max_matters": None,  # unlimited
         "max_seats": 5,
         "drive_integration": True,
         "reports": True,
-        "mfa": True,              # MFA always available for security
+        "mfa": True,  # MFA always available for security
         "advanced_tasks": False,
         "api_access": False,
     },
     "agency": {
         "name": "Agency",
         "plan_code": settings.paystack_agency_plan_code,
-        "amount_kobo": 5_000_000,   # ₦50,000/month
+        "amount_kobo": 5_000_000,  # ₦50,000/month
         "max_matters": None,
-        "max_seats": None,           # unlimited
+        "max_seats": None,  # unlimited
         "drive_integration": True,
         "reports": True,
-        "mfa": True,              # MFA always available for security
+        "mfa": True,  # MFA always available for security
         "advanced_tasks": True,
         "api_access": True,
     },
@@ -54,7 +54,7 @@ PLAN_FEATURES = {
         "name": "Free Trial",
         "plan_code": "",
         "amount_kobo": 0,
-        "max_matters": None,        # full access during trial
+        "max_matters": None,  # full access during trial
         "max_seats": 5,
         "drive_integration": True,
         "reports": True,
@@ -62,8 +62,8 @@ PLAN_FEATURES = {
         "advanced_tasks": True,
         "api_access": False,
     },
-
 }
+
 
 def _load_plan_codes() -> None:
     """Inject Paystack plan codes from settings at startup."""
@@ -95,7 +95,9 @@ def verify_paystack_signature(payload: bytes, signature: str) -> bool:
     # Use hmac.compare_digest for constant-time comparison (prevents timing attacks)
     return hmac.compare_digest(computed, signature)
 
+
 # ── Effective plan resolution ─────────────────────────────────────────────────
+
 
 def get_effective_plan(org: Organisation) -> tuple[str, dict]:
     """
@@ -112,11 +114,7 @@ def get_effective_plan(org: Organisation) -> tuple[str, dict]:
     now = datetime.now(timezone.utc)
 
     # Determine base plan
-    if (
-        org.trial_ends_at
-        and org.trial_ends_at.replace(tzinfo=timezone.utc) > now
-        and not org.trial_used
-    ):
+    if org.trial_ends_at and org.trial_ends_at.replace(tzinfo=timezone.utc) > now and not org.trial_used:
         plan_name = "trial"
     else:
         plan_name = org.plan
@@ -132,15 +130,13 @@ def get_effective_plan(org: Organisation) -> tuple[str, dict]:
 
     return plan_name, features
 
-class BillingService:
 
+class BillingService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
     async def _get_org(self, org_id: uuid.UUID) -> Organisation:
-        result = await self.db.execute(
-            select(Organisation).where(Organisation.id == org_id)
-        )
+        result = await self.db.execute(select(Organisation).where(Organisation.id == org_id))
         org = result.scalar_one_or_none()
         if not org:
             raise HTTPException(
@@ -151,9 +147,7 @@ class BillingService:
 
     # ── Paystack customer ─────────────────────────────────────────────────
 
-    async def get_or_create_customer(
-        self, org_id: uuid.UUID, email: str, name: str
-    ) -> str:
+    async def get_or_create_customer(self, org_id: uuid.UUID, email: str, name: str) -> str:
         """
         Get or create a Paystack customer for this organisation.
         Returns the Paystack customer_code (e.g. CUS_xxxxxxxxxx).
@@ -198,6 +192,7 @@ class BillingService:
         After payment Paystack calls our webhook and we activate the plan.
         """
         from pypaystack2 import AsyncPaystackClient
+
         if plan not in PLAN_FEATURES or plan in ("free", "trial"):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -257,8 +252,8 @@ class BillingService:
         org = await self._get_org(org_id)
         if plan in PLAN_FEATURES:
             org.plan = plan
-                        # Upgrading to paid plan ends the trial
-            org.trial_used=True
+            # Upgrading to paid plan ends the trial
+            org.trial_used = True
             await self.db.commit()
 
     async def handle_subscription_create(self, event_data: dict) -> None:
@@ -271,11 +266,9 @@ class BillingService:
         plan_code = event_data.get("plan", {}).get("plan_code")
         if not customer_code:
             return
-        org = (await self.db.execute(
-            select(Organisation).where(
-                Organisation.paystack_customer_code == customer_code
-            )
-        )).scalar_one_or_none()
+        org = (
+            await self.db.execute(select(Organisation).where(Organisation.paystack_customer_code == customer_code))
+        ).scalar_one_or_none()
         if not org:
             return
         for plan_name, plan_config in PLAN_FEATURES.items():
@@ -284,7 +277,6 @@ class BillingService:
                 org.trial_used = True
                 break
         await self.db.commit()
-
 
     async def handle_subscription_disable(self, event_data: dict) -> None:
         """
@@ -296,11 +288,7 @@ class BillingService:
         if not customer_code:
             return
 
-        result = await self.db.execute(
-            select(Organisation).where(
-                Organisation.paystack_customer_code == customer_code
-            )
-        )
+        result = await self.db.execute(select(Organisation).where(Organisation.paystack_customer_code == customer_code))
         org = result.scalar_one_or_none()
         if org:
             org.plan = "free"
@@ -328,10 +316,7 @@ class BillingService:
             "amount_ngn": features["amount_kobo"] / 100,
             "trial_active": trial_active,
             "trial_ends_at": org.trial_ends_at.isoformat() if org.trial_ends_at else None,
-            "features": {
-                k: v for k, v in features.items()
-                if k not in ("name", "plan_code", "amount_kobo")
-            },
+            "features": {k: v for k, v in features.items() if k not in ("name", "plan_code", "amount_kobo")},
             "limits": {
                 "max_matters": features["max_matters"],
                 "max_seats": features["max_seats"],
@@ -339,7 +324,7 @@ class BillingService:
             "paystack_customer_code": org.paystack_customer_code,
         }
 
-    async def manage_subscription_portal( self, org_id: uuid.UUID) -> dict:
+    async def manage_subscription_portal(self, org_id: uuid.UUID) -> dict:
         """
         Return the Paystack customer portal URL where the customer
         can manage or cancel their subscription.
@@ -357,6 +342,7 @@ class BillingService:
             "portal_url": "https://paystack.com/account/subscriptions",
             "message": "Manage your subscription on the Paystack customer portal",
         }
+
     # ── Feature flag admin override ───────────────────────────────────────
 
     async def set_feature_flags(
@@ -371,7 +357,8 @@ class BillingService:
         """
         org = await self._get_org(org_id)
         valid_keys = {
-            k for k in PLAN_FEATURES["free"]
+            k
+            for k in PLAN_FEATURES["free"]
             if k not in ("name", "plan_code", "amount_kobo", "max_matters", "max_seats")
         }
         invalid = set(flags.keys()) - valid_keys
@@ -393,6 +380,7 @@ class BillingService:
         Called before creating a new matter.
         """
         from sqlalchemy import func
+
         from app.models.matter import Matter, MatterStatus
 
         org = await self._get_org(org_id)
@@ -404,7 +392,9 @@ class BillingService:
             return  # Unlimited
 
         count_result = await self.db.execute(
-            select(func.count()).select_from(Matter).where(
+            select(func.count())
+            .select_from(Matter)
+            .where(
                 Matter.organisation_id == org_id,
                 Matter.status != MatterStatus.archived,
             )
@@ -426,6 +416,7 @@ class BillingService:
         Called before inviting a new member.
         """
         from sqlalchemy import func
+
         from app.models.user import OrganisationMember
 
         org = await self._get_org(org_id)
@@ -436,9 +427,7 @@ class BillingService:
             return  # Unlimited
 
         count_result = await self.db.execute(
-            select(func.count()).select_from(OrganisationMember).where(
-                OrganisationMember.organisation_id == org_id
-            )
+            select(func.count()).select_from(OrganisationMember).where(OrganisationMember.organisation_id == org_id)
         )
         count = count_result.scalar_one()
 

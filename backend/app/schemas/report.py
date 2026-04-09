@@ -1,16 +1,17 @@
 # backend/app/schemas/report.py
 import uuid
-from datetime import datetime, date
-from pydantic import BaseModel, Field
+from datetime import date, datetime
 from typing import Literal
 
+from pydantic import BaseModel
 
 # ─── Request ─────────────────────────────────────────────────────────────────
 
+
 class ReportGenerateRequest(BaseModel):
     period_type: Literal["weekly", "monthly", "custom"] = "monthly"
-    date_from: date | None = None   # required when period_type="custom"
-    date_to: date | None = None     # required when period_type="custom"
+    date_from: date | None = None  # required when period_type="custom"
+    date_to: date | None = None  # required when period_type="custom"
     group_by_client: bool = True
     include_event_types: list[str] = []  # empty = all event types
     export_to_drive: bool = True
@@ -19,6 +20,7 @@ class ReportGenerateRequest(BaseModel):
 
 
 # ─── Internal aggregation shapes ─────────────────────────────────────────────
+
 
 class TaskSummary(BaseModel):
     total: int
@@ -65,6 +67,7 @@ class ReportData(BaseModel):
 
 
 # ─── Stored report responses ─────────────────────────────────────────────────
+
 
 class ReportResponse(BaseModel):
     id: uuid.UUID

@@ -15,22 +15,28 @@ Flow at login when MFA is enabled:
 TOTP spec: RFC 6238 — 30-second window, 6-digit codes, SHA1 (pyotp default).
 Backup codes: 8 codes, each 8 characters, stored as bcrypt hashes.
 """
+
+import io
 import secrets
 import uuid
+from datetime import datetime, timedelta, timezone
+
 import pyotp
 import qrcode
 import qrcode.image.svg
-import io
-import base64
-from datetime import datetime, timedelta, timezone
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 from fastapi import HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.security import encrypt, decrypt, hash_password, verify_password, decode_token
+from app.core.security import (
+    decode_token,
+    decrypt,
+    encrypt,
+    hash_password,
+    verify_password,
+)
 from app.models.user import User
-
 
 BACKUP_CODE_COUNT = 8
 BACKUP_CODE_LENGTH = 8
@@ -39,7 +45,6 @@ TOTP_WINDOW = 1
 
 
 class MFAService:
-
     def __init__(self, db: AsyncSession):
         self.db = db
 
@@ -127,10 +132,7 @@ class MFAService:
             )
 
         # Generate backup codes (plaintext returned once, hashes stored)
-        plain_codes = [
-            secrets.token_hex(BACKUP_CODE_LENGTH // 2).upper()
-            for _ in range(BACKUP_CODE_COUNT)
-        ]
+        plain_codes = [secrets.token_hex(BACKUP_CODE_LENGTH // 2).upper() for _ in range(BACKUP_CODE_COUNT)]
         hashed_codes = [hash_password(c) for c in plain_codes]
 
         user.mfa_enabled = True
@@ -201,19 +203,14 @@ class MFAService:
 
     # ── Regenerate backup codes ───────────────────────────────────────────
 
-    async def regenerate_backup_codes(
-        self, user_id: uuid.UUID, code: str
-    ) -> list[str]:
+    async def regenerate_backup_codes(self, user_id: uuid.UUID, code: str) -> list[str]:
         """
         Regenerate backup codes. Requires current TOTP to confirm.
         """
         await self.validate_login_code(user_id, code)
 
         user = await self._get_user(user_id)
-        plain_codes = [
-            secrets.token_hex(BACKUP_CODE_LENGTH // 2).upper()
-            for _ in range(BACKUP_CODE_COUNT)
-        ]
+        plain_codes = [secrets.token_hex(BACKUP_CODE_LENGTH // 2).upper() for _ in range(BACKUP_CODE_COUNT)]
         user.mfa_backup_codes = [hash_password(c) for c in plain_codes]
         await self.db.commit()
 
@@ -227,8 +224,8 @@ class MFAService:
         Short-lived token issued after successful password login when MFA
         is required. Valid for 5 minutes. Used in POST /auth/mfa/validate.
         """
-        from datetime import timedelta
         from jose import jwt
+
         expire = datetime.now(timezone.utc) + timedelta(minutes=5)
         payload = {
             "sub": str(user_id),

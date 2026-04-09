@@ -1,7 +1,7 @@
 # backend/app/services/google_drive_activity_service.py
+from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from google.oauth2.credentials import Credentials
 
 
 class GoogleDriveActivityService:
@@ -24,9 +24,7 @@ class GoogleDriveActivityService:
     def client(self):
         if not self._client:
             # NOTE: build() with driveactivity requires google-api-python-client
-            self._client = build(
-                "driveactivity", "v2", credentials=self.credentials
-            )
+            self._client = build("driveactivity", "v2", credentials=self.credentials)
         return self._client
 
     async def get_file_activity(self, file_id: str) -> list[dict]:
@@ -55,7 +53,7 @@ class GoogleDriveActivityService:
                 )
                 .execute()
             )
-        except HttpError as e:
+        except HttpError:
             # Non-fatal — webhook processing should continue even if
             # activity fetch fails (e.g. permission error on the file)
             return []

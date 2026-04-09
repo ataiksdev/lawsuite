@@ -1,23 +1,21 @@
 # backend/app/services/google_drive_service.py
-import uuid
 import secrets
-from datetime import datetime, timezone, timedelta
+import uuid
+from datetime import datetime, timedelta, timezone
 from typing import Optional
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+
 from fastapi import HTTPException, status
+from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from google.oauth2.credentials import Credentials
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models.organisation import Organisation
-from app.models.matter import Matter
-from app.models.matter_document import MatterDocument, MatterDocumentVersion
 
 
 class GoogleDriveService:
-
     def __init__(self, db: AsyncSession, credentials: Credentials):
         self.db = db
         self.credentials = credentials
@@ -48,11 +46,7 @@ class GoogleDriveService:
             metadata["parents"] = [parent_id]
 
         try:
-            folder = (
-                self.client.files()
-                .create(body=metadata, fields="id,name,webViewLink")
-                .execute()
-            )
+            folder = self.client.files().create(body=metadata, fields="id,name,webViewLink").execute()
             return folder
         except HttpError as e:
             raise HTTPException(
@@ -95,24 +89,14 @@ class GoogleDriveService:
 
         return matter_folder["id"], matter_folder.get("webViewLink", "")
 
-    async def _find_or_create_folder(
-        self, name: str, parent_id: Optional[str]
-    ) -> dict:
+    async def _find_or_create_folder(self, name: str, parent_id: Optional[str]) -> dict:
         """Find an existing folder by name and parent, or create it."""
-        query = (
-            f"name='{name}' "
-            f"and mimeType='application/vnd.google-apps.folder' "
-            f"and trashed=false"
-        )
+        query = f"name='{name}' " f"and mimeType='application/vnd.google-apps.folder' " f"and trashed=false"
         if parent_id:
             query += f" and '{parent_id}' in parents"
 
         try:
-            results = (
-                self.client.files()
-                .list(q=query, fields="files(id,name,webViewLink)", pageSize=1)
-                .execute()
-            )
+            results = self.client.files().list(q=query, fields="files(id,name,webViewLink)", pageSize=1).execute()
             files = results.get("files", [])
             if files:
                 return files[0]
@@ -174,9 +158,7 @@ class GoogleDriveService:
         Returns the channel metadata including id and resourceId.
         """
         channel_id = f"legalops-{org_id}-{secrets.token_hex(8)}"
-        expiry_ms = int(
-            (datetime.now(timezone.utc) + timedelta(days=6, hours=23)).timestamp() * 1000
-        )
+        expiry_ms = int((datetime.now(timezone.utc) + timedelta(days=6, hours=23)).timestamp() * 1000)
 
         body = {
             "id": channel_id,
@@ -206,14 +188,10 @@ class GoogleDriveService:
         result = self.client.changes().getStartPageToken().execute()
         return result.get("startPageToken")
 
-    async def stop_webhook_channel(
-        self, channel_id: str, resource_id: str
-    ) -> None:
+    async def stop_webhook_channel(self, channel_id: str, resource_id: str) -> None:
         """Stop a push notification channel before re-registering."""
         try:
-            self.client.channels().stop(
-                body={"id": channel_id, "resourceId": resource_id}
-            ).execute()
+            self.client.channels().stop(body={"id": channel_id, "resourceId": resource_id}).execute()
         except HttpError:
             pass  # Best-effort — channel may have already expired
 
@@ -224,9 +202,7 @@ class GoogleDriveService:
         expires_at: datetime,
     ) -> None:
         """Store the active webhook channel ID on the organisation record."""
-        result = await self.db.execute(
-            select(Organisation).where(Organisation.id == org_id)
-        )
+        result = await self.db.execute(select(Organisation).where(Organisation.id == org_id))
         org = result.scalar_one_or_none()
         if org:
             org.drive_webhook_channel_id = channel_id
@@ -236,8 +212,10 @@ class GoogleDriveService:
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+
 def _safe_folder_name(name: str) -> str:
     """Strip characters Drive doesn't allow in folder names."""
     import re
+
     name = re.sub(r"[/\\:*?\"<>|]", "-", name)
     return name[:255].strip()

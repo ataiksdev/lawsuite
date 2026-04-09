@@ -1,7 +1,6 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import AnyHttpUrl
 from typing import List
-import json
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -14,6 +13,32 @@ class Settings(BaseSettings):
     # Database
     database_url: str
     database_url_sync: str
+
+    @property
+    def async_database_url(self) -> str:
+        """
+        Ensures the database URL is using the asyncpg driver.
+        Render provides `postgres://` URLs, but SQLAlchemy 2.0+ requires `postgresql+asyncpg://`.
+        """
+        url = self.database_url
+        if url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql+asyncpg://", 1)
+        elif url.startswith("postgresql://"):
+            url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return url
+
+    @property
+    def sync_database_url(self) -> str:
+        """
+        Ensures the database URL is using the psycopg2 driver for sync operations (like migrations).
+        Render provides `postgres://` URLs, but we want `postgresql+psycopg2://`.
+        """
+        url = self.database_url_sync
+        if url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql+psycopg2://", 1)
+        elif url.startswith("postgresql://"):
+            url = url.replace("postgresql://", "postgresql+psycopg2://", 1)
+        return url
 
     # Redis
     redis_url: str = "redis://localhost:6379/0"
@@ -30,11 +55,11 @@ class Settings(BaseSettings):
     # Google OAuth
     google_client_id: str = ""
     google_client_secret: str = ""
-    google_redirect_uri: str = "" #http://localhost:8000/integrations/google/callback"
+    google_redirect_uri: str = ""  # http://localhost:8000/integrations/google/callback"
     google_signin_redirect_uri: str = ""
 
     trial_days: int = 30
-    #paystack
+    # paystack
     paystack_secret_key: str = ""
     paystack_public_key: str = ""
     # paystack_webhook_secret: str = ""
@@ -46,12 +71,15 @@ class Settings(BaseSettings):
     app_env: str = "development"
     app_url: str = "http://localhost:8000"
     frontend_url: str = "http://localhost:3000"
-    cors_origins: List[str] = ["http://localhost:3000", "192.168.18.5","https://sphinxian-shu-untraveled.ngrok-free.dev"]
+    cors_origins: List[str] = [
+        "http://localhost:3000",
+        "192.168.18.5",
+        "https://sphinxian-shu-untraveled.ngrok-free.dev",
+    ]
 
     # Platform admin — your own org's UUID (the SaaS operator)
     # Set this after you register your own account
     platform_admin_org_id: str = ""
-
 
     @property
     def is_production(self) -> bool:

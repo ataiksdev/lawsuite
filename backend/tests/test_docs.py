@@ -1,6 +1,7 @@
 # backend/tests/api/test_docs.py
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 from httpx import AsyncClient
 
 REGISTER = {
@@ -16,22 +17,29 @@ async def setup(client: AsyncClient) -> tuple[str, str]:
     token = reg.json()["tokens"]["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
     cl = await client.post("/clients/", json={"name": "Docs Client"}, headers=headers)
-    m = await client.post("/matters/", json={
-        "title": "Docs Matter", "matter_type": "drafting",
-        "client_id": cl.json()["id"],
-    }, headers=headers)
+    m = await client.post(
+        "/matters/",
+        json={
+            "title": "Docs Matter",
+            "matter_type": "drafting",
+            "client_id": cl.json()["id"],
+        },
+        headers=headers,
+    )
     return token, m.json()["id"]
 
 
 def mock_google_creds():
     from app.core.deps import get_google_credentials
     from app.main import app
+
     fake_creds = MagicMock()
     app.dependency_overrides[get_google_credentials] = lambda: fake_creds
     return fake_creds
 
 
 # ─── Generate from template ───────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_generate_from_template(client: AsyncClient):
@@ -106,6 +114,7 @@ async def test_generate_from_template_logs_document_added(client: AsyncClient):
 
 # ─── List templates ───────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_list_templates(client: AsyncClient):
     token, matter_id = await setup(client)
@@ -120,8 +129,18 @@ async def test_list_templates(client: AsyncClient):
         "app.services.google_docs_service.GoogleDocsService.list_templates",
         new_callable=AsyncMock,
         return_value=[
-            {"id": "t1", "name": "Engagement Letter", "webViewLink": "https://docs.google.com/t1", "modifiedTime": "2025-06-01T10:00:00Z"},
-            {"id": "t2", "name": "NDA Template", "webViewLink": "https://docs.google.com/t2", "modifiedTime": "2025-05-15T09:00:00Z"},
+            {
+                "id": "t1",
+                "name": "Engagement Letter",
+                "webViewLink": "https://docs.google.com/t1",
+                "modifiedTime": "2025-06-01T10:00:00Z",
+            },
+            {
+                "id": "t2",
+                "name": "NDA Template",
+                "webViewLink": "https://docs.google.com/t2",
+                "modifiedTime": "2025-05-15T09:00:00Z",
+            },
         ],
     ):
         resp = await client.get(

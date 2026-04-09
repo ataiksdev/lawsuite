@@ -1,12 +1,12 @@
 # backend/app/services/gmail_service.py
 import base64
-import uuid
-from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
+from fastapi import HTTPException, status
+from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from google.oauth2.credentials import Credentials
-from fastapi import HTTPException, status
 
 
 class GmailService:
@@ -171,12 +171,7 @@ class GmailService:
         raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
 
         try:
-            sent = (
-                self.client.users()
-                .messages()
-                .send(userId="me", body={"raw": raw})
-                .execute()
-            )
+            sent = self.client.users().messages().send(userId="me", body={"raw": raw}).execute()
             return {"message_id": sent.get("id"), "thread_id": sent.get("threadId")}
         except HttpError as e:
             raise HTTPException(
@@ -212,10 +207,7 @@ class GmailService:
           </p>
         </div>
         """
-        body_text = (
-            f"Your {period} LegalOps activity report is ready.\n\n"
-            f"View it here: {doc_url}"
-        )
+        body_text = f"Your {period} LegalOps activity report is ready.\n\n" f"View it here: {doc_url}"
         return await self.send_email(
             to=recipient,
             subject=subject,

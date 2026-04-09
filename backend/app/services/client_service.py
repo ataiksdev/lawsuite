@@ -1,14 +1,15 @@
 # backend/app/services/client_service.py
 import uuid
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+
 from fastapi import HTTPException, status
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.models.client import Client
 from app.schemas.client import ClientCreate, ClientUpdate
 
 
 class ClientService:
-
     def __init__(self, db: AsyncSession):
         self.db = db
 
@@ -61,9 +62,7 @@ class ClientService:
         await self.db.refresh(client)
         return client
 
-    async def update_client(
-        self, client_id: uuid.UUID, org_id: uuid.UUID, data: ClientUpdate
-    ) -> Client:
+    async def update_client(self, client_id: uuid.UUID, org_id: uuid.UUID, data: ClientUpdate) -> Client:
         client = await self.get_client(client_id, org_id)
         update_data = data.model_dump(exclude_unset=True)
         for field, value in update_data.items():

@@ -21,5 +21,10 @@ backend/.coverage
 frontend/node_modules
 backend/report.html
 
-
+# Python cache - never commit these
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyc
+.pytest_cache/
 

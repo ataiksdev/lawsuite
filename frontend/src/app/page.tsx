@@ -40,6 +40,9 @@ import { KanbanPage } from '@/components/pages/tasks/kanban-page';
 // Reports Page
 import { ReportsPage } from '@/components/pages/reports/reports-page';
 
+// Documents Page
+import { DocumentsPage } from '@/components/pages/documents/documents-page';
+
 // Settings Page
 import { UserSettingsPage } from '@/components/pages/settings/user-settings-page';
 
@@ -113,8 +116,8 @@ function AppRouter({ route }: { route: string }) {
   // Tasks — Kanban board
   if (route === '/tasks' || route === '/tasks/') return <KanbanPage />;
 
-  // Documents (redirects to matters — docs are viewed within matters)
-  if (route === '/documents' || route === '/documents/') return <MatterListPage />;
+  // Documents — cross-matter document browser
+  if (route === '/documents' || route === '/documents/') return <DocumentsPage />;
 
   // Reports
   if (route === '/reports' || route === '/reports/') return <ReportsPage />;

@@ -188,9 +188,11 @@ export default function Home() {
 
   // If on an auth route or not authenticated, show auth pages
   if (!isAuthenticated || isAuthRoute(currentRoute)) {
-    // If authenticated and trying to access auth route, redirect to dashboard
+    // If authenticated and trying to access auth route, redirect to their default landing
     if (isAuthenticated && isAuthRoute(currentRoute)) {
-      setTimeout(() => navigate('/'), 0);
+      const { user } = useAuthStore.getState();
+      const defaultRoute = user?.role === 'admin' ? '/' : '/tasks';
+      setTimeout(() => navigate(defaultRoute), 0);
       return null;
     }
     return <AuthRouter route={currentRoute} />;

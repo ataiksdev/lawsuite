@@ -176,7 +176,7 @@ function PlanCard({
               'w-full text-white',
               plan.popular ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-slate-900 hover:bg-slate-800'
             )}
-            onClick={() => void onUpgrade(plan.key as Exclude<BillingPlan, 'free'>)}
+            onClick={() => void onUpgrade(plan.key as PaidBillingPlan)}
             disabled={isBusy}
           >
             {isBusy ? (

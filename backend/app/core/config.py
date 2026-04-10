@@ -70,7 +70,7 @@ class Settings(BaseSettings):
     # App
     app_env: str = "development"
     app_url: str = "http://localhost:8000"
-    frontend_url: str = "http://localhost:3000"
+    frontend_url: str = ""
     cors_origins: List[str] = [
         "http://localhost:3000",
         "192.168.18.5",

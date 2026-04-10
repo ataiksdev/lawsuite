@@ -25,7 +25,6 @@ export interface BackendTaskListResponse {
   total: number;
   page: number;
   page_size: number;
-  // Backend returns "pages" not "total_pages"
   pages: number;
 }
 
@@ -57,7 +56,34 @@ export interface OverdueTaskListResponse {
   pages: number;
 }
 
-// FIX: Backend mounts tasks at /matters/{id}/tasks, not /tasks/{id}/tasks
+// ── Comments ──────────────────────────────────────────────────────────────────
+
+export interface TaskComment {
+  id: string;
+  task_id: string;
+  matter_id: string;
+  author_id: string;
+  author_name: string;
+  body: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TaskCommentPayload {
+  body: string;
+}
+
+// ── Watchers ──────────────────────────────────────────────────────────────────
+
+export interface TaskWatcher {
+  user_id: string;
+  full_name: string;
+  email: string;
+  added_at: string;
+}
+
+// ── Task CRUD ─────────────────────────────────────────────────────────────────
+
 export async function listMatterTasks(
   matterId: string,
   params: { status?: BackendTaskStatus; page?: number; page_size?: number } = {}
@@ -83,4 +109,58 @@ export async function deleteTask(matterId: string, taskId: string) {
 
 export async function listOverdueTasks(params: { page?: number; page_size?: number } = {}) {
   return apiClient.get<OverdueTaskListResponse>('/tasks/overdue', params);
+}
+
+// ── Comments ──────────────────────────────────────────────────────────────────
+
+export async function listTaskComments(matterId: string, taskId: string) {
+  return apiClient.get<TaskComment[]>(`/matters/${matterId}/tasks/${taskId}/comments`);
+}
+
+export async function addTaskComment(
+  matterId: string,
+  taskId: string,
+  payload: TaskCommentPayload
+) {
+  return apiClient.post<TaskComment>(
+    `/matters/${matterId}/tasks/${taskId}/comments`,
+    payload
+  );
+}
+
+export async function deleteTaskComment(
+  matterId: string,
+  taskId: string,
+  commentId: string
+) {
+  return apiClient.delete<void>(
+    `/matters/${matterId}/tasks/${taskId}/comments/${commentId}`
+  );
+}
+
+// ── Watchers ──────────────────────────────────────────────────────────────────
+
+export async function listTaskWatchers(matterId: string, taskId: string) {
+  return apiClient.get<TaskWatcher[]>(`/matters/${matterId}/tasks/${taskId}/watchers`);
+}
+
+export async function addTaskWatcher(
+  matterId: string,
+  taskId: string,
+  userId: string
+) {
+  return apiClient.post<TaskWatcher>(
+    `/matters/${matterId}/tasks/${taskId}/watchers`,
+    { user_id: userId }
+  );
+}
+
+export async function removeTaskWatcher(
+  matterId: string,
+  taskId: string,
+  userId: string
+) {
+  return apiClient.delete<void>(
+    `/matters/${matterId}/tasks/${taskId}/watchers/${userId}`
+  );
 }

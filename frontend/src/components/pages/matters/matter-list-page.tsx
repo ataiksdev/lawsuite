@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
+import { useFilterStore } from '@/lib/filter-store';
 import {
   Search,
   Plus,
@@ -123,11 +124,17 @@ const TYPE_FILTER_OPTIONS: { value: TypeFilter; label: string }[] = [
 ];
 
 export function MatterListPage() {
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const { matterListSearch, matterListStatus, setMatterListFilters, clearMatterListFilters } = useFilterStore();
+  const [search, setSearch] = useState(matterListSearch);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>((matterListStatus as StatusFilter) || 'all');
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [clientFilter, setClientFilter] = useState('all');
   const [assigneeFilter, setAssigneeFilter] = useState('all');
+
+  // Sync filter changes to persistent store
+  useEffect(() => {
+    setMatterListFilters(search, statusFilter);
+  }, [search, statusFilter, setMatterListFilters]);
   const [sortField, setSortField] = useState<SortField>('created_at');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [page, setPage] = useState(1);

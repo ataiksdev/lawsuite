@@ -16,7 +16,6 @@ import {
 import { cn } from '@/lib/utils';
 import { navigate } from '@/lib/router';
 import { ApiClientError } from '@/lib/api-client';
-import { handleApiError, extractErrorMessage } from '@/lib/error-utils';
 import {
   listMatters,
   type BackendMatter,
@@ -153,8 +152,8 @@ export function MatterListPage() {
         ]);
 
         if (!cancelled) {
-          setMatters(matterResponse.items ?? []);
-          setClients(clientResponse.items?.filter((client) => client.is_active) ?? []);
+          setMatters(matterResponse.items);
+          setClients(clientResponse.items.filter((client) => client.is_active));
           setMembers(memberResponse.filter((member) => member.is_active));
         }
       } catch (err) {

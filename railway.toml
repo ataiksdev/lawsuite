@@ -1,0 +1,51 @@
+# =============================================================================
+# LegalOps — Railway deployment configuration
+#
+# Three services share one Dockerfile:
+#   api    — FastAPI / Uvicorn (HTTP traffic, public)
+#   worker — Celery worker (background tasks)
+#   beat   — Celery beat (scheduled tasks, one instance only)
+#
+# Setup:
+#   1. railway init  (from repo root)
+#   2. Add Postgres plugin → Railway injects DATABASE_URL + DATABASE_URL_SYNC
+#   3. Add Redis plugin    → Railway injects REDIS_URL
+#   4. Set remaining env vars (see backend/.env.example) in Railway dashboard
+#   5. git push main → auto-deploys all three services
+# =============================================================================
+
+[build]
+  dockerfilePath = "backend/Dockerfile"
+
+# ── API service ───────────────────────────────────────────────────────────────
+[[services]]
+  name   = "api"
+  source = "backend"
+
+  [services.deploy]
+    releaseCommand    = "alembic upgrade head"
+    startCommand      = "uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 2"
+    healthcheckPath   = "/health"
+    healthcheckTimeout = 30
+    restartPolicyType = "on_failure"
+    restartPolicyMaxRetries = 3
+
+# ── Celery worker ─────────────────────────────────────────────────────────────
+[[services]]
+  name   = "worker"
+  source = "backend"
+
+  [services.deploy]
+    startCommand      = "celery -A app.workers.celery_app worker --loglevel=info --concurrency=2"
+    restartPolicyType = "on_failure"
+    restartPolicyMaxRetries = 5
+
+# ── Celery beat ───────────────────────────────────────────────────────────────
+[[services]]
+  name   = "beat"
+  source = "backend"
+
+  [services.deploy]
+    startCommand      = "celery -A app.workers.celery_app beat --loglevel=info"
+    restartPolicyType = "on_failure"
+    restartPolicyMaxRetries = 3

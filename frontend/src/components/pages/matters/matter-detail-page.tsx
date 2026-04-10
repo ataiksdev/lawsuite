@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
   Calendar,
+  CheckSquare,
   ChevronDown,
   ExternalLink,
   FilePlus2,
@@ -29,6 +30,15 @@ import {
   type BackendMatterType,
 } from '@/lib/api/matters';
 import { listMembers, type MemberSummary } from '@/lib/api/members';
+import {
+  listMatterTasks,
+  updateTask,
+  createTask,
+  deleteTask,
+  type BackendTask,
+  type BackendTaskStatus,
+  type BackendTaskPriority,
+} from '@/lib/api/tasks';
 import {
   addDocumentVersion,
   deleteDocument,
@@ -83,6 +93,207 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import { DocumentFormDialog } from './components/document-form-dialog';
+
+// ── Task section helpers ──────────────────────────────────────────────────────
+
+const TASK_PRIORITY_STYLE: Record<BackendTaskPriority, string> = {
+  low:    'border-slate-200 bg-slate-50 text-slate-600',
+  medium: 'border-amber-200 bg-amber-50 text-amber-700',
+  high:   'border-red-200 bg-red-50 text-red-700',
+};
+
+const TASK_STATUS_STYLE: Record<BackendTaskStatus, string> = {
+  todo:        'border-slate-200 bg-slate-50 text-slate-600',
+  in_progress: 'border-blue-200 bg-blue-50 text-blue-700',
+  done:        'border-emerald-200 bg-emerald-50 text-emerald-700',
+  cancelled:   'border-slate-200 bg-slate-100 text-slate-400',
+};
+
+function taskStatusLabel(s: BackendTaskStatus) {
+  return s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function MatterTasksSection({ matterId, members }: { matterId: string; members: MemberSummary[] }) {
+  const [tasks, setTasks] = React.useState<BackendTask[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [busyId, setBusyId] = React.useState<string | null>(null);
+  const [showForm, setShowForm] = React.useState(false);
+  const [newTitle, setNewTitle] = React.useState('');
+  const [newPriority, setNewPriority] = React.useState<BackendTaskPriority>('medium');
+  const [newAssignee, setNewAssignee] = React.useState('unassigned');
+  const [savingNew, setSavingNew] = React.useState(false);
+  const memberNameById = React.useMemo(() => new Map(members.map((m) => [m.id, m.full_name])), [members]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    setIsLoading(true);
+    listMatterTasks(matterId, { page_size: 100 })
+      .then((r) => { if (!cancelled) setTasks(r.items); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setIsLoading(false); });
+    return () => { cancelled = true; };
+  }, [matterId]);
+
+  const handleStatusChange = async (task: BackendTask, status: BackendTaskStatus) => {
+    setBusyId(task.id);
+    try {
+      const updated = await updateTask(matterId, task.id, { status });
+      setTasks((cur) => cur.map((t) => t.id === updated.id ? updated : t));
+    } catch (e) {
+      handleApiError(e, 'Unable to update task.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleCreate = async () => {
+    if (!newTitle.trim()) return;
+    setSavingNew(true);
+    try {
+      const created = await createTask(matterId, {
+        title: newTitle.trim(), priority: newPriority,
+        assigned_to: newAssignee === 'unassigned' ? undefined : newAssignee,
+      });
+      setTasks((cur) => [created, ...cur]);
+      setNewTitle(''); setNewPriority('medium'); setNewAssignee('unassigned');
+      setShowForm(false);
+      toast.success('Task created.');
+    } catch (e) {
+      handleApiError(e, 'Unable to create task.');
+    } finally {
+      setSavingNew(false);
+    }
+  };
+
+  const handleDelete = async (task: BackendTask) => {
+    setBusyId(task.id);
+    try {
+      await deleteTask(matterId, task.id);
+      setTasks((cur) => cur.filter((t) => t.id !== task.id));
+      toast.success('Task deleted.');
+    } catch (e) {
+      handleApiError(e, 'Unable to delete task.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const todo = tasks.filter((t) => t.status === 'todo').length;
+  const inProg = tasks.filter((t) => t.status === 'in_progress').length;
+  const done = tasks.filter((t) => t.status === 'done').length;
+
+  return (
+    <Card className="shadow-sm lg:col-span-2">
+      <CardContent className="space-y-4 p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CheckSquare className="h-4 w-4 text-slate-500" />
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-900 dark:text-slate-100">Tasks</h3>
+            {!isLoading && (
+              <div className="flex items-center gap-1 ml-1">
+                <Badge className="text-[10px] border border-slate-200 bg-slate-100 text-slate-600">{todo} todo</Badge>
+                <Badge className="text-[10px] border border-blue-200 bg-blue-50 text-blue-700">{inProg} in progress</Badge>
+                <Badge className="text-[10px] border border-emerald-200 bg-emerald-50 text-emerald-700">{done} done</Badge>
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => navigate('/tasks')} className="text-xs h-8">
+              Full Board
+            </Button>
+            <Button size="sm" className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => setShowForm((v) => !v)}>
+              <Plus className="h-3.5 w-3.5 mr-1" /> Add Task
+            </Button>
+          </div>
+        </div>
+
+        {showForm && (
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 dark:bg-emerald-950/10 p-4 space-y-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <Input className="sm:col-span-1 h-8 text-xs" placeholder="Task title…" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} />
+              <Select value={newPriority} onValueChange={(v) => setNewPriority(v as BackendTaskPriority)}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="low">Low</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={newAssignee} onValueChange={setNewAssignee}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Assign to…" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unassigned">Unassigned</SelectItem>
+                  {members.map((m) => <SelectItem key={m.id} value={m.id}>{m.full_name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white" disabled={savingNew || !newTitle.trim()} onClick={() => void handleCreate()}>
+                {savingNew ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null} Save Task
+              </Button>
+              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowForm(false)}>Cancel</Button>
+            </div>
+          </div>
+        )}
+
+        {isLoading ? (
+          <div className="flex items-center gap-2 text-sm text-slate-400 py-4">
+            <Loader2 className="h-4 w-4 animate-spin" /> Loading tasks…
+          </div>
+        ) : tasks.length === 0 ? (
+          <p className="text-sm text-slate-500">No tasks linked to this matter yet.</p>
+        ) : (
+          <div className="space-y-2">
+            {tasks.map((task) => (
+              <div key={task.id} className={cn('flex flex-col gap-2 sm:flex-row sm:items-center rounded-lg border p-3 transition-colors', task.status === 'done' ? 'opacity-60' : '')}>
+                <div className="min-w-0 flex-1">
+                  <p className={cn('text-sm font-medium text-slate-800 dark:text-slate-200', task.status === 'cancelled' && 'line-through text-slate-400')}>{task.title}</p>
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                    <Badge className={cn('text-[10px] border', TASK_PRIORITY_STYLE[task.priority])}>{task.priority}</Badge>
+                    {task.assigned_to && (
+                      <span className="text-[11px] text-slate-400">{memberNameById.get(task.assigned_to) ?? 'Assigned'}</span>
+                    )}
+                    {task.due_date && (
+                      <span className={cn('text-[11px]', new Date(task.due_date) < new Date() && task.status !== 'done' && task.status !== 'cancelled' ? 'text-red-500' : 'text-slate-400')}>
+                        Due {formatDate(task.due_date)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Select
+                    value={task.status}
+                    disabled={busyId === task.id}
+                    onValueChange={(v) => void handleStatusChange(task, v as BackendTaskStatus)}
+                  >
+                    <SelectTrigger className="h-7 w-[130px] text-xs">
+                      {busyId === task.id ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todo">To Do</SelectItem>
+                      <SelectItem value="in_progress">In Progress</SelectItem>
+                      <SelectItem value="done">Done</SelectItem>
+                      <SelectItem value="cancelled">Cancelled</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    variant="ghost" size="icon"
+                    className="h-7 w-7 text-slate-300 hover:text-red-500"
+                    disabled={busyId === task.id}
+                    onClick={() => void handleDelete(task)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('en-NG', {
@@ -967,6 +1178,8 @@ export function MatterDetailPage() {
             />
           </CardContent>
         </Card>
+
+        <MatterTasksSection matterId={matter.id} members={members} />
 
         <Card className="shadow-sm lg:col-span-2">
           <CardContent className="space-y-4 p-6">

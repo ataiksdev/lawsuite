@@ -39,6 +39,15 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
+import { useFilterStore } from '@/lib/filter-store';
+
+// // inside ClientListPage(), replace:
+// const [search, setSearch] = useState('');
+
+// with:
+
+
+
 type FilterStatus = 'all' | 'active' | 'archived';
 type SortField = 'name' | 'created_at';
 type SortOrder = 'asc' | 'desc';
@@ -52,7 +61,9 @@ function formatDate(dateStr: string): string {
 }
 
 export function ClientListPage() {
-  const [search, setSearch] = useState('');
+  const { clientListSearch, setClientListSearch } = useFilterStore();
+  const [search, setSearchLocal] = useState(clientListSearch);
+  const setSearch = (v: string) => { setSearchLocal(v); setClientListSearch(v); };
   const [filter, setFilter] = useState<FilterStatus>('all');
   const [sortField, setSortField] = useState<SortField>('name');
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');

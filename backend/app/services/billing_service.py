@@ -220,7 +220,7 @@ class BillingService:
             metadata={
                 "org_id": str(org_id),
                 "plan": plan,
-                "cancel_action": f"{settings.frontend_url}/settings/billing",
+                "cancel_action": f"{settings.frontend_url}/#/settings/billing",
             },
         )
 

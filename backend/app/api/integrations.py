@@ -41,7 +41,7 @@ async def google_callback(
     await service.handle_callback(code=code, state=state)
 
     # Redirect to frontend settings with success flag
-    return RedirectResponse(url=f"{settings.frontend_url}/settings/integrations?google=connected")
+    return RedirectResponse(url=f"{settings.frontend_url}/#/settings/integrations?google=connected")
 
 
 @router.get("/google/status")

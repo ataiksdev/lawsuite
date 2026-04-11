@@ -53,7 +53,7 @@ async def create_checkout(
         name=user.full_name,
     )
 
-    callback_url = f"{settings.frontend_url}/settings/billing?paystack=success"
+    callback_url = f"{settings.frontend_url}/#/settings/billing?paystack=success"
 
     result = await service.initialize_subscription(
         org_id=current_user.org_id,

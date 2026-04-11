@@ -43,6 +43,8 @@ function checkPassword(password: string): PasswordChecks {
 
 export function AcceptInvitePage() {
   const acceptInvite = useAuthStore((s) => s.acceptInvite);
+  const authError = useAuthStore((s) => s.error);
+  const clearError = useAuthStore((s) => s.clearError);
   const [token, setToken] = useState<string>('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -94,17 +96,12 @@ export function AcceptInvitePage() {
     setIsSubmitting(true);
     try {
       await acceptInvite(token, password);
-
       setIsSuccess(true);
-      toast.success('Invitation accepted!', {
-        description: 'Your account has been activated successfully.',
-      });
-
-      setTimeout(() => {
-        navigate('/');
-      }, 1500);
-    } catch (err){
-      // toast.error('Failed to accept invitation. The link may have expired.');
+      setTimeout(() => navigate('/'), 1500);
+    } catch {
+      // auth store already called toast.error() with the exact backend detail
+      // (e.g. "Invalid invite token" / "Invite token has expired")
+      // authError state is set and displayed in the inline banner below
     } finally {
       setIsSubmitting(false);
     }
@@ -207,6 +204,13 @@ export function AcceptInvitePage() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Inline server error */}
+            {authError && (
+              <div className="rounded-lg border border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/20 px-4 py-3">
+                <p className="text-sm text-red-700 dark:text-red-400">{authError}</p>
+              </div>
+            )}
+
             {/* Password */}
             <div className="space-y-2">
               <Label htmlFor="invite-password">New Password</Label>
@@ -219,6 +223,7 @@ export function AcceptInvitePage() {
                   onChange={(e) => {
                     setPassword(e.target.value);
                     if (errors.password) setErrors((p) => ({ ...p, password: '' }));
+                    if (authError) clearError();
                   }}
                   className="h-10 pr-10"
                   autoComplete="new-password"

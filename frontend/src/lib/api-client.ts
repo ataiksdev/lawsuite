@@ -310,21 +310,35 @@ class ApiClient {
       // Use default if JSON parse fails
     }
 
+    // FastAPI returns 422 detail as an array of validation errors.
+    // Flatten them into a readable string.
+    let detail: string;
+    if (Array.isArray(errorData.detail)) {
+      detail = errorData.detail
+        .map((e: { loc?: string[]; msg?: string }) => {
+          const field = e.loc ? e.loc.filter((s) => s !== 'body').join('.') : '';
+          return field ? `${field}: ${e.msg ?? 'invalid'}` : (e.msg ?? 'invalid value');
+        })
+        .join('; ');
+    } else {
+      detail = (errorData.detail as string) || 'An unexpected error occurred';
+    }
+
     switch (response.status) {
       case 400:
-        return new ApiClientError(400, errorData.detail || 'Bad request', errorData.errors);
+        return new ApiClientError(400, detail || 'Bad request', errorData.errors);
       case 401:
-        return new UnauthorizedError(errorData.detail || 'Unauthorized');
+        return new UnauthorizedError(detail || 'Unauthorized');
       case 402:
         return new PaymentRequiredError(
-          errorData.detail || 'Plan limit reached. Upgrade to continue.'
+          detail || 'Plan limit reached. Upgrade to continue.'
         );
       case 403:
-        return new ForbiddenError(errorData.detail || 'Access denied.');
+        return new ForbiddenError(detail || 'Access denied.');
       case 404:
-        return new NotFoundError(errorData.detail || 'Not found');
+        return new NotFoundError(detail || 'Not found');
       case 422:
-        return new ApiClientError(422, errorData.detail || 'Validation error', errorData.errors);
+        return new ApiClientError(422, detail || 'Validation error', errorData.errors);
       case 429:
         return new ApiClientError(429, 'Too many requests. Please try again later.');
       case 500:
@@ -336,7 +350,7 @@ class ApiClient {
       default:
         return new ApiClientError(
           response.status,
-          errorData.detail || 'An unexpected error occurred'
+          detail || 'An unexpected error occurred'
         );
     }
   }

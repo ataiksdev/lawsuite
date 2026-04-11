@@ -112,7 +112,7 @@ function MfaStep() {
 // ============================================================================
 
 export function LoginPage() {
-  const { login, isLoading, mfaPending } = useAuthStore();
+  const { login, isLoading, mfaPending, error: authError, clearError } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -211,6 +211,7 @@ export function LoginPage() {
                 onChange={(e) => {
                   setEmail(e.target.value);
                   if (emailError) validateEmail(e.target.value);
+                  if (authError) clearError();
                 }}
                 onBlur={() => validateEmail(email)}
                 className="h-10"
@@ -243,7 +244,7 @@ export function LoginPage() {
                   type={showPassword ? 'text' : 'password'}
                   placeholder="Enter your password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => { setPassword(e.target.value); if (authError) clearError(); }}
                   className="h-10 pr-10"
                   autoComplete="current-password"
                 />
@@ -258,6 +259,13 @@ export function LoginPage() {
                 </button>
               </div>
             </div>
+
+            {/* Server / auth error — shown inline so it's visible even without toasts */}
+            {authError && (
+              <div className="rounded-lg border border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/20 px-4 py-3">
+                <p className="text-sm text-red-700 dark:text-red-400">{authError}</p>
+              </div>
+            )}
 
             {/* Sign In Button */}
             <Button

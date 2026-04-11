@@ -83,7 +83,8 @@ export const AUTH_ROUTES_EXTRA = [
   '/onboarding',
 ];
 
-function AuthRouter({ route }: { route: string }) {
+function AuthRouter({ route, isAuthenticated }: { route: string; isAuthenticated: boolean }) {
+  if (isAuthenticated) return null;
   const path = route.split('?')[0];
   if (path === '/register') return <RegisterPage />;
   if (path === '/forgot-password') return <ForgotPasswordPage />;
@@ -202,7 +203,7 @@ export default function Home() {
       setTimeout(() => navigate(defaultRoute), 0);
       return null;
     }
-    return <AuthRouter route={currentRoute} />;
+    return <AuthRouter route={currentRoute} isAuthenticated={isAuthenticated} />;
   }
 
   return (

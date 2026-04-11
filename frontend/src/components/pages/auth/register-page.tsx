@@ -56,7 +56,7 @@ function getPasswordStrength(checks: PasswordChecks): {
 // ============================================================================
 
 export function RegisterPage() {
-  const { register, isLoading } = useAuthStore();
+  const { register, isLoading, error: authError, clearError } = useAuthStore();
   const [formData, setFormData] = useState({
     organisationName: '',
     fullName: '',
@@ -74,7 +74,7 @@ export function RegisterPage() {
 
   const updateField = (field: string, value: string | boolean) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-    // Clear error for this field when user starts typing
+    // Clear field error and server error when user starts typing
     if (errors[field]) {
       setErrors((prev) => {
         const next = { ...prev };
@@ -82,6 +82,7 @@ export function RegisterPage() {
         return next;
       });
     }
+    if (authError) clearError();
   };
 
   const validate = (): boolean => {
@@ -146,7 +147,9 @@ export function RegisterPage() {
       });
       navigate('/');
     } catch {
-      toast.error('Registration failed. Please try again.');
+      // The auth store already calls toast.error() with the exact backend detail
+      // (e.g. "An account with this email already exists").
+      // We only need the inline error banner, which reads from authError.
     }
   };
 
@@ -173,6 +176,13 @@ export function RegisterPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Server / auth error inline banner */}
+            {authError && (
+              <div className="rounded-lg border border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/20 px-4 py-3">
+                <p className="text-sm text-red-700 dark:text-red-400">{authError}</p>
+              </div>
+            )}
+
             {/* Organisation Name */}
             <div className="space-y-2">
               <Label htmlFor="org-name">Organisation / Firm Name</Label>

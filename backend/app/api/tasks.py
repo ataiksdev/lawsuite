@@ -2,10 +2,12 @@
 import math
 import uuid
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, HTTPException, Query, status
+from sqlalchemy import select
 
 from app.core.deps import DB, AuthUser
 from app.models.task import TaskStatus
+from app.models.task_comment import TaskComment
 from app.schemas.task import (
     OverdueTaskResponse,
     TaskCommentCreate,
@@ -22,7 +24,7 @@ from app.services.task_service import TaskService
 router = APIRouter()
 
 
-# ─── Nested under /matters/{matter_id}/tasks ─────────────────────────────────
+# ─── Tasks (nested under /matters/{matter_id}/tasks) ─────────────────────────
 
 
 @router.get("/{matter_id}/tasks", response_model=TaskListResponse)
@@ -52,7 +54,11 @@ async def list_tasks(
     )
 
 
-@router.post("/{matter_id}/tasks", response_model=TaskResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{matter_id}/tasks",
+    response_model=TaskResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_task(
     matter_id: uuid.UUID,
     payload: TaskCreate,
@@ -93,17 +99,17 @@ async def update_task(
     return TaskResponse.model_validate(task)
 
 
-@router.delete("/{matter_id}/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{matter_id}/tasks/{task_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
 async def delete_task(
     matter_id: uuid.UUID,
     task_id: uuid.UUID,
     current_user: AuthUser,
     db: DB,
 ):
-    """
-    Soft-delete a task. The task is hidden from listings but preserved
-    in the database for audit purposes.
-    """
+    """Soft-delete a task."""
     service = TaskService(db)
     await service.delete_task(
         task_id=task_id,
@@ -113,7 +119,9 @@ async def delete_task(
     )
 
 
-# ─── Standalone overdue endpoint ─────────────────────────────────────────────
+# ─── Overdue (standalone, mounted at /tasks/overdue) ─────────────────────────
+
+
 @router.get("/overdue", response_model=dict)
 async def get_overdue_tasks(
     current_user: AuthUser,
@@ -139,51 +147,166 @@ async def get_overdue_tasks(
         "pages": math.ceil(total / page_size) if total else 0,
     }
 
+
 # ─── Comments ─────────────────────────────────────────────────────────────────
 
-@router.get("/{matter_id}/tasks/{task_id}/comments", response_model=list[TaskCommentResponse])
-async def list_comments(matter_id: uuid.UUID, task_id: uuid.UUID, current_user: AuthUser, db: DB):
+
+@router.get(
+    "/{matter_id}/tasks/{task_id}/comments",
+    response_model=list[TaskCommentResponse],
+)
+async def list_comments(
+    matter_id: uuid.UUID,
+    task_id: uuid.UUID,
+    current_user: AuthUser,
+    db: DB,
+):
+    """List all comments on a task, oldest first."""
     service = TaskService(db)
-    comments = await service.list_comments(task_id=task_id, matter_id=matter_id, org_id=current_user.org_id)
+    comments = await service.list_comments(
+        task_id=task_id,
+        matter_id=matter_id,
+        org_id=current_user.org_id,
+    )
     return [TaskCommentResponse.model_validate(c) for c in comments]
 
-@router.post("/{matter_id}/tasks/{task_id}/comments", response_model=TaskCommentResponse, status_code=status.HTTP_201_CREATED)
-async def add_comment(matter_id: uuid.UUID, task_id: uuid.UUID, payload: TaskCommentCreate, current_user: AuthUser, db: DB):
+
+@router.post(
+    "/{matter_id}/tasks/{task_id}/comments",
+    response_model=TaskCommentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_comment(
+    matter_id: uuid.UUID,
+    task_id: uuid.UUID,
+    payload: TaskCommentCreate,
+    current_user: AuthUser,
+    db: DB,
+):
+    """Add a comment to a task. Logs a task_commented activity entry."""
     service = TaskService(db)
-    comment = await service.add_comment(task_id=task_id, matter_id=matter_id, org_id=current_user.org_id, author_id=current_user.user_id, data=payload)
+    comment = await service.add_comment(
+        task_id=task_id,
+        matter_id=matter_id,
+        org_id=current_user.org_id,
+        author_id=current_user.user_id,
+        data=payload,
+    )
     return TaskCommentResponse.model_validate(comment)
 
-@router.delete("/{matter_id}/tasks/{task_id}/comments/{comment_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_comment(matter_id: uuid.UUID, task_id: uuid.UUID, comment_id: uuid.UUID, current_user: AuthUser, db: DB):
+
+@router.delete(
+    "/{matter_id}/tasks/{task_id}/comments/{comment_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_comment(
+    matter_id: uuid.UUID,
+    task_id: uuid.UUID,
+    comment_id: uuid.UUID,
+    current_user: AuthUser,
+    db: DB,
+):
+    """
+    Delete a comment. Authors can delete their own; admins can delete any.
+    """
     service = TaskService(db)
-    # Admins can delete any comment; members only their own (service enforces for non-admins)
+
     if current_user.is_admin:
-        from sqlalchemy import select
-        from app.models.task_comment import TaskComment
-        result = await db.execute(select(TaskComment).where(TaskComment.id == comment_id, TaskComment.task_id == task_id, TaskComment.organisation_id == current_user.org_id))
+        # Admins bypass ownership check — fetch and delete directly
+        result = await db.execute(
+            select(TaskComment).where(
+                TaskComment.id == comment_id,
+                TaskComment.task_id == task_id,
+                TaskComment.organisation_id == current_user.org_id,
+            )
+        )
         comment = result.scalar_one_or_none()
         if not comment:
-            raise HTTPException(status_code=404, detail="Comment not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Comment not found",
+            )
         await db.delete(comment)
         await db.commit()
     else:
-        await service.delete_comment(comment_id=comment_id, task_id=task_id, org_id=current_user.org_id, requesting_user_id=current_user.user_id)
+        await service.delete_comment(
+            comment_id=comment_id,
+            task_id=task_id,
+            org_id=current_user.org_id,
+            requesting_user_id=current_user.user_id,
+        )
+
 
 # ─── Watchers ─────────────────────────────────────────────────────────────────
 
-@router.get("/{matter_id}/tasks/{task_id}/watchers", response_model=list[TaskWatcherResponse])
-async def list_watchers(matter_id: uuid.UUID, task_id: uuid.UUID, current_user: AuthUser, db: DB):
+
+@router.get(
+    "/{matter_id}/tasks/{task_id}/watchers",
+    response_model=list[TaskWatcherResponse],
+)
+async def list_watchers(
+    matter_id: uuid.UUID,
+    task_id: uuid.UUID,
+    current_user: AuthUser,
+    db: DB,
+):
+    """List all watchers for a task."""
     service = TaskService(db)
-    watchers = await service.list_watchers(task_id=task_id, matter_id=matter_id, org_id=current_user.org_id)
+    watchers = await service.list_watchers(
+        task_id=task_id,
+        matter_id=matter_id,
+        org_id=current_user.org_id,
+    )
     return [TaskWatcherResponse.model_validate(w) for w in watchers]
 
-@router.post("/{matter_id}/tasks/{task_id}/watchers", response_model=TaskWatcherResponse, status_code=status.HTTP_201_CREATED)
-async def add_watcher(matter_id: uuid.UUID, task_id: uuid.UUID, payload: TaskWatcherAdd, current_user: AuthUser, db: DB):
+
+@router.post(
+    "/{matter_id}/tasks/{task_id}/watchers",
+    response_model=TaskWatcherResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_watcher(
+    matter_id: uuid.UUID,
+    task_id: uuid.UUID,
+    payload: TaskWatcherAdd,
+    current_user: AuthUser,
+    db: DB,
+):
+    """
+    Add a user as a watcher on this task.
+    Any member can add themselves; admins can add any org member.
+    Idempotent — re-watching returns the existing entry without error.
+    """
     service = TaskService(db)
-    watcher = await service.add_watcher(task_id=task_id, matter_id=matter_id, org_id=current_user.org_id, target_user_id=payload.user_id, requesting_user_id=current_user.user_id)
+    watcher = await service.add_watcher(
+        task_id=task_id,
+        matter_id=matter_id,
+        org_id=current_user.org_id,
+        target_user_id=payload.user_id,
+        requesting_user_id=current_user.user_id,
+    )
     return TaskWatcherResponse.model_validate(watcher)
 
-@router.delete("/{matter_id}/tasks/{task_id}/watchers/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def remove_watcher(matter_id: uuid.UUID, task_id: uuid.UUID, user_id: uuid.UUID, current_user: AuthUser, db: DB):
+
+@router.delete(
+    "/{matter_id}/tasks/{task_id}/watchers/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def remove_watcher(
+    matter_id: uuid.UUID,
+    task_id: uuid.UUID,
+    user_id: uuid.UUID,
+    current_user: AuthUser,
+    db: DB,
+):
+    """
+    Remove a watcher. Users can remove themselves; admins can remove anyone.
+    """
     service = TaskService(db)
-    await service.remove_watcher(task_id=task_id, matter_id=matter_id, org_id=current_user.org_id, target_user_id=user_id, requesting_user_id=current_user.user_id)
+    await service.remove_watcher(
+        task_id=task_id,
+        matter_id=matter_id,
+        org_id=current_user.org_id,
+        target_user_id=user_id,
+        requesting_user_id=current_user.user_id,
+    )

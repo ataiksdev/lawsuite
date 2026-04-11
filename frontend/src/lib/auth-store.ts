@@ -311,7 +311,7 @@ export const useAuthStore = create<AuthState>()(
             error: null,
           });
 
-          toast.success('Invitation accepted successfully.');
+          toast.success('Invitation accepted! Welcome to LegalOps.');
         } catch (error) {
           const message =
             error instanceof ApiClientError

@@ -83,6 +83,15 @@ export const AUTH_ROUTES_EXTRA = [
   '/onboarding',
 ];
 
+function decodeBase64Url(value: string): string {
+  const normalized = value
+    .replace(/-/g, '+')
+    .replace(/_/g, '/')
+    .padEnd(Math.ceil(value.length / 4) * 4, '=');
+
+  return atob(normalized);
+}
+
 function AuthRouter({ route, isAuthenticated }: { route: string; isAuthenticated: boolean }) {
   if (isAuthenticated) return null;
   const path = route.split('?')[0];
@@ -152,24 +161,19 @@ export default function Home() {
   const hasInitializedRef = useRef(false);
 
   // Initialize auth from storage on mount
-  // Also handle Google OAuth callback: /login?tokens=<base64>
+  // Also handle Google OAuth callback token payloads before the hash router finishes hydrating.
   useEffect(() => {
     if (!hasInitializedRef.current) {
       hasInitializedRef.current = true;
 
-      // Handle Google OAuth callback — backend redirects here with base64 tokens
-      // Tokens could be in the actual query string or in the hash (SPA style)
       const params = new URLSearchParams(window.location.search);
       const hash = window.location.hash;
       const hashParams = new URLSearchParams(hash.includes('?') ? hash.split('?')[1] : '');
       const tokensParam = params.get('tokens') || hashParams.get('tokens');
 
-      // The path could be in the hash or the real pathname (depending on if backend uses hash or not)
-      const isLoginPath = window.location.pathname === '/login' || currentRoute === '/login';
-
-      if (tokensParam && isLoginPath) {
+      if (tokensParam) {
         try {
-          const decoded = JSON.parse(atob(tokensParam));
+          const decoded = JSON.parse(decodeBase64Url(tokensParam));
           if (decoded.access_token && decoded.refresh_token) {
             apiClient.setTokens(decoded.access_token, decoded.refresh_token);
             // Clear the tokens from the URL then load auth
@@ -192,7 +196,7 @@ export default function Home() {
         useAuthStore.getState().loadFromStorage();
       }
     }
-  }, [currentRoute]);
+  }, []);
 
   // If on an auth route or not authenticated, show auth pages
   if (!isAuthenticated || isAuthRoute(currentRoute)) {

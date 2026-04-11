@@ -58,11 +58,13 @@ async def test_new_google_user_gets_provisional_token(client: AsyncClient):
             follow_redirects=False,
         )
 
-    # Should redirect to /#/onboarding?provisional=...
+    # Should redirect to /?provisional=...#/onboarding
     assert resp.status_code in (302, 307)
     location = resp.headers.get("location", "")
-    assert "/#/onboarding" in location
+    assert "/onboarding" in location
     assert "provisional=" in location
+    assert "?provisional=" in location
+    assert "#/onboarding" in location
 
 
 @pytest.mark.asyncio
@@ -79,9 +81,10 @@ async def test_new_google_user_complete_signup_creates_org_with_trial(client: As
             follow_redirects=False,
         )
 
-    # Extract provisional token from redirect URL
+    # Extract provisional token from redirect URL (before the hash)
     location = redirect.headers["location"]
-    provisional_token = location.split("provisional=")[1]
+    # Split by 'provisional=' then by '#' to get only the token
+    provisional_token = location.split("provisional=")[1].split("#")[0]
 
     # Complete signup
     resp = await client.post(
@@ -121,7 +124,7 @@ async def test_provisional_token_cannot_be_reused(client: AsyncClient):
             "/auth/google/callback?code=fake_code&state=fake_state",
             follow_redirects=False,
         )
-    provisional = redirect.headers["location"].split("provisional=")[1]
+    provisional = redirect.headers["location"].split("provisional=")[1].split("#")[0]
 
     await client.post(
         "/auth/google/complete-signup",
@@ -180,7 +183,7 @@ async def test_existing_google_user_logs_in_directly(client: AsyncClient):
             "/auth/google/callback?code=fake_code&state=fake_state",
             follow_redirects=False,
         )
-    provisional = r1.headers["location"].split("provisional=")[1]
+    provisional = r1.headers["location"].split("provisional=")[1].split("#")[0]
     await client.post(
         "/auth/google/complete-signup",
         json={
@@ -213,7 +216,7 @@ async def test_conflicting_google_accounts_rejected(client: AsyncClient):
             "/auth/google/callback?code=fake_code&state=fake_state",
             follow_redirects=False,
         )
-    provisional = r1.headers["location"].split("provisional=")[1]
+    provisional = r1.headers["location"].split("provisional=")[1].split("#")[0]
     await client.post(
         "/auth/google/complete-signup",
         json={

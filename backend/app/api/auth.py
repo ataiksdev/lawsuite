@@ -139,7 +139,7 @@ async def google_callback(code: str, state: str = "", db: DB = None):
     if is_new:
         # New user — redirect to onboarding with provisional token
         return Redirect(
-            url=f"{frontend}/#/onboarding?provisional={tokens.access_token}"
+            url=f"{frontend}/?provisional={tokens.access_token}#/onboarding"
         )
 
     # Existing user — encode tokens in redirect
@@ -150,7 +150,7 @@ async def google_callback(code: str, state: str = "", db: DB = None):
             "expires_in": tokens.expires_in,
         }).encode()
     ).decode()
-    return Redirect(url=f"{frontend}/#/login?tokens={token_payload}")
+    return Redirect(url=f"{frontend}/?tokens={token_payload}#/login")
 
 
 class CompleteGoogleSignupRequest(BaseModel):

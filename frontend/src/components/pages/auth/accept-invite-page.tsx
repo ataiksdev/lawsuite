@@ -103,8 +103,8 @@ export function AcceptInvitePage() {
       setTimeout(() => {
         navigate('/');
       }, 1500);
-    } catch {
-      toast.error('Failed to accept invitation. The link may have expired.');
+    } catch (err){
+      // toast.error('Failed to accept invitation. The link may have expired.');
     } finally {
       setIsSubmitting(false);
     }

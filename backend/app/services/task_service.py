@@ -14,12 +14,14 @@ from app.models.task_watcher import TaskWatcher
 from app.models.user import User
 from app.schemas.task import TaskCommentCreate, TaskCreate, TaskUpdate, TaskWatcherAdd
 from app.services.activity_service import ActivityService
+from app.services.notification_service import NotificationService
 
 
 class TaskService:
     def __init__(self, db: AsyncSession):
         self.db = db
         self.activity = ActivityService(db)
+        self.notifications = NotificationService(db)
 
     # ── Helpers ───────────────────────────────────────────────────────────
 
@@ -159,15 +161,33 @@ class TaskService:
                 org_id=org_id,
                 actor_id=user_id,
                 event_type="task_completed",
-                payload={
-                    "task_id": str(task.id),
-                    "task_title": task.title,
-                },
+                payload={"task_id": str(task.id), "task_title": task.title},
+            )
+            await self.notifications.fan_out_to_watchers(
+                task_id=task_id,
+                org_id=org_id,
+                actor_id=user_id,
+                type="success",
+                title=f'Task completed: "{task.title}"',
+                message="The task has been marked as done.",
+                link=f"/matters/{matter_id}",
             )
         elif new_status and new_status != TaskStatus.done and old_status == TaskStatus.done:
             task.completed_at = None
 
-        if changed and new_status != TaskStatus.done:
+        if changed and new_status != TaskStatus.done and new_status is not None:
+            status_label = new_status.replace("_", " ").title() if new_status else ""
+            await self.notifications.fan_out_to_watchers(
+                task_id=task_id,
+                org_id=org_id,
+                actor_id=user_id,
+                type="info",
+                title=f'Task updated: "{task.title}"',
+                message=f"Status changed to {status_label}." if new_status else "Task details were updated.",
+                link=f"/matters/{matter_id}",
+            )
+
+        if changed:
             await self.activity.log(
                 matter_id=matter_id,
                 org_id=org_id,
@@ -311,6 +331,17 @@ class TaskService:
                 "comment_id": str(comment.id),
                 "preview": data.body[:120],
             },
+        )
+
+        # Notify task watchers about the new comment
+        await self.notifications.fan_out_to_watchers(
+            task_id=task_id,
+            org_id=org_id,
+            actor_id=author_id,
+            type="info",
+            title=f'New comment on "{task.title}"',
+            message=f"{author_name}: {data.body[:100]}",
+            link=f"/matters/{matter_id}",
         )
 
         await self.db.commit()

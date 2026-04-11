@@ -1,8 +1,8 @@
 # backend/app/core/deps.py
 import uuid
-from typing import Annotated
+from typing import Annotated, Optional
 
-from fastapi import Depends, HTTPException, Security, status
+from fastapi import Depends, HTTPException, Query, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from google.oauth2.credentials import Credentials
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.security import decode_token
 
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)  # auto_error=False so SSE can use ?token=
 
 
 class CurrentUser:
@@ -29,10 +29,21 @@ class CurrentUser:
 
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Security(security),
+    credentials: Optional[HTTPAuthorizationCredentials] = Security(security),
+    token: Optional[str] = Query(None),  # SSE fallback — EventSource can't set headers
 ) -> CurrentUser:
-    try:
-        payload = decode_token(credentials.credentials)
+    # Prefer Authorization header; fall back to ?token= query param for SSE
+    raw_token: Optional[str] = None
+    if credentials:
+        raw_token = credentials.credentials
+    elif token:
+        raw_token = token
+
+    if not raw_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+        )
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

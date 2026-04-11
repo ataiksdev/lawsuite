@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Home,
   Briefcase,
@@ -62,6 +62,8 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
+import { markNotificationRead, markAllNotificationsRead, type BackendNotification } from '@/lib/api/notifications';
+
 import { mockOrganisation } from '@/lib/mock-data';
 
 // ============================================================================
@@ -101,25 +103,44 @@ export interface AppNotification {
 
 interface NotificationStore {
   notifications: AppNotification[];
+  unreadCount: number;
   markRead: (id: string) => void;
   markAllRead: () => void;
   addNotification: (n: Omit<AppNotification, 'id' | 'created_at' | 'is_read'>) => void;
+  // Called by the SSE hook to sync server state
+  setNotifications: (notifications: AppNotification[]) => void;
+  setUnreadCount: (count: number) => void;
 }
 
 export const useNotificationStore = create<NotificationStore>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       notifications: [],
-      markRead: (id) =>
+      unreadCount: 0,
+      setNotifications: (notifications) =>
+        set({
+          notifications,
+          unreadCount: notifications.filter((n) => !n.is_read).length,
+        }),
+      setUnreadCount: (count) => set({ unreadCount: count }),
+      markRead: (id) => {
+        // Optimistic local update
         set((s) => ({
           notifications: s.notifications.map((n) =>
             n.id === id ? { ...n, is_read: true } : n
           ),
-        })),
-      markAllRead: () =>
+          unreadCount: Math.max(0, s.unreadCount - 1),
+        }));
+        // Sync to server (fire-and-forget)
+        void markNotificationRead(id).catch(() => {});
+      },
+      markAllRead: () => {
         set((s) => ({
           notifications: s.notifications.map((n) => ({ ...n, is_read: true })),
-        })),
+          unreadCount: 0,
+        }));
+        void markAllNotificationsRead().catch(() => {});
+      },
       addNotification: (n) =>
         set((s) => ({
           notifications: [
@@ -129,11 +150,15 @@ export const useNotificationStore = create<NotificationStore>()(
               is_read: false,
               created_at: new Date().toISOString(),
             },
-            ...s.notifications.slice(0, 49), // keep last 50
+            ...s.notifications.slice(0, 49),
           ],
+          unreadCount: s.unreadCount + 1,
         })),
     }),
-    { name: 'lawsuite-notifications' }
+    {
+      name: 'lawsuite-notifications',
+      partialize: (s) => ({ notifications: s.notifications.slice(0, 20) }),
+    }
   )
 );
 
@@ -425,10 +450,8 @@ function SidebarContent({
 function HeaderBar({ onMenuClick }: { onMenuClick: () => void }) {
   const currentRoute = useCurrentRoute();
   const { user } = useAuthStore();
-  const { notifications, markRead, markAllRead } = useNotificationStore();
+  const { notifications, unreadCount, markRead, markAllRead } = useNotificationStore();
   const breadcrumbs = getBreadcrumbSegments(currentRoute);
-
-  const unread = useMemo(() => notifications.filter((n) => !n.is_read), [notifications]);
   const userInitials = user ? `${user.first_name[0] ?? ''}${user.last_name[0] ?? ''}` : 'LO';
 
   return (
@@ -479,10 +502,10 @@ function HeaderBar({ onMenuClick }: { onMenuClick: () => void }) {
             className="relative h-8 w-8 text-slate-500 hover:text-emerald-600"
           >
             <Bell className="h-4 w-4" />
-            {unread.length > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-red-500 text-[9px] font-bold text-white flex items-center justify-center">
-                {unread.length > 9 ? '9+' : unread.length}
-              </span>
+            {unreadCount > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-red-500 text-[9px] font-bold text-white flex items-center justify-center">
+            {unreadCount > 9 ? '9+' : unreadCount}
+            </span>
             )}
           </Button>
         </DropdownMenuTrigger>
@@ -606,8 +629,62 @@ interface AppShellProps {
 
 export function AppShell({ children }: AppShellProps) {
   const { collapsed, setCollapsed } = useSidebarStore();
-  // Mobile overlay — separate from the desktop collapsed state
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Start the SSE notification stream as soon as the shell mounts
+  // (meaning the user is authenticated — AppShell is only rendered when authed)
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const { setNotifications, setUnreadCount, addNotification } = useNotificationStore();
+
+  // SSE connection — runs inside the shell so it's always alive while logged in
+  const esRef = useRef<EventSource | null>(null);
+  const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retryCountRef = useRef(0);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      esRef.current?.close();
+      return;
+    }
+
+    const BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+    // Bootstrap: fetch full notification list on mount
+    void import('@/lib/api/notifications').then(({ listNotifications }) => {
+      listNotifications({ limit: 50 })
+        .then((notifs) => setNotifications(notifs))
+        .catch(() => {});
+    });
+
+    function connect() {
+      const token = localStorage.getItem('lawsuite_access_token');
+      if (!token) return;
+      const es = new EventSource(`${BASE}/notifications/stream?token=${encodeURIComponent(token)}`);
+      esRef.current = es;
+
+      es.addEventListener('notification', (e: MessageEvent) => {
+        try { addNotification(JSON.parse(e.data as string)); } catch {}
+      });
+
+      es.addEventListener('unread', (e: MessageEvent) => {
+        try { setUnreadCount((JSON.parse(e.data as string) as { count: number }).count); } catch {}
+      });
+
+      es.onerror = () => {
+        es.close();
+        const delay = Math.min(2000 * 2 ** retryCountRef.current, 60_000);
+        retryCountRef.current += 1;
+        retryRef.current = setTimeout(connect, delay);
+      };
+    }
+
+    connect();
+
+    return () => {
+      esRef.current?.close();
+      if (retryRef.current) clearTimeout(retryRef.current);
+    };
+  }, [isAuthenticated]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // On header hamburger click: on mobile open overlay, on desktop toggle collapse
   const handleMenuClick = useCallback(() => {

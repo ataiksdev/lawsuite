@@ -13,6 +13,7 @@ from app.models.matter_document import (
     MatterDocumentVersion,
     MatterEmail,
 )
+from app.models.notification import Notification
 from app.models.organisation import Organisation
 from app.models.report import Report
 from app.models.task import Task, TaskPriority, TaskStatus
@@ -40,4 +41,5 @@ __all__ = [
     "Report",
     "TaskComment",
     "TaskWatcher",
+    "Notification",
 ]

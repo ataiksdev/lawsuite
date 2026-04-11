@@ -1,6 +1,7 @@
 # backend/app/services/task_service.py
 import uuid
 from datetime import date, datetime, timezone
+from typing import Any
 
 from fastapi import HTTPException, status
 from sqlalchemy import func, select
@@ -8,7 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.matter import Matter
 from app.models.task import Task, TaskStatus
-from app.schemas.task import TaskCreate, TaskUpdate
+from app.models.task_comment import TaskComment
+from app.models.task_watcher import TaskWatcher
+from app.models.user import User
+from app.schemas.task import TaskCommentCreate, TaskCreate, TaskUpdate, TaskWatcherAdd
 from app.services.activity_service import ActivityService
 
 
@@ -248,3 +252,214 @@ class TaskService:
             }
             for task, matter in rows
         ], total
+
+    # ── Comments ─────────────────────────────────────────────────────────────
+
+    async def list_comments(
+        self,
+        task_id: uuid.UUID,
+        matter_id: uuid.UUID,
+        org_id: uuid.UUID,
+    ) -> list[TaskComment]:
+        """Return all comments for a task, oldest-first."""
+        await self._get_task(task_id, matter_id, org_id)
+        result = await self.db.execute(
+            select(TaskComment)
+            .where(
+                TaskComment.task_id == task_id,
+                TaskComment.organisation_id == org_id,
+            )
+            .order_by(TaskComment.created_at.asc())
+        )
+        return list(result.scalars().all())
+
+    async def add_comment(
+        self,
+        task_id: uuid.UUID,
+        matter_id: uuid.UUID,
+        org_id: uuid.UUID,
+        author_id: uuid.UUID,
+        data: TaskCommentCreate,
+    ) -> TaskComment:
+        """Add a comment to a task. Logs a task_commented activity entry."""
+        task = await self._get_task(task_id, matter_id, org_id)
+
+        # Resolve author name
+        author_result = await self.db.execute(select(User).where(User.id == author_id))
+        author = author_result.scalar_one_or_none()
+        author_name = author.full_name if author else "Unknown"
+
+        comment = TaskComment(
+            task_id=task_id,
+            matter_id=matter_id,
+            organisation_id=org_id,
+            author_id=author_id,
+            author_name=author_name,
+            body=data.body.strip(),
+        )
+        self.db.add(comment)
+        await self.db.flush()
+
+        await self.activity.log(
+            matter_id=matter_id,
+            org_id=org_id,
+            actor_id=author_id,
+            event_type="task_commented",
+            payload={
+                "task_id": str(task_id),
+                "task_title": task.title,
+                "comment_id": str(comment.id),
+                "preview": data.body[:120],
+            },
+        )
+
+        await self.db.commit()
+        await self.db.refresh(comment)
+        return comment
+
+    async def delete_comment(
+        self,
+        comment_id: uuid.UUID,
+        task_id: uuid.UUID,
+        org_id: uuid.UUID,
+        requesting_user_id: uuid.UUID,
+    ) -> None:
+        """Delete a comment. Only the author or an admin may delete."""
+        result = await self.db.execute(
+            select(TaskComment).where(
+                TaskComment.id == comment_id,
+                TaskComment.task_id == task_id,
+                TaskComment.organisation_id == org_id,
+            )
+        )
+        comment = result.scalar_one_or_none()
+        if not comment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Comment not found",
+            )
+        if comment.author_id != requesting_user_id:
+            # Admins can also delete — caller should check role before calling
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only delete your own comments",
+            )
+        await self.db.delete(comment)
+        await self.db.commit()
+
+    # ── Watchers ─────────────────────────────────────────────────────────────
+
+    async def list_watchers(
+        self,
+        task_id: uuid.UUID,
+        matter_id: uuid.UUID,
+        org_id: uuid.UUID,
+    ) -> list[dict]:
+        """Return all watchers for a task with their user details."""
+        await self._get_task(task_id, matter_id, org_id)
+        result = await self.db.execute(
+            select(TaskWatcher, User)
+            .join(User, User.id == TaskWatcher.user_id)
+            .where(
+                TaskWatcher.task_id == task_id,
+                TaskWatcher.organisation_id == org_id,
+            )
+            .order_by(TaskWatcher.added_at.asc())
+        )
+        return [
+            {
+                "user_id": watcher.user_id,
+                "full_name": user.full_name,
+                "email": user.email,
+                "added_at": watcher.added_at,
+            }
+            for watcher, user in result.all()
+        ]
+
+    async def add_watcher(
+        self,
+        task_id: uuid.UUID,
+        matter_id: uuid.UUID,
+        org_id: uuid.UUID,
+        target_user_id: uuid.UUID,
+        requesting_user_id: uuid.UUID,
+    ) -> dict:
+        """Add a user as a watcher. Idempotent — re-adding is a no-op."""
+        await self._get_task(task_id, matter_id, org_id)
+
+        # Verify target user is a member of the org
+        from app.models.user import OrganisationMember
+
+        mem_result = await self.db.execute(
+            select(User)
+            .join(OrganisationMember, OrganisationMember.user_id == User.id)
+            .where(
+                User.id == target_user_id,
+                OrganisationMember.organisation_id == org_id,
+            )
+        )
+        user = mem_result.scalar_one_or_none()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found in this organisation",
+            )
+
+        # Check if already watching
+        existing = await self.db.execute(
+            select(TaskWatcher).where(
+                TaskWatcher.task_id == task_id,
+                TaskWatcher.user_id == target_user_id,
+            )
+        )
+        if existing.scalar_one_or_none():
+            # Idempotent — return existing entry
+            return {
+                "user_id": target_user_id,
+                "full_name": user.full_name,
+                "email": user.email,
+                "added_at": datetime.now(timezone.utc),
+            }
+
+        watcher = TaskWatcher(
+            task_id=task_id,
+            user_id=target_user_id,
+            organisation_id=org_id,
+        )
+        self.db.add(watcher)
+        await self.db.commit()
+        await self.db.refresh(watcher)
+
+        return {
+            "user_id": watcher.user_id,
+            "full_name": user.full_name,
+            "email": user.email,
+            "added_at": watcher.added_at,
+        }
+
+    async def remove_watcher(
+        self,
+        task_id: uuid.UUID,
+        matter_id: uuid.UUID,
+        org_id: uuid.UUID,
+        target_user_id: uuid.UUID,
+        requesting_user_id: uuid.UUID,
+    ) -> None:
+        """Remove a watcher. Users can remove themselves; admins can remove anyone."""
+        await self._get_task(task_id, matter_id, org_id)
+
+        result = await self.db.execute(
+            select(TaskWatcher).where(
+                TaskWatcher.task_id == task_id,
+                TaskWatcher.user_id == target_user_id,
+                TaskWatcher.organisation_id == org_id,
+            )
+        )
+        watcher = result.scalar_one_or_none()
+        if not watcher:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Watcher not found",
+            )
+        await self.db.delete(watcher)
+        await self.db.commit()

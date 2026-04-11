@@ -85,6 +85,11 @@ async def test_checkout_pro_returns_authorization_url(client: AsyncClient):
     assert "reference" in body
     assert "checkout.paystack.com" in body["authorization_url"]
 
+    # Verify callback_url and cancel_action include the /#/ hash prefix
+    call_args = mock_instance.transactions.initialize.call_args[1]
+    assert "/#/settings/billing" in call_args["callback_url"]
+    assert "/#/settings/billing" in call_args["metadata"]["cancel_action"]
+
 
 @pytest.mark.asyncio
 async def test_checkout_invalid_plan_rejected(client: AsyncClient):

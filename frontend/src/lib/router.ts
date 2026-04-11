@@ -69,9 +69,16 @@ export function replaceNavigation(path: string): void {
 function getHashPath(): string {
   if (typeof window === 'undefined') return '/';
   const hash = window.location.hash;
-  // Remove the leading '#' and any trailing slash
-  const path = hash.replace(/^#\/?/, '/');
-  return path === '' ? '/' : path;
+  const pathname = window.location.pathname;
+
+  // If we have a hash, it takes precedence (SPA mode)
+  if (hash) {
+    const path = hash.replace(/^#\/?/, '/');
+    return path === '' ? '/' : path;
+  }
+
+  // Fallback to pathname if no hash is present (e.g. initial server redirect)
+  return pathname === '' ? '/' : pathname;
 }
 
 export function getRouteParams(): Record<string, string> {

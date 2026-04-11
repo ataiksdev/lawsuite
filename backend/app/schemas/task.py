@@ -69,3 +69,39 @@ class OverdueTaskResponse(BaseModel):
     assigned_to: uuid.UUID | None
 
     model_config = {"from_attributes": True}
+
+
+# ─── Comments ────────────────────────────────────────────────────────────────
+
+
+class TaskCommentCreate(BaseModel):
+    body: str = Field(..., min_length=1, max_length=4000)
+
+
+class TaskCommentResponse(BaseModel):
+    id: uuid.UUID
+    task_id: uuid.UUID
+    matter_id: uuid.UUID
+    author_id: uuid.UUID | None
+    author_name: str
+    body: str
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# ─── Watchers ─────────────────────────────────────────────────────────────────
+
+
+class TaskWatcherAdd(BaseModel):
+    user_id: uuid.UUID
+
+
+class TaskWatcherResponse(BaseModel):
+    user_id: uuid.UUID
+    full_name: str
+    email: str
+    added_at: datetime
+
+    model_config = {"from_attributes": True}

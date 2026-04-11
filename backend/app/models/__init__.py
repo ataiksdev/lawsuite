@@ -16,6 +16,8 @@ from app.models.matter_document import (
 from app.models.organisation import Organisation
 from app.models.report import Report
 from app.models.task import Task, TaskPriority, TaskStatus
+from app.models.task_comment import TaskComment
+from app.models.task_watcher import TaskWatcher
 from app.models.user import OrganisationMember, User
 
 __all__ = [
@@ -36,4 +38,6 @@ __all__ = [
     "DocumentStatus",
     "ActivityLog",
     "Report",
+    "TaskComment",
+    "TaskWatcher",
 ]

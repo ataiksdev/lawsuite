@@ -1,18 +1,14 @@
-// ============================================================================
-// LegalOps - Forgot Password Page
-// Simple password reset request page
-// ============================================================================
-
+// auth
 'use client';
 
 import React, { useState } from 'react';
 import { Loader2, ArrowLeft, Mail, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
-
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { ApiClientError } from '@/lib/api-client';
 import { UnauthenticatedLayout } from './unauthenticated-layout';
 import { navigate } from '@/lib/router';
 import apiClient from '@/lib/api-client';
@@ -49,8 +45,9 @@ export function ForgotPasswordPage() {
       toast.success('Reset link sent!', {
         description: `Check your inbox at ${email} for instructions to reset your password.`,
       });
-    } catch {
-      toast.error('Failed to send reset link. Please try again.');
+    } catch (err){
+      const detail = err instanceof ApiClientError ? err.detail : 'Failed to send reset link. Please try again.';
+      toast.error(detail);
     } finally {
       setIsLoading(false);
     }

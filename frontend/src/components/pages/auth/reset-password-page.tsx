@@ -8,7 +8,7 @@
 import React, { useState, useEffect } from 'react';
 import { Loader2, ArrowLeft, Lock, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
-
+import { ApiClientError } from '@/lib/api-client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -75,8 +75,8 @@ export function ResetPasswordPage() {
       setIsSuccess(true);
       toast.success('Password reset successfully!');
       setTimeout(() => navigate('/login'), 2000);
-    } catch (err: any) {
-      const detail = err.response?.data?.detail || 'Failed to reset password. The link may be expired.';
+    } catch (err) {
+      const detail = err instanceof ApiClientError ? err.detail : 'Failed to reset password. The link may be expired.';
       toast.error(detail);
     } finally {
       setIsLoading(false);

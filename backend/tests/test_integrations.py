@@ -142,7 +142,7 @@ async def test_google_callback_stores_tokens(client: AsyncClient, db_session: As
 
     # Should redirect to frontend
     assert resp.status_code == 307
-    assert "google=connected" in resp.headers["location"]
+    assert "/#/settings/integrations?google=connected" in resp.headers["location"]
 
     # Tokens should now be stored (encrypted) on the org
     # async with AsyncSessionLocal() as db:

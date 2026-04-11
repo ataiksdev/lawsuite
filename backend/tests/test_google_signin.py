@@ -58,10 +58,10 @@ async def test_new_google_user_gets_provisional_token(client: AsyncClient):
             follow_redirects=False,
         )
 
-    # Should redirect to /onboarding?provisional=...
+    # Should redirect to /#/onboarding?provisional=...
     assert resp.status_code in (302, 307)
     location = resp.headers.get("location", "")
-    assert "/onboarding" in location
+    assert "/#/onboarding" in location
     assert "provisional=" in location
 
 

@@ -282,3 +282,121 @@ async def test_task_isolation(client: AsyncClient):
 
     resp = await client.get("/tasks/overdue", headers={"Authorization": f"Bearer {token_b}"})
     assert resp.json()["total"] == 0
+
+
+# ─── Comments ─────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_add_task_comment(client: AsyncClient):
+    token, _, matter_id = await setup(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    t = await client.post(f"/matters/{matter_id}/tasks", json=TASK_PAYLOAD, headers=headers)
+    task_id = t.json()["id"]
+
+    resp = await client.post(
+        f"/matters/{matter_id}/tasks/{task_id}/comments",
+        json={"body": "This is a test comment"},
+        headers=headers,
+    )
+    assert resp.status_code == 201
+    assert resp.json()["body"] == "This is a test comment"
+    assert "author_name" in resp.json()
+
+
+@pytest.mark.asyncio
+async def test_list_task_comments(client: AsyncClient):
+    token, _, matter_id = await setup(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    t = await client.post(f"/matters/{matter_id}/tasks", json=TASK_PAYLOAD, headers=headers)
+    task_id = t.json()["id"]
+
+    await client.post(f"/matters/{matter_id}/tasks/{task_id}/comments", json={"body": "Comment 1"}, headers=headers)
+    await client.post(f"/matters/{matter_id}/tasks/{task_id}/comments", json={"body": "Comment 2"}, headers=headers)
+
+    resp = await client.get(f"/matters/{matter_id}/tasks/{task_id}/comments", headers=headers)
+    assert resp.status_code == 200
+    assert len(resp.json()) == 2
+
+
+@pytest.mark.asyncio
+async def test_delete_task_comment(client: AsyncClient):
+    token, _, matter_id = await setup(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    t = await client.post(f"/matters/{matter_id}/tasks", json=TASK_PAYLOAD, headers=headers)
+    task_id = t.json()["id"]
+
+    c = await client.post(f"/matters/{matter_id}/tasks/{task_id}/comments", json={"body": "To be deleted"}, headers=headers)
+    comment_id = c.json()["id"]
+
+    resp = await client.delete(f"/matters/{matter_id}/tasks/{task_id}/comments/{comment_id}", headers=headers)
+    assert resp.status_code == 204
+
+    list_resp = await client.get(f"/matters/{matter_id}/tasks/{task_id}/comments", headers=headers)
+    assert len(list_resp.json()) == 0
+
+
+# ─── Watchers ─────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_add_task_watcher(client: AsyncClient):
+    token, _, matter_id = await setup(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Get my own user ID
+    me = await client.get("/auth/me", headers=headers)
+    my_id = me.json()["id"]
+
+    t = await client.post(f"/matters/{matter_id}/tasks", json=TASK_PAYLOAD, headers=headers)
+    task_id = t.json()["id"]
+
+    resp = await client.post(
+        f"/matters/{matter_id}/tasks/{task_id}/watchers",
+        json={"user_id": my_id},
+        headers=headers,
+    )
+    assert resp.status_code == 201
+    assert resp.json()["user_id"] == my_id
+
+
+@pytest.mark.asyncio
+async def test_list_task_watchers(client: AsyncClient):
+    token, _, matter_id = await setup(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    me = await client.get("/auth/me", headers=headers)
+    my_id = me.json()["id"]
+
+    t = await client.post(f"/matters/{matter_id}/tasks", json=TASK_PAYLOAD, headers=headers)
+    task_id = t.json()["id"]
+
+    await client.post(f"/matters/{matter_id}/tasks/{task_id}/watchers", json={"user_id": my_id}, headers=headers)
+
+    resp = await client.get(f"/matters/{matter_id}/tasks/{task_id}/watchers", headers=headers)
+    assert resp.status_code == 200
+    assert len(resp.json()) == 1
+    assert resp.json()[0]["user_id"] == my_id
+
+
+@pytest.mark.asyncio
+async def test_remove_task_watcher(client: AsyncClient):
+    token, _, matter_id = await setup(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    me = await client.get("/auth/me", headers=headers)
+    my_id = me.json()["id"]
+
+    t = await client.post(f"/matters/{matter_id}/tasks", json=TASK_PAYLOAD, headers=headers)
+    task_id = t.json()["id"]
+
+    await client.post(f"/matters/{matter_id}/tasks/{task_id}/watchers", json={"user_id": my_id}, headers=headers)
+
+    resp = await client.delete(f"/matters/{matter_id}/tasks/{task_id}/watchers/{my_id}", headers=headers)
+    assert resp.status_code == 204
+
+    list_resp = await client.get(f"/matters/{matter_id}/tasks/{task_id}/watchers", headers=headers)
+    assert len(list_resp.json()) == 0

@@ -57,9 +57,11 @@ export function OnboardingPage() {
   // Extract provisional token from URL on mount
   useEffect(() => {
     const hash = window.location.hash;
-    const queryString = hash.includes('?') ? hash.split('?')[1] : '';
-    const params = new URLSearchParams(queryString);
-    const token = params.get('provisional');
+    const hashParams = new URLSearchParams(hash.includes('?') ? hash.split('?')[1] : '');
+    const standardParams = new URLSearchParams(window.location.search);
+    
+    const token = hashParams.get('provisional') || standardParams.get('provisional');
+    
     if (token) {
       setProvisionalToken(token);
     } else {

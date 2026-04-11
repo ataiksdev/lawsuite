@@ -157,19 +157,26 @@ export default function Home() {
       hasInitializedRef.current = true;
 
       // Handle Google OAuth callback — backend redirects here with base64 tokens
+      // Tokens could be in the actual query string or in the hash (SPA style)
+      const params = new URLSearchParams(window.location.search);
       const hash = window.location.hash;
-      const queryString = hash.includes('?') ? hash.split('?')[1] : window.location.search.slice(1);
-      const params = new URLSearchParams(queryString);
-      const tokensParam = params.get('tokens');
+      const hashParams = new URLSearchParams(hash.includes('?') ? hash.split('?')[1] : '');
+      const tokensParam = params.get('tokens') || hashParams.get('tokens');
 
-      if (tokensParam && currentRoute === '/login') {
+      // The path could be in the hash or the real pathname (depending on if backend uses hash or not)
+      const isLoginPath = window.location.pathname === '/login' || currentRoute === '/login';
+
+      if (tokensParam && isLoginPath) {
         try {
           const decoded = JSON.parse(atob(tokensParam));
           if (decoded.access_token && decoded.refresh_token) {
             apiClient.setTokens(decoded.access_token, decoded.refresh_token);
             // Clear the tokens from the URL then load auth
             window.history.replaceState(null, '', window.location.pathname + window.location.hash.split('?')[0]);
-            useAuthStore.getState().loadFromStorage();
+            const store = useAuthStore.getState();
+            store.loadFromStorage();
+            // Force navigate to home after a small delay to ensure store update is reflected
+            setTimeout(() => navigate('/'), 0);
             return;
           }
         } catch {

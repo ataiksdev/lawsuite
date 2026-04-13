@@ -512,7 +512,7 @@ function TaskDetailSheet({
     if (!noteId) return;
     setAddingToNoteId(commentId);
     try {
-      const updatedNote = await addCommentToNote(noteId, { note_id: noteId, task_id: task.id, comment_id: commentId });
+      const updatedNote = await addCommentToNote(noteId, { task_id: task.id, comment_id: commentId });
       setMatterNotes((current) => current.map((note) => (note.id === updatedNote.id ? updatedNote : note)));
       toast.success('Comment added to note.');
     } catch (err) {

@@ -60,7 +60,7 @@ class CalendarEvent(Base):
     )
 
     matter: Mapped["Matter"] = relationship(back_populates="calendar_events")
-    notes: Mapped[list["MatterNote"]] = relationship(back_populates="event")
+    notes: Mapped[list["Note"]] = relationship(back_populates="event")
 
     def __repr__(self) -> str:
         return f"<CalendarEvent id={self.id} title={self.title} type={self.event_type}>"

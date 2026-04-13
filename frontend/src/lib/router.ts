@@ -38,6 +38,7 @@ export const ROUTES: RouteDefinition[] = [
   { path: '/matters/new', pattern: /^\/matters\/new\/?$/, name: 'New Matter', parent: '/matters' },
   { path: '/matters/:id', pattern: /^\/matters\/([^/]+)\/?$/, name: 'Matter Details', parent: '/matters' },
   { path: '/matters/:id/edit', pattern: /^\/matters\/([^/]+)\/edit\/?$/, name: 'Edit Matter', parent: '/matters' },
+  { path: '/calendar', pattern: /^\/calendar\/?$/, name: 'Calendar', icon: 'calendar', parent: '/' },
   { path: '/tasks', pattern: /^\/tasks\/?$/, name: 'Tasks', icon: 'check-square', parent: '/' },
   { path: '/documents', pattern: /^\/documents\/?$/, name: 'Documents', icon: 'file-text', parent: '/' },
   { path: '/reports', pattern: /^\/reports\/?$/, name: 'Reports', icon: 'bar-chart', parent: '/' },

@@ -69,6 +69,10 @@ class Matter(Base):
     documents: Mapped[list["MatterDocument"]] = relationship(back_populates="matter", cascade="all, delete-orphan")
     emails: Mapped[list["MatterEmail"]] = relationship(back_populates="matter", cascade="all, delete-orphan")
     activity_logs: Mapped[list["ActivityLog"]] = relationship(back_populates="matter", cascade="all, delete-orphan")
+    calendar_events: Mapped[list["CalendarEvent"]] = relationship(
+        back_populates="matter", cascade="all, delete-orphan"
+    )
+    notes: Mapped[list["MatterNote"]] = relationship(back_populates="matter", cascade="all, delete-orphan")
 
     def __repr__(self) -> str:
         return f"<Matter id={self.id} ref={self.reference_no} status={self.status}>"

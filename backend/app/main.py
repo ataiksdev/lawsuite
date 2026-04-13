@@ -48,6 +48,7 @@ from app.api import (
     admin,
     auth,
     billing,
+    calendar,
     clients,
     documents,
     integrations,
@@ -65,6 +66,7 @@ app.include_router(matters.router, prefix="/matters", tags=["matters"])
 # Tasks are mounted under /matters (nested routes) AND /tasks (overdue endpoint)
 app.include_router(tasks.router, prefix="/matters", tags=["tasks"])
 app.include_router(tasks.router, prefix="/tasks", tags=["tasks"], include_in_schema=False)
+app.include_router(calendar.router, prefix="/calendar", tags=["calendar"])
 app.include_router(documents.router, prefix="/matters", tags=["documents"])
 app.include_router(integrations.router, prefix="/integrations", tags=["integrations"])
 app.include_router(webhooks.router, prefix="/webhooks", tags=["webhooks"])

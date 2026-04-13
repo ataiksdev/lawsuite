@@ -99,6 +99,8 @@ import {
 import { DocumentFormDialog } from './components/document-form-dialog';
 import { UploadDocumentDialog } from './components/upload-document-dialog';
 import { LinkDriveFolderDialog } from './components/link-drive-folder-dialog';
+import { MatterEventsSection } from './components/matter-events-section';
+import { MatterNotesSection } from './components/matter-notes-section';
 
 // ── Task section helpers ──────────────────────────────────────────────────────
 
@@ -1209,6 +1211,10 @@ export function MatterDetailPage() {
         </Card>
 
         <MatterTasksSection matterId={matter.id} members={members} />
+
+        <MatterEventsSection matterId={matter.id} />
+
+        <MatterNotesSection matterId={matter.id} />
 
         <Card className="shadow-sm lg:col-span-2">
           <CardContent className="space-y-4 p-6">

@@ -25,9 +25,9 @@ matter_note_type = sa.Enum("typed", "handwritten", "mixed", name="matternotetype
 
 
 def upgrade() -> None:
-    calendar_event_type.create(op.get_bind(), checkfirst=True)
-    calendar_sync_status.create(op.get_bind(), checkfirst=True)
-    matter_note_type.create(op.get_bind(), checkfirst=True)
+    # calendar_event_type.create(op.get_bind(), checkfirst=True)
+    # calendar_sync_status.create(op.get_bind(), checkfirst=True)
+    # matter_note_type.create(op.get_bind(), checkfirst=True)
 
     op.create_table(
         "calendar_events",

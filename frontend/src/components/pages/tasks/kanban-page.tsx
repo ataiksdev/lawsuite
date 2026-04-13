@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -48,10 +48,10 @@ import { useNotificationStore } from '@/components/layout/app-shell';
 import { listMatters, type BackendMatter } from '@/lib/api/matters';
 import { listMembers, type MemberSummary } from '@/lib/api/members';
 import {
-  addTaskCommentToMatterNote,
-  listMatterNotes,
-  type BackendMatterNote,
-} from '@/lib/api/calendar';
+  addCommentToNote,
+  listNotes,
+  type BackendNote,
+} from '@/lib/api/notes';
 import {
   addTaskComment,
   addTaskWatcher,
@@ -121,7 +121,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type EnrichedTask = BackendTask & {
   matter_title?: string;
@@ -140,7 +140,7 @@ interface TaskFormState {
   status: BackendTaskStatus;
 }
 
-// ── Column config ─────────────────────────────────────────────────────────────
+// â”€â”€ Column config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const TASK_COLUMNS: {
   id: BackendTaskStatus;
@@ -195,7 +195,7 @@ const PRIORITY_STYLE: Record<BackendTaskPriority, string> = {
   high:   'border-red-200 bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400',
 };
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function fmtDate(v?: string | null) {
   if (!v) return 'No due date';
@@ -235,7 +235,7 @@ function estimateTimeInColumn(task: BackendTask): string {
   return `${Math.floor(d / 7)}w`;
 }
 
-// ── Draggable Task Card ───────────────────────────────────────────────────────
+// â”€â”€ Draggable Task Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function TaskCard({
   task, memberNameById, isBusy, onEdit, onDelete, onStatusChange, onClick, cardBorderCls,
@@ -335,7 +335,7 @@ function TaskCard({
   );
 }
 
-// ── Droppable Column ──────────────────────────────────────────────────────────
+// â”€â”€ Droppable Column â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function KanbanColumn({
   col, tasks, memberNameById, busyTaskId, onEdit, onDelete, onStatusChange, onCardClick, onAdd,
@@ -396,7 +396,7 @@ function KanbanColumn({
   );
 }
 
-// ── Task Detail Sheet (Comments + Watchers) ───────────────────────────────────
+// â”€â”€ Task Detail Sheet (Comments + Watchers) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function TaskDetailSheet({
   task, memberNameById, members, onClose, onEdit, onStatusChange, onWatchersChange,
@@ -413,7 +413,7 @@ function TaskDetailSheet({
   const { addNotification } = useNotificationStore();
 
   const [comments, setComments] = useState<TaskComment[]>([]);
-  const [matterNotes, setMatterNotes] = useState<BackendMatterNote[]>([]);
+  const [matterNotes, setMatterNotes] = useState<BackendNote[]>([]);
   const [watchers, setWatchers] = useState<TaskWatcher[]>([]);
   const [loadingComments, setLoadingComments] = useState(false);
   const [loadingWatchers, setLoadingWatchers] = useState(false);
@@ -444,11 +444,11 @@ function TaskDetailSheet({
         const [c, w, n] = await Promise.all([
           listTaskComments(currentTask.matter_id, currentTask.id),
           listTaskWatchers(currentTask.matter_id, currentTask.id),
-          listMatterNotes(currentTask.matter_id),
+          listNotes({ matter_id: currentTask.matter_id }),
         ]);
         if (!cancelled) { setComments(c); setWatchers(w); setMatterNotes(n); }
       } catch {
-        // Non-fatal — comments/watchers may not be implemented on backend yet
+        // Non-fatal â€” comments/watchers may not be implemented on backend yet
       } finally {
         if (!cancelled) { setLoadingComments(false); setLoadingWatchers(false); setLoadingNotes(false); }
       }
@@ -512,7 +512,7 @@ function TaskDetailSheet({
     if (!noteId) return;
     setAddingToNoteId(commentId);
     try {
-      const updatedNote = await addTaskCommentToMatterNote(task.matter_id, task.id, commentId, noteId);
+      const updatedNote = await addCommentToNote(noteId, { note_id: noteId, task_id: task.id, comment_id: commentId });
       setMatterNotes((current) => current.map((note) => (note.id === updatedNote.id ? updatedNote : note)));
       toast.success('Comment added to note.');
     } catch (err) {
@@ -590,7 +590,7 @@ function TaskDetailSheet({
                 className="text-emerald-600 hover:underline dark:text-emerald-400 text-sm"
                 onClick={() => { navigate(`/matters/${task.matter_id}`); onClose(); }}
               >
-                {task.matter_reference_no} — {task.matter_title}
+                {task.matter_reference_no} â€” {task.matter_title}
               </button>
             </SheetDescription>
           </SheetHeader>
@@ -657,11 +657,11 @@ function TaskDetailSheet({
               </TabsTrigger>
             </TabsList>
 
-            {/* ── Details tab ── */}
+            {/* â”€â”€ Details tab â”€â”€ */}
             <TabsContent value="details" className="mt-0 p-6 space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 {[
-                  { label: 'Client', value: task.client_name ?? '—' },
+                  { label: 'Client', value: task.client_name ?? 'â€”' },
                   { label: 'Assigned To', value: assigneeName },
                   { label: 'Due Date', value: fmtDate(task.due_date), red: overdue },
                   { label: 'Created', value: fmtDate(task.created_at) },
@@ -685,7 +685,7 @@ function TaskDetailSheet({
                     <span>{c.title}</span>
                     {c.id === task.status
                       ? <Badge className={cn('border text-[10px]', c.badgeCls)}>{estimateTimeInColumn(task)}</Badge>
-                      : <span>—</span>}
+                      : <span>â€”</span>}
                   </div>
                 ))}
                 <p className="mt-2 text-[10px] text-slate-400">Estimated from last status change</p>
@@ -699,12 +699,12 @@ function TaskDetailSheet({
               )}
             </TabsContent>
 
-            {/* ── Comments tab ── */}
+            {/* â”€â”€ Comments tab â”€â”€ */}
             <TabsContent value="comments" className="mt-0 flex flex-col h-[calc(100vh-240px)]">
               <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
                 {loadingComments ? (
                   <div className="flex items-center gap-2 text-sm text-slate-400 py-4">
-                    <Loader2 className="h-4 w-4 animate-spin" /> Loading comments…
+                    <Loader2 className="h-4 w-4 animate-spin" /> Loading commentsâ€¦
                   </div>
                 ) : comments.length === 0 ? (
                   <div className="text-center py-8 text-sm text-slate-400">
@@ -745,7 +745,7 @@ function TaskDetailSheet({
                             }))}
                           >
                             <SelectTrigger className="h-7 w-[220px] text-xs">
-                              <SelectValue placeholder={loadingNotes ? 'Loading notes…' : 'Add to related matter note'} />
+                              <SelectValue placeholder={loadingNotes ? 'Loading notesâ€¦' : 'Add to related matter note'} />
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="none">Select note</SelectItem>
@@ -782,7 +782,7 @@ function TaskDetailSheet({
                 <Textarea
                   value={commentBody}
                   onChange={(e) => setCommentBody(e.target.value)}
-                  placeholder="Add a comment…"
+                  placeholder="Add a commentâ€¦"
                   rows={2}
                   className="text-sm resize-none"
                   onKeyDown={(e) => {
@@ -793,7 +793,7 @@ function TaskDetailSheet({
                   }}
                 />
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-slate-400">⌘↵ to submit</span>
+                  <span className="text-[10px] text-slate-400">âŒ˜â†µ to submit</span>
                   <Button
                     size="sm"
                     className="h-7 bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
@@ -807,11 +807,11 @@ function TaskDetailSheet({
               </div>
             </TabsContent>
 
-            {/* ── Watchers tab ── */}
+            {/* â”€â”€ Watchers tab â”€â”€ */}
             <TabsContent value="watchers" className="mt-0 p-6 space-y-4">
               {loadingWatchers ? (
                 <div className="flex items-center gap-2 text-sm text-slate-400">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+                  <Loader2 className="h-4 w-4 animate-spin" /> Loadingâ€¦
                 </div>
               ) : watchers.length === 0 ? (
                 <div className="text-center py-6 text-sm text-slate-400">
@@ -842,7 +842,7 @@ function TaskDetailSheet({
                 <Label className="text-xs text-slate-500 mb-1.5 block">Add team member as watcher</Label>
                 <Select onValueChange={(v) => void handleAddWatcher(v)}>
                   <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="Select member…" />
+                    <SelectValue placeholder="Select memberâ€¦" />
                   </SelectTrigger>
                   <SelectContent>
                     {members
@@ -865,7 +865,7 @@ function TaskDetailSheet({
   );
 }
 
-// ── Task Form Dialog ──────────────────────────────────────────────────────────
+// â”€â”€ Task Form Dialog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function TaskFormDialog({
   open, onOpenChange, members, matters, initialState, saving, onSubmit,
@@ -901,7 +901,7 @@ function TaskFormDialog({
               <Select value={state.matterId} onValueChange={(v) => set({ matterId: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {matters.map((m) => <SelectItem key={m.id} value={m.id}>{m.reference_no} – {m.title}</SelectItem>)}
+                  {matters.map((m) => <SelectItem key={m.id} value={m.id}>{m.reference_no} â€“ {m.title}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -945,7 +945,7 @@ function TaskFormDialog({
           <DialogFooter>
             <Button variant="outline" type="button" onClick={() => onOpenChange(false)}>Cancel</Button>
             <Button type="submit" disabled={saving || !state.title.trim()} className="bg-emerald-600 hover:bg-emerald-700 text-white">
-              {saving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving…</> : state.taskId ? 'Save Changes' : 'Create Task'}
+              {saving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Savingâ€¦</> : state.taskId ? 'Save Changes' : 'Create Task'}
             </Button>
           </DialogFooter>
         </form>
@@ -954,7 +954,7 @@ function TaskFormDialog({
   );
 }
 
-// ── Stat Card ─────────────────────────────────────────────────────────────────
+// â”€â”€ Stat Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function StatCard({ label, value, accent }: { label: string; value: number; accent?: string }) {
   return (
@@ -967,7 +967,7 @@ function StatCard({ label, value, accent }: { label: string; value: number; acce
   );
 }
 
-// ── Main KanbanPage ───────────────────────────────────────────────────────────
+// â”€â”€ Main KanbanPage â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export function KanbanPage() {
   const { user } = useAuthStore();
@@ -1053,7 +1053,7 @@ export function KanbanPage() {
   const hasFilters = kanban.search || kanban.matterFilter !== 'all' || kanban.assigneeFilter !== 'all' || kanban.myTasksOnly;
   const activeTask = activeId ? tasks.find((t) => t.id === activeId) : null;
 
-  // ── Drag handlers ─────────────────────────────────────────────────────────
+  // â”€â”€ Drag handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const handleDragStart = ({ active }: DragStartEvent) => setActiveId(String(active.id));
 
@@ -1082,7 +1082,7 @@ export function KanbanPage() {
     }
   };
 
-  // ── Task CRUD ─────────────────────────────────────────────────────────────
+  // â”€â”€ Task CRUD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const openCreate = (status: BackendTaskStatus = 'todo') => {
     setTaskDialogState({ ...emptyForm(matters[0]?.id ?? ''), status });
@@ -1166,14 +1166,14 @@ export function KanbanPage() {
     }
   };
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   if (isLoading) {
     return (
       <Card className="border-slate-200/80">
         <CardContent className="flex items-center gap-3 py-10">
           <Loader2 className="h-5 w-5 animate-spin text-emerald-600" />
-          <span className="text-sm text-slate-500">Loading tasks…</span>
+          <span className="text-sm text-slate-500">Loading tasksâ€¦</span>
         </CardContent>
       </Card>
     );
@@ -1197,7 +1197,7 @@ export function KanbanPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">Tasks</h1>
           <p className="text-sm text-slate-500 mt-0.5">
-            {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''} · {new Set(filteredTasks.map((t) => t.matter_id)).size} matters
+            {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''} Â· {new Set(filteredTasks.map((t) => t.matter_id)).size} matters
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -1229,7 +1229,7 @@ export function KanbanPage() {
         </Button>
         <div className="relative min-w-[160px] flex-1 max-w-xs">
           <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-          <Input value={kanban.search} onChange={(e) => setKanbanFilters({ search: e.target.value })} placeholder="Search tasks…" className="pl-8 h-8 text-xs" />
+          <Input value={kanban.search} onChange={(e) => setKanbanFilters({ search: e.target.value })} placeholder="Search tasksâ€¦" className="pl-8 h-8 text-xs" />
         </div>
         <Select value={kanban.matterFilter} onValueChange={(v) => setKanbanFilters({ matterFilter: v })}>
           <SelectTrigger className="h-8 text-xs w-44">
@@ -1238,7 +1238,7 @@ export function KanbanPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Matters</SelectItem>
-            {matters.map((m) => <SelectItem key={m.id} value={m.id}>{m.reference_no} – {m.title}</SelectItem>)}
+            {matters.map((m) => <SelectItem key={m.id} value={m.id}>{m.reference_no} â€“ {m.title}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={kanban.assigneeFilter} onValueChange={(v) => setKanbanFilters({ assigneeFilter: v, myTasksOnly: false })}>
@@ -1259,7 +1259,7 @@ export function KanbanPage() {
         )}
       </div>
 
-      {/* Board — min-w on each column ensures it scrolls before collapsing */}
+      {/* Board â€” min-w on each column ensures it scrolls before collapsing */}
       <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div className="flex gap-4 overflow-x-auto pb-4 min-w-0">
           {columns.map((col) => (
@@ -1317,3 +1317,4 @@ export function KanbanPage() {
 }
 
 export default KanbanPage;
+

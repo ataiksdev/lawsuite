@@ -4,7 +4,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field, model_validator
 
 from app.models.calendar_event import CalendarEventType, CalendarSyncStatus
-from app.models.matter_note import MatterNoteType
+from app.models import MatterNoteType
 
 
 class CalendarEventCreate(BaseModel):

@@ -28,6 +28,7 @@ import { MatterListPage } from '@/components/pages/matters/matter-list-page';
 import { MatterFormPage } from '@/components/pages/matters/matter-form-page';
 import { MatterDetailPage } from '@/components/pages/matters/matter-detail-page';
 import { CalendarPage } from '@/components/pages/calendar/calendar-page';
+import { NotesPage } from '@/components/pages/notes/notes-page';
 
 // Admin Pages
 import { TeamPage } from '@/components/pages/admin/team-page';
@@ -125,6 +126,7 @@ function AppRouter({ route }: { route: string }) {
   if (route.match(/^\/matters\/([^/]+)\/?$/)) return <MatterDetailPage />;
 
   if (route === '/calendar' || route === '/calendar/') return <CalendarPage />;
+  if (route === '/notes' || route === '/notes/') return <NotesPage />;
 
   // Tasks — Kanban board
   if (route === '/tasks' || route === '/tasks/') return <KanbanPage />;

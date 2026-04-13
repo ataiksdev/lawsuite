@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { Loader2, NotebookPen, RefreshCw, Trash2 } from 'lucide-react';
@@ -6,7 +6,13 @@ import { toast } from 'sonner';
 
 import { cn } from '@/lib/utils';
 import { handleApiError } from '@/lib/error-utils';
-import { createMatterNote, deleteMatterNote, listCalendarEvents, listMatterNotes, type BackendCalendarEvent, type BackendMatterNote } from '@/lib/api/calendar';
+import { listCalendarEvents, type BackendCalendarEvent } from '@/lib/api/calendar';
+import {
+  listNotes,
+  createNote,
+  deleteNote,
+  type BackendNote,
+} from '@/lib/api/notes';
 
 import { SvgSketchpad } from '@/components/shared/svg-sketchpad';
 import { Badge } from '@/components/ui/badge';
@@ -33,7 +39,7 @@ function svgDataUrl(svg: string) {
 }
 
 export function MatterNotesSection({ matterId }: { matterId: string }) {
-  const [notes, setNotes] = useState<BackendMatterNote[]>([]);
+  const [notes, setNotes] = useState<BackendNote[]>([]);
   const [events, setEvents] = useState<BackendCalendarEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -48,7 +54,7 @@ export function MatterNotesSection({ matterId }: { matterId: string }) {
     else setIsLoading(true);
     try {
       const [noteList, eventList] = await Promise.all([
-        listMatterNotes(matterId),
+        listNotes({ matter_id: matterId }),
         listCalendarEvents({ matter_id: matterId }),
       ]);
       setNotes(noteList);
@@ -69,10 +75,11 @@ export function MatterNotesSection({ matterId }: { matterId: string }) {
     if (!form.title.trim() || (!form.body.trim() && !form.svg_content.trim())) return;
     setSaving(true);
     try {
-      const created = await createMatterNote(matterId, {
+      const created = await createNote({
         title: form.title.trim(),
         body: form.body.trim() || undefined,
         svg_content: form.svg_content.trim() || undefined,
+        matter_id: matterId,
         event_id: form.event_id !== 'none' ? form.event_id : undefined,
       });
       setNotes((current) => [created, ...current]);
@@ -85,10 +92,10 @@ export function MatterNotesSection({ matterId }: { matterId: string }) {
     }
   };
 
-  const handleDelete = async (note: BackendMatterNote) => {
+  const handleDelete = async (note: BackendNote) => {
     setDeletingId(note.id);
     try {
-      await deleteMatterNote(matterId, note.id);
+      await deleteNote(note.id);
       setNotes((current) => current.filter((item) => item.id !== note.id));
       toast.success('Matter note deleted.');
     } catch (error) {

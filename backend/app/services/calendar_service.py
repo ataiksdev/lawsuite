@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.calendar_event import CalendarEvent, CalendarSyncStatus
 from app.models.matter import Matter
-from app.models.matter_note import MatterNote, MatterNoteType
+from app.models import MatterNote, MatterNoteType
 from app.models.task_comment import TaskComment
 from app.models.user import User
 from app.schemas.calendar import CalendarEventCreate, CalendarEventUpdate, MatterNoteCreate, MatterNoteUpdate

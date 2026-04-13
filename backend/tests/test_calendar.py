@@ -70,11 +70,12 @@ async def test_create_note_with_svg_and_event_link(client: AsyncClient):
     event_id = event.json()["id"]
 
     note = await client.post(
-        f"/calendar/matters/{matter_id}/notes",
+        "/notes",
         json={
             "title": "Bench notes",
             "body": "Typed prep items",
             "svg_content": "<svg viewBox='0 0 10 10'><path d='M0 0 L10 10' /></svg>",
+            "matter_id": matter_id,
             "event_id": event_id,
         },
         headers=headers,
@@ -105,15 +106,15 @@ async def test_add_task_comment_to_note_same_matter_only(client: AsyncClient):
     comment_id = comment.json()["id"]
 
     note = await client.post(
-        f"/calendar/matters/{matter_id}/notes",
-        json={"title": "Case notes", "body": "Opening note"},
+        "/notes",
+        json={"title": "Case notes", "body": "Opening note", "matter_id": matter_id},
         headers=headers,
     )
     note_id = note.json()["id"]
 
     attach = await client.post(
-        f"/calendar/matters/{matter_id}/tasks/{task_id}/comments/{comment_id}/add-to-note",
-        json={"note_id": note_id},
+        f"/notes/{note_id}/add-comment",
+        json={"note_id": note_id, "task_id": task_id, "comment_id": comment_id},
         headers=headers,
     )
 
@@ -141,18 +142,20 @@ async def test_add_task_comment_to_note_rejects_other_matter_note(client: AsyncC
         headers=headers,
     )
     note = await client.post(
-        f"/calendar/matters/{second_matter_id}/notes",
-        json={"title": "Other matter note", "body": "Separate"},
+        "/notes",
+        json={"title": "Other matter note", "body": "Separate", "matter_id": second_matter_id},
         headers=headers,
     )
+    note_id = note.json()["id"]
 
     attach = await client.post(
-        f"/calendar/matters/{matter_id}/tasks/{task.json()['id']}/comments/{comment.json()['id']}/add-to-note",
-        json={"note_id": note.json()["id"]},
+        f"/notes/{note_id}/add-comment",
+        json={"note_id": note_id, "task_id": task.json()["id"], "comment_id": comment.json()["id"]},
         headers=headers,
     )
 
-    assert attach.status_code == 404
+    # NoteService.add_comment_to_note raises 422 for matter mismatch
+    assert attach.status_code == 422
 
 
 @pytest.mark.asyncio

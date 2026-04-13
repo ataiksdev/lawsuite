@@ -636,58 +636,7 @@ export function AppShell({ children }: AppShellProps) {
 
   // Start the SSE notification stream as soon as the shell mounts
   // (meaning the user is authenticated — AppShell is only rendered when authed)
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const { setNotifications, setUnreadCount, addNotification } = useNotificationStore();
-
-  // SSE connection — runs inside the shell so it's always alive while logged in
-  const esRef = useRef<EventSource | null>(null);
-  const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const retryCountRef = useRef(0);
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      esRef.current?.close();
-      return;
-    }
-
-    const BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-
-    // Bootstrap: fetch full notification list on mount
-    void import('@/lib/api/notifications').then(({ listNotifications }) => {
-      listNotifications({ limit: 50 })
-        .then((notifs) => setNotifications(notifs))
-        .catch(() => {});
-    });
-
-    function connect() {
-      const token = localStorage.getItem('lawsuite_access_token');
-      if (!token) return;
-      const es = new EventSource(`${BASE}/notifications/stream?token=${encodeURIComponent(token)}`);
-      esRef.current = es;
-
-      es.addEventListener('notification', (e: MessageEvent) => {
-        try { addNotification(JSON.parse(e.data as string)); } catch {}
-      });
-
-      es.addEventListener('unread', (e: MessageEvent) => {
-        try { setUnreadCount((JSON.parse(e.data as string) as { count: number }).count); } catch {}
-      });
-
-      es.onerror = () => {
-        es.close();
-        const delay = Math.min(2000 * 2 ** retryCountRef.current, 60_000);
-        retryCountRef.current += 1;
-        retryRef.current = setTimeout(connect, delay);
-      };
-    }
-
-    connect();
-
-    return () => {
-      esRef.current?.close();
-      if (retryRef.current) clearTimeout(retryRef.current);
-    };
-  }, [isAuthenticated]); // eslint-disable-line react-hooks/exhaustive-deps
+  useNotificationsSSE();
 
   // On header hamburger click: on mobile open overlay, on desktop toggle collapse
   const handleMenuClick = useCallback(() => {

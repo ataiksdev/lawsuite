@@ -48,6 +48,11 @@ import { useNotificationStore } from '@/components/layout/app-shell';
 import { listMatters, type BackendMatter } from '@/lib/api/matters';
 import { listMembers, type MemberSummary } from '@/lib/api/members';
 import {
+  addTaskCommentToMatterNote,
+  listMatterNotes,
+  type BackendMatterNote,
+} from '@/lib/api/calendar';
+import {
   addTaskComment,
   addTaskWatcher,
   createTask,
@@ -408,13 +413,17 @@ function TaskDetailSheet({
   const { addNotification } = useNotificationStore();
 
   const [comments, setComments] = useState<TaskComment[]>([]);
+  const [matterNotes, setMatterNotes] = useState<BackendMatterNote[]>([]);
   const [watchers, setWatchers] = useState<TaskWatcher[]>([]);
   const [loadingComments, setLoadingComments] = useState(false);
   const [loadingWatchers, setLoadingWatchers] = useState(false);
+  const [loadingNotes, setLoadingNotes] = useState(false);
   const [commentBody, setCommentBody] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
+  const [addingToNoteId, setAddingToNoteId] = useState<string | null>(null);
   const [togglingWatch, setTogglingWatch] = useState(false);
+  const [noteTargetByComment, setNoteTargetByComment] = useState<Record<string, string>>({});
   const commentEndRef = useRef<HTMLDivElement>(null);
 
   const isWatching = useMemo(
@@ -423,23 +432,25 @@ function TaskDetailSheet({
   );
 
   useEffect(() => {
-    if (!task) { setComments([]); setWatchers([]); setCommentBody(''); return; }
+    if (!task) { setComments([]); setMatterNotes([]); setWatchers([]); setCommentBody(''); setNoteTargetByComment({}); return; }
     const currentTask = task;
     let cancelled = false;
 
     async function load() {
       setLoadingComments(true);
       setLoadingWatchers(true);
+      setLoadingNotes(true);
       try {
-        const [c, w] = await Promise.all([
+        const [c, w, n] = await Promise.all([
           listTaskComments(currentTask.matter_id, currentTask.id),
           listTaskWatchers(currentTask.matter_id, currentTask.id),
+          listMatterNotes(currentTask.matter_id),
         ]);
-        if (!cancelled) { setComments(c); setWatchers(w); }
+        if (!cancelled) { setComments(c); setWatchers(w); setMatterNotes(n); }
       } catch {
         // Non-fatal — comments/watchers may not be implemented on backend yet
       } finally {
-        if (!cancelled) { setLoadingComments(false); setLoadingWatchers(false); }
+        if (!cancelled) { setLoadingComments(false); setLoadingWatchers(false); setLoadingNotes(false); }
       }
     }
 
@@ -493,6 +504,21 @@ function TaskDetailSheet({
       handleApiError(err, 'Unable to delete comment.');
     } finally {
       setDeletingCommentId(null);
+    }
+  };
+
+  const handleAddCommentToNote = async (commentId: string) => {
+    const noteId = noteTargetByComment[commentId];
+    if (!noteId) return;
+    setAddingToNoteId(commentId);
+    try {
+      const updatedNote = await addTaskCommentToMatterNote(task.matter_id, task.id, commentId, noteId);
+      setMatterNotes((current) => current.map((note) => (note.id === updatedNote.id ? updatedNote : note)));
+      toast.success('Comment added to note.');
+    } catch (err) {
+      handleApiError(err, 'Unable to add comment to note.');
+    } finally {
+      setAddingToNoteId(null);
     }
   };
 
@@ -710,6 +736,40 @@ function TaskDetailSheet({
                           )}
                         </div>
                         <p className="text-sm text-slate-700 dark:text-slate-300 mt-0.5 whitespace-pre-wrap">{c.body}</p>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <Select
+                            value={noteTargetByComment[c.id] ?? 'none'}
+                            onValueChange={(value) => setNoteTargetByComment((current) => ({
+                              ...current,
+                              [c.id]: value === 'none' ? '' : value,
+                            }))}
+                          >
+                            <SelectTrigger className="h-7 w-[220px] text-xs">
+                              <SelectValue placeholder={loadingNotes ? 'Loading notes…' : 'Add to related matter note'} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">Select note</SelectItem>
+                              {matterNotes.map((note) => (
+                                <SelectItem key={note.id} value={note.id}>
+                                  {note.title}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs"
+                            disabled={!noteTargetByComment[c.id] || addingToNoteId === c.id}
+                            onClick={() => void handleAddCommentToNote(c.id)}
+                          >
+                            {addingToNoteId === c.id ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
+                            Add to note
+                          </Button>
+                          {matterNotes.length === 0 && !loadingNotes && (
+                            <span className="text-[10px] text-slate-400">Create a matter note first.</span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))

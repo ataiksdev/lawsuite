@@ -4,6 +4,7 @@
 # 2. SQLAlchemy relationship resolution works across model files
 
 from app.models.activity_log import ActivityLog
+from app.models.calendar_event import CalendarEvent, CalendarEventType, CalendarSyncStatus
 from app.models.client import Client
 from app.models.matter import Matter, MatterStatus, MatterType
 from app.models.matter_document import (
@@ -13,6 +14,7 @@ from app.models.matter_document import (
     MatterDocumentVersion,
     MatterEmail,
 )
+from app.models.matter_note import MatterNote, MatterNoteType
 from app.models.notification import Notification
 from app.models.organisation import Organisation
 from app.models.report import Report
@@ -29,6 +31,11 @@ __all__ = [
     "Matter",
     "MatterStatus",
     "MatterType",
+    "CalendarEvent",
+    "CalendarEventType",
+    "CalendarSyncStatus",
+    "MatterNote",
+    "MatterNoteType",
     "Task",
     "TaskStatus",
     "TaskPriority",

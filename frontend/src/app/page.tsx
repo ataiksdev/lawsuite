@@ -27,6 +27,7 @@ import { ClientDetailPage } from '@/components/pages/clients/client-detail-page'
 import { MatterListPage } from '@/components/pages/matters/matter-list-page';
 import { MatterFormPage } from '@/components/pages/matters/matter-form-page';
 import { MatterDetailPage } from '@/components/pages/matters/matter-detail-page';
+import { CalendarPage } from '@/components/pages/calendar/calendar-page';
 
 // Admin Pages
 import { TeamPage } from '@/components/pages/admin/team-page';
@@ -122,6 +123,8 @@ function AppRouter({ route }: { route: string }) {
   if (route === '/matters/new' || route === '/matters/new/') return <MatterFormPage />;
   if (route.match(/^\/matters\/([^/]+)\/edit\/?$/)) return <MatterFormPage />;
   if (route.match(/^\/matters\/([^/]+)\/?$/)) return <MatterDetailPage />;
+
+  if (route === '/calendar' || route === '/calendar/') return <CalendarPage />;
 
   // Tasks — Kanban board
   if (route === '/tasks' || route === '/tasks/') return <KanbanPage />;

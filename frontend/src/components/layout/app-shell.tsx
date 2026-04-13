@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Home,
   Briefcase,
+  CalendarDays,
   Users,
   CheckSquare,
   FileText,
@@ -30,6 +31,7 @@ import { persist } from 'zustand/middleware';
 
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/lib/auth-store';
+import { useNotificationsSSE } from '@/hooks/use-notifications-sse';
 import {
   useCurrentRoute,
   navigate,
@@ -195,6 +197,7 @@ interface NavItem {
 const mainNavItems: NavItem[] = [
   { label: 'Dashboard',  path: '/',          icon: Home },
   { label: 'Matters',    path: '/matters',   icon: Briefcase },
+  { label: 'Calendar',   path: '/calendar',  icon: CalendarDays },
   { label: 'Clients',    path: '/clients',   icon: Users },
   { label: 'Tasks',      path: '/tasks',     icon: CheckSquare },
   { label: 'Documents',  path: '/documents', icon: FileText },

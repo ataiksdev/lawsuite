@@ -10,7 +10,9 @@ from app.models.matter import MatterStatus
 from app.models.matter_document import MatterEmail
 from app.schemas.matter import (
     ActivityLogResponse,
+    DriveFolderInfo,
     EmailLinkRequest,
+    LinkDriveFolderRequest,
     MatterCreate,
     MatterListResponse,
     MatterResponse,
@@ -164,6 +166,83 @@ async def get_activity(
         "page_size": page_size,
         "pages": math.ceil(total / page_size) if total else 0,
     }
+
+
+# ─── Drive folder linking ─────────────────────────────────────────────────────
+
+
+@router.post(
+    "/{matter_id}/drive-folder",
+    response_model=DriveFolderInfo,
+    status_code=status.HTTP_200_OK,
+)
+async def link_drive_folder(
+    matter_id: uuid.UUID,
+    payload: LinkDriveFolderRequest,
+    current_user: AuthUser,
+    google_creds: GoogleCreds,
+    db: DB,
+):
+    """
+    Link a Google Drive folder to a matter and optionally auto-import
+    every file inside it as a document record.
+
+    Accepts either a bare folder ID or any common shareable URL:
+      https://drive.google.com/drive/folders/{id}
+      https://drive.google.com/drive/u/0/folders/{id}
+
+    If import_existing=true (default), every non-folder file currently
+    in the Drive folder is imported as a new MatterDocument.
+    Files already linked (matched by drive_file_id) are skipped.
+    """
+    from app.services.google_drive_service import GoogleDriveService
+
+    raw = payload.folder_id or payload.folder_url
+    if not raw:
+        raise HTTPException(
+            status_code=400,
+            detail="Provide either folder_id or folder_url.",
+        )
+
+    drive_service = GoogleDriveService(db, google_creds)
+    matter_service = MatterService(db)
+
+    return await matter_service.link_drive_folder(
+        matter_id=matter_id,
+        org_id=current_user.org_id,
+        user_id=current_user.user_id,
+        folder_id_or_url=raw,
+        import_existing=payload.import_existing,
+        drive_service=drive_service,
+    )
+
+
+@router.post(
+    "/{matter_id}/drive-folder/sync",
+    response_model=dict,
+    status_code=status.HTTP_200_OK,
+)
+async def sync_drive_folder(
+    matter_id: uuid.UUID,
+    current_user: AuthUser,
+    google_creds: GoogleCreds,
+    db: DB,
+):
+    """
+    Re-scan the matter's linked Drive folder and import any new files
+    not yet recorded as documents. Returns {file_count, imported_count}.
+    """
+    from app.services.google_drive_service import GoogleDriveService
+
+    drive_service = GoogleDriveService(db, google_creds)
+    matter_service = MatterService(db)
+
+    return await matter_service.sync_drive_folder(
+        matter_id=matter_id,
+        org_id=current_user.org_id,
+        user_id=current_user.user_id,
+        drive_service=drive_service,
+    )
 
 
 # ─── Phase 8: Gmail thread linking ────────────────────────────────────────────

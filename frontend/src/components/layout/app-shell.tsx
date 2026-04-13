@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Home,
   Briefcase,
@@ -512,7 +512,7 @@ function HeaderBar({ onMenuClick }: { onMenuClick: () => void }) {
         <DropdownMenuContent align="end" className="w-80">
           <DropdownMenuLabel className="flex items-center justify-between py-2">
             <span className="font-semibold">Notifications</span>
-            {unread.length > 0 && (
+            {unreadCount > 0 && (
               <button
                 className="text-xs text-emerald-600 hover:text-emerald-700 dark:text-emerald-400"
                 onClick={markAllRead}

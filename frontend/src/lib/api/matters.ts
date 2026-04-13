@@ -33,6 +33,7 @@ export interface BackendMatter {
   status: BackendMatterStatus;
   description?: string | null;
   drive_folder_url?: string | null;
+  drive_folder_id?: string | null;
   opened_at: string;
   target_close_at?: string | null;
   closed_at?: string | null;
@@ -90,4 +91,34 @@ export async function changeMatterStatus(
   payload: { status: BackendMatterStatus; reason?: string }
 ) {
   return apiClient.patch<BackendMatter>(`/matters/${matterId}/status`, payload);
+}
+
+// ── Drive folder linking ──────────────────────────────────────────────────────
+
+export interface DriveFolderInfo {
+  folder_id: string;
+  folder_name: string;
+  folder_url: string;
+  file_count: number;
+  imported_count: number;
+}
+
+export async function linkDriveFolder(
+  matterId: string,
+  payload: {
+    folder_id?: string;
+    folder_url?: string;
+    import_existing?: boolean;
+  }
+): Promise<DriveFolderInfo> {
+  return apiClient.post<DriveFolderInfo>(`/matters/${matterId}/drive-folder`, payload);
+}
+
+export async function syncDriveFolder(
+  matterId: string
+): Promise<{ file_count: number; imported_count: number }> {
+  return apiClient.post<{ file_count: number; imported_count: number }>(
+    `/matters/${matterId}/drive-folder/sync`,
+    {}
+  );
 }

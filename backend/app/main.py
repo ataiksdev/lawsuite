@@ -53,6 +53,7 @@ from app.api import (
     documents,
     integrations,
     matters,
+    notes,
     notifications,
     reports,
     tasks,
@@ -74,3 +75,4 @@ app.include_router(reports.router, prefix="/reports", tags=["reports"])
 app.include_router(billing.router, prefix="/billing", tags=["billing"])
 app.include_router(admin.router, prefix="/admin", tags=["admin"])
 app.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
+app.include_router(notes.router, prefix="/notes", tags=["notes"])

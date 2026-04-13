@@ -72,7 +72,7 @@ class Matter(Base):
     calendar_events: Mapped[list["CalendarEvent"]] = relationship(
         back_populates="matter", cascade="all, delete-orphan"
     )
-    notes: Mapped[list["MatterNote"]] = relationship(back_populates="matter", cascade="all, delete-orphan")
+    notes: Mapped[list["Note"]] = relationship(back_populates="matter")
 
     def __repr__(self) -> str:
         return f"<Matter id={self.id} ref={self.reference_no} status={self.status}>"

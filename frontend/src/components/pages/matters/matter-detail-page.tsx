@@ -9,11 +9,14 @@ import {
   ExternalLink,
   FilePlus2,
   FileText,
+  FolderOpen,
   Building2,
   Loader2,
   Pencil,
   Plus,
+  RefreshCw,
   Trash2,
+  Upload,
   User,
   Wand2,
 } from 'lucide-react';
@@ -55,6 +58,7 @@ import {
   type DriveFileResponse,
   type TemplateFileResponse,
 } from '@/lib/api/documents';
+import { syncDriveFolder } from '@/lib/api/matters';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -93,6 +97,8 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import { DocumentFormDialog } from './components/document-form-dialog';
+import { UploadDocumentDialog } from './components/upload-document-dialog';
+import { LinkDriveFolderDialog } from './components/link-drive-folder-dialog';
 
 // ── Task section helpers ──────────────────────────────────────────────────────
 
@@ -831,6 +837,9 @@ export function MatterDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [documentsError, setDocumentsError] = useState<string | null>(null);
+  const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
+  const [isLinkFolderDialogOpen, setIsLinkFolderDialogOpen] = useState(false);
+  const [isSyncingFolder, setIsSyncingFolder] = useState(false);
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
   const [isGenerateDialogOpen, setIsGenerateDialogOpen] = useState(false);
   const [isDriveFilesDialogOpen, setIsDriveFilesDialogOpen] = useState(false);
@@ -1005,6 +1014,26 @@ export function MatterDetailPage() {
       handleApiError(err, 'Unable to change matter status.');
     } finally {
       setIsUpdatingStatus(false);
+    }
+  };
+
+  const handleSyncFolder = async () => {
+    if (!matter?.drive_folder_id) return;
+    setIsSyncingFolder(true);
+    try {
+      const result = await syncDriveFolder(matter.id);
+      if (result.imported_count > 0) {
+        // Reload the document list to show newly imported files
+        const updated = await listDocuments(matter.id);
+        setDocuments(updated);
+        toast.success(`Synced — ${result.imported_count} new document${result.imported_count !== 1 ? 's' : ''} imported.`);
+      } else {
+        toast.success('Folder synced — no new files found.');
+      }
+    } catch (err) {
+      handleApiError(err, 'Unable to sync Drive folder.');
+    } finally {
+      setIsSyncingFolder(false);
     }
   };
 
@@ -1183,17 +1212,62 @@ export function MatterDetailPage() {
 
         <Card className="shadow-sm lg:col-span-2">
           <CardContent className="space-y-4 p-6">
-            <div className="flex items-center gap-2">
-              <FileText className="h-4 w-4 text-slate-500" />
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-900 dark:text-slate-100">
-                Documents
-              </h3>
-            </div>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm leading-6 text-slate-600 dark:text-slate-400">
-                Manage linked Drive files, template-generated docs, versions, and document statuses from the backend.
-              </p>
+            <div className="flex flex-col gap-3">
+              {/* ── Folder status + title row ── */}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-slate-500" />
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-900 dark:text-slate-100">
+                    Documents
+                  </h3>
+                </div>
+                {matter.drive_folder_id ? (
+                  <div className="flex items-center gap-1.5">
+                    <Badge className="text-[10px] border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/20 dark:text-emerald-300">
+                      Drive folder linked
+                    </Badge>
+                    {matter.drive_folder_url && (
+                      <a
+                        href={matter.drive_folder_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-slate-400 hover:text-emerald-600"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+
+              {/* ── Toolbar ── */}
               <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsLinkFolderDialogOpen(true)}
+                  className={cn(
+                    'h-8 text-xs',
+                    matter.drive_folder_id
+                      ? 'border-emerald-200 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-950/20'
+                      : ''
+                  )}
+                >
+                  <FolderOpen className="mr-1.5 h-3.5 w-3.5" />
+                  {matter.drive_folder_id ? 'Manage Folder' : 'Link Drive Folder'}
+                </Button>
+                {matter.drive_folder_id && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs"
+                    disabled={isSyncingFolder}
+                    onClick={() => void handleSyncFolder()}
+                  >
+                    <RefreshCw className={cn('mr-1.5 h-3.5 w-3.5', isSyncingFolder && 'animate-spin')} />
+                    Sync Files
+                  </Button>
+                )}
                 <Button variant="outline" size="sm" onClick={() => setIsDriveFilesDialogOpen(true)}>
                   <ExternalLink className="mr-1.5 h-4 w-4" />
                   Browse Drive
@@ -1202,13 +1276,17 @@ export function MatterDetailPage() {
                   <Wand2 className="mr-1.5 h-4 w-4" />
                   From Template
                 </Button>
+                <Button variant="outline" size="sm" onClick={() => setIsLinkDialogOpen(true)}>
+                  <Plus className="mr-1.5 h-4 w-4" />
+                  Link by ID
+                </Button>
                 <Button
                   size="sm"
-                  onClick={() => setIsLinkDialogOpen(true)}
+                  onClick={() => setIsUploadDialogOpen(true)}
                   className="bg-emerald-600 text-white hover:bg-emerald-700"
                 >
-                  <Plus className="mr-1.5 h-4 w-4" />
-                  Link Document
+                  <Upload className="mr-1.5 h-4 w-4" />
+                  Upload File
                 </Button>
               </div>
             </div>
@@ -1393,6 +1471,42 @@ export function MatterDetailPage() {
         onOpenChange={setIsLinkDialogOpen}
         matterId={matter.id}
         onSave={handleDocumentSaved}
+      />
+
+      <UploadDocumentDialog
+        open={isUploadDialogOpen}
+        onOpenChange={setIsUploadDialogOpen}
+        matterId={matter.id}
+        onUploaded={(doc) => {
+          upsertDocument(doc);
+          setDocumentsError(null);
+        }}
+      />
+
+      <LinkDriveFolderDialog
+        open={isLinkFolderDialogOpen}
+        onOpenChange={setIsLinkFolderDialogOpen}
+        matterId={matter.id}
+        existingFolderId={matter.drive_folder_id}
+        existingFolderUrl={matter.drive_folder_url}
+        onLinked={async (info) => {
+          // Update the matter record with the new folder ID + URL
+          setMatter((prev) => prev ? {
+            ...prev,
+            drive_folder_id: info.folder_id,
+            drive_folder_url: info.folder_url,
+          } : prev);
+          // Reload documents to show anything that was imported
+          if (info.imported_count > 0) {
+            const updated = await listDocuments(matter.id);
+            setDocuments(updated);
+            toast.success(
+              `Folder linked — ${info.imported_count} document${info.imported_count !== 1 ? 's' : ''} imported.`
+            );
+          } else {
+            toast.success('Drive folder linked successfully.');
+          }
+        }}
       />
 
       <GenerateTemplateDialog

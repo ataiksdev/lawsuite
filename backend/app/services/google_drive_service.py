@@ -144,6 +144,56 @@ class GoogleDriveService:
                 detail=f"Drive file not found: {e.reason}",
             )
 
+    async def upload_file(
+        self,
+        file_bytes: bytes,
+        filename: str,
+        mime_type: str,
+        folder_id: Optional[str] = None,
+    ) -> dict:
+        """
+        Upload raw file bytes to Google Drive.
+
+        Uses resumable upload for files > 5 MB, simple upload for smaller files.
+        Returns {"id": ..., "name": ..., "webViewLink": ..., "mimeType": ...}.
+
+        Args:
+            file_bytes:  Raw bytes of the file to upload.
+            filename:    The name the file will have in Drive.
+            mime_type:   MIME type (e.g. "application/pdf", "image/jpeg").
+            folder_id:   Optional Drive folder ID to place the file in.
+                         If omitted the file lands in the user's root.
+        """
+        import io
+        from googleapiclient.http import MediaIoBaseUpload
+
+        metadata: dict = {"name": filename}
+        if folder_id:
+            metadata["parents"] = [folder_id]
+
+        media = MediaIoBaseUpload(
+            io.BytesIO(file_bytes),
+            mimetype=mime_type,
+            resumable=len(file_bytes) > 5 * 1024 * 1024,  # resumable for files > 5 MB
+        )
+
+        try:
+            file = (
+                self.client.files()
+                .create(
+                    body=metadata,
+                    media_body=media,
+                    fields="id,name,mimeType,webViewLink",
+                )
+                .execute()
+            )
+            return file
+        except HttpError as e:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Drive upload failed: {e.reason}",
+            )
+
     # ── Webhook channel registration ──────────────────────────────────────
 
     async def register_webhook_channel(self, org_id: uuid.UUID) -> dict:

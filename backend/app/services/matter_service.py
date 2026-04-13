@@ -1,4 +1,5 @@
 # backend/app/services/matter_service.py
+import re
 import uuid
 from datetime import datetime, timezone
 
@@ -9,18 +10,24 @@ from sqlalchemy.orm import selectinload
 
 from app.models.client import Client
 from app.models.matter import Matter, MatterStatus
+from app.models.matter_document import DocumentType, MatterDocument, MatterDocumentVersion
 from app.schemas.matter import MatterCreate, MatterUpdate, StatusUpdate
 from app.services.activity_service import ActivityService
 
 # Valid stage transitions — prevents arbitrary jumps
 ALLOWED_TRANSITIONS: dict[MatterStatus, list[MatterStatus]] = {
-    MatterStatus.intake: [MatterStatus.open, MatterStatus.archived],
-    MatterStatus.open: [MatterStatus.pending, MatterStatus.in_review, MatterStatus.closed, MatterStatus.archived],
-    MatterStatus.pending: [MatterStatus.open, MatterStatus.in_review, MatterStatus.closed, MatterStatus.archived],
+    MatterStatus.intake:    [MatterStatus.open, MatterStatus.archived],
+    MatterStatus.open:      [MatterStatus.pending, MatterStatus.in_review, MatterStatus.closed, MatterStatus.archived],
+    MatterStatus.pending:   [MatterStatus.open, MatterStatus.in_review, MatterStatus.closed, MatterStatus.archived],
     MatterStatus.in_review: [MatterStatus.open, MatterStatus.pending, MatterStatus.closed, MatterStatus.archived],
-    MatterStatus.closed: [MatterStatus.open, MatterStatus.archived],
-    MatterStatus.archived: [MatterStatus.open],
+    MatterStatus.closed:    [MatterStatus.open, MatterStatus.archived],
+    MatterStatus.archived:  [MatterStatus.open],
 }
+
+# Regex for a bare Drive ID — alphanumerics, hyphens, underscores, 10+ chars
+_BARE_ID_RE = re.compile(r'^[A-Za-z0-9_-]{10,}$')
+_FOLDERS_RE  = re.compile(r'/folders/([A-Za-z0-9_-]+)')
+_QUERY_ID_RE = re.compile(r'[?&]id=([A-Za-z0-9_-]+)')
 
 
 async def _generate_reference(db: AsyncSession, org_id: uuid.UUID) -> str:
@@ -146,11 +153,6 @@ class MatterService:
 
         await self.db.commit()
         await self.db.refresh(matter)
-
-        # Trigger Drive folder creation (Phase 6 — queued via Celery)
-        # from app.workers.tasks import create_drive_folder
-        # create_drive_folder.delay(str(matter.id), str(org_id))
-
         return await self._get_matter(matter.id, org_id)
 
     async def update_matter(
@@ -243,3 +245,230 @@ class MatterService:
             )
         await self.db.delete(matter)
         await self.db.commit()
+
+    # ── Drive folder linking ───────────────────────────────────────────────────
+
+    @staticmethod
+    def _extract_folder_id(folder_id_or_url: str) -> str:
+        """
+        Accept either a raw Drive folder ID or any common shareable URL form:
+          https://drive.google.com/drive/folders/{id}
+          https://drive.google.com/drive/u/0/folders/{id}
+          https://drive.google.com/open?id={id}
+          https://drive.google.com/folderview?id={id}
+        Returns the bare folder ID string.
+        """
+        s = folder_id_or_url.strip()
+        # Already a bare ID — only alphanumerics, hyphens, underscores, 10+ chars
+        if _BARE_ID_RE.match(s):
+            return s
+        # /folders/{id} URL pattern
+        m = _FOLDERS_RE.search(s)
+        if m:
+            return m.group(1)
+        # ?id={id} query-param pattern
+        m = _QUERY_ID_RE.search(s)
+        if m:
+            return m.group(1)
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Could not extract a Drive folder ID from the provided value. "
+                "Please paste the full folder URL or the bare folder ID."
+            ),
+        )
+
+    async def link_drive_folder(
+        self,
+        matter_id: uuid.UUID,
+        org_id: uuid.UUID,
+        user_id: uuid.UUID,
+        folder_id_or_url: str,
+        import_existing: bool,
+        drive_service,  # GoogleDriveService instance — typed loosely to avoid circular import
+    ) -> dict:
+        """
+        Link a Google Drive folder to a matter.
+
+        Steps:
+          1. Parse the folder ID from the URL or bare ID.
+          2. Verify the folder exists in Drive and is actually a folder (not a file).
+          3. Persist drive_folder_id + drive_folder_url on the matter record.
+          4. If import_existing=True, list all files in the folder and create
+             MatterDocument + MatterDocumentVersion records for each one,
+             skipping files already linked (matched by drive_file_id).
+          5. Log a drive_folder_linked activity entry.
+
+        Returns a DriveFolderInfo-shaped dict.
+        """
+        from googleapiclient.errors import HttpError
+
+        folder_id = self._extract_folder_id(folder_id_or_url)
+        matter = await self._get_matter(matter_id, org_id)
+
+        # Verify the folder exists and is accessible
+        try:
+            meta = (
+                drive_service.client.files()
+                .get(fileId=folder_id, fields="id,name,mimeType,webViewLink")
+                .execute()
+            )
+        except HttpError as e:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Drive folder not found or not accessible: {e.reason}",
+            )
+
+        if meta.get("mimeType") != "application/vnd.google-apps.folder":
+            raise HTTPException(
+                status_code=400,
+                detail="The provided ID points to a file, not a folder.",
+            )
+
+        folder_url: str = meta.get("webViewLink", "")
+        folder_name: str = meta.get("name", "")
+
+        # Save the folder reference on the matter
+        matter.drive_folder_id = folder_id
+        matter.drive_folder_url = folder_url
+
+        imported = 0
+        file_count = 0
+
+        if import_existing:
+            files = await drive_service.list_files(folder_id)
+            file_count = len(files)
+            imported = await self._import_drive_files(
+                matter_id=matter_id,
+                org_id=org_id,
+                user_id=user_id,
+                files=files,
+            )
+
+        await self.activity.log(
+            matter_id=matter_id,
+            org_id=org_id,
+            actor_id=user_id,
+            event_type="drive_folder_linked",
+            payload={
+                "folder_id": folder_id,
+                "folder_name": folder_name,
+                "folder_url": folder_url,
+                "files_imported": imported,
+            },
+        )
+
+        await self.db.commit()
+
+        return {
+            "folder_id": folder_id,
+            "folder_name": folder_name,
+            "folder_url": folder_url,
+            "file_count": file_count,
+            "imported_count": imported,
+        }
+
+    async def sync_drive_folder(
+        self,
+        matter_id: uuid.UUID,
+        org_id: uuid.UUID,
+        user_id: uuid.UUID,
+        drive_service,
+    ) -> dict:
+        """
+        Re-scan the linked Drive folder and import any files not yet recorded
+        as documents on this matter.
+        Returns {"file_count": N, "imported_count": M}.
+        """
+        matter = await self._get_matter(matter_id, org_id)
+        if not matter.drive_folder_id:
+            raise HTTPException(
+                status_code=400,
+                detail="This matter has no linked Drive folder. Link one first.",
+            )
+
+        files = await drive_service.list_files(matter.drive_folder_id)
+        imported = await self._import_drive_files(
+            matter_id=matter_id,
+            org_id=org_id,
+            user_id=user_id,
+            files=files,
+        )
+
+        if imported:
+            await self.activity.log(
+                matter_id=matter_id,
+                org_id=org_id,
+                actor_id=user_id,
+                event_type="drive_folder_synced",
+                payload={
+                    "folder_id": matter.drive_folder_id,
+                    "new_files_imported": imported,
+                },
+            )
+
+        await self.db.commit()
+        return {"file_count": len(files), "imported_count": imported}
+
+    async def _import_drive_files(
+        self,
+        matter_id: uuid.UUID,
+        org_id: uuid.UUID,
+        user_id: uuid.UUID,
+        files: list[dict],
+    ) -> int:
+        """
+        For each Drive file, create a MatterDocument + first MatterDocumentVersion
+        if the file is not already linked (matched by drive_file_id).
+        Sub-folders inside the linked folder are skipped.
+        Returns the count of newly created documents.
+        """
+        # Fetch existing drive_file_ids to prevent duplicates
+        existing_result = await self.db.execute(
+            select(MatterDocument.drive_file_id).where(
+                MatterDocument.matter_id == matter_id,
+                MatterDocument.organisation_id == org_id,
+                MatterDocument.is_deleted == False,
+            )
+        )
+        existing_ids: set[str] = {row[0] for row in existing_result.all() if row[0]}
+
+        imported = 0
+        for f in files:
+            file_id: str = f.get("id", "")
+            if not file_id or file_id in existing_ids:
+                continue
+
+            # Skip sub-folders
+            if f.get("mimeType") == "application/vnd.google-apps.folder":
+                continue
+
+            name: str = f.get("name", "Untitled")
+            web_url: str = f.get("webViewLink", "")
+
+            doc = MatterDocument(
+                matter_id=matter_id,
+                organisation_id=org_id,
+                added_by=user_id,
+                name=name,
+                doc_type=DocumentType.other,
+                current_version=1,
+                drive_file_id=file_id,
+                drive_url=web_url,
+            )
+            self.db.add(doc)
+            await self.db.flush()
+
+            version = MatterDocumentVersion(
+                document_id=doc.id,
+                uploaded_by=user_id,
+                version_number=1,
+                label="imported from Drive",
+                drive_file_id=file_id,
+                drive_url=web_url,
+            )
+            self.db.add(version)
+            existing_ids.add(file_id)
+            imported += 1
+
+        return imported

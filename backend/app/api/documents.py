@@ -1,9 +1,10 @@
 # backend/app/api/documents.py
+import mimetypes
 import uuid
 from datetime import date
 
 import fastapi
-from fastapi import APIRouter, status
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from sqlalchemy import select
 
 from app.core.deps import DB, AuthUser, GoogleCreds
@@ -197,6 +198,104 @@ async def list_drive_files(
         )
         for f in files
     ]
+
+
+# ─── File upload directly to Drive ───────────────────────────────────────────
+
+
+@router.post(
+    "/{matter_id}/documents/upload",
+    response_model=DocumentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_document(
+    matter_id: uuid.UUID,
+    current_user: AuthUser,
+    google_creds: GoogleCreds,
+    db: DB,
+    file: UploadFile = File(...),
+    doc_type: str = Form("other"),
+    label: str = Form(""),
+    document_name: str = Form(""),
+):
+    """
+    Upload a file from the user's device directly to Google Drive and
+    immediately link it to this matter as a new document.
+
+    Flow:
+      1. Validate file size (max 50 MB) and MIME type.
+      2. Determine the destination folder from the matter's drive_folder_id.
+         If the matter has no Drive folder yet the file goes to Drive root.
+      3. Upload the file bytes to Drive via the Drive API.
+      4. Create a MatterDocument + first version record pointing to the new file.
+      5. Log a document_added activity entry.
+
+    Returns the new DocumentResponse (same shape as /documents POST).
+    """
+    MAX_SIZE_BYTES = 50 * 1024 * 1024  # 50 MB
+
+    # ── Validate matter access ────────────────────────────────────────────
+    matter_result = await db.execute(
+        select(Matter).where(
+            Matter.id == matter_id,
+            Matter.organisation_id == current_user.org_id,
+        )
+    )
+    matter = matter_result.scalar_one_or_none()
+    if not matter:
+        raise HTTPException(status_code=404, detail="Matter not found")
+
+    # ── Read and validate file ────────────────────────────────────────────
+    file_bytes = await file.read()
+    if len(file_bytes) > MAX_SIZE_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File exceeds maximum size of 50 MB (got {len(file_bytes) / 1024 / 1024:.1f} MB).",
+        )
+    if not file_bytes:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+
+    # Resolve MIME type — trust Content-Type header, fall back to guessing from filename
+    mime = file.content_type or ""
+    if not mime or mime == "application/octet-stream":
+        guessed, _ = mimetypes.guess_type(file.filename or "")
+        mime = guessed or "application/octet-stream"
+
+    # Determine the display name for the document record
+    final_name = (document_name.strip() or file.filename or "Uploaded document").strip()
+
+    # ── Upload to Drive ───────────────────────────────────────────────────
+    drive_service = GoogleDriveService(db, google_creds)
+    drive_file = await drive_service.upload_file(
+        file_bytes=file_bytes,
+        filename=file.filename or final_name,
+        mime_type=mime,
+        folder_id=matter.drive_folder_id or None,
+    )
+
+    drive_file_id: str = drive_file["id"]
+    drive_url: str = drive_file.get("webViewLink", "")
+
+    # ── Create document record ────────────────────────────────────────────
+    doc_service = DocumentService(db)
+    try:
+        resolved_doc_type = DocumentType(doc_type)
+    except ValueError:
+        resolved_doc_type = DocumentType.other
+
+    doc = await doc_service.link_document(
+        matter_id=matter_id,
+        org_id=current_user.org_id,
+        user_id=current_user.user_id,
+        data=DocumentLink(
+            name=final_name,
+            drive_file_id=drive_file_id,
+            drive_url=drive_url,
+            doc_type=resolved_doc_type,
+            label=label.strip() or None,
+        ),
+    )
+    return DocumentResponse.model_validate(doc)
 
 
 # ─── Phase 7: Generate document from template ─────────────────────────────────

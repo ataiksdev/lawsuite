@@ -26,6 +26,23 @@ class MatterUpdate(BaseModel):
     assigned_to: uuid.UUID | None = None
     target_close_at: datetime | None = None
     client_id: uuid.UUID | None = None
+    drive_folder_id: str | None = None
+    drive_folder_url: str | None = None
+
+
+class LinkDriveFolderRequest(BaseModel):
+    """Link a Google Drive folder to a matter by folder ID or shareable URL."""
+    folder_id: str | None = Field(None, min_length=1, description="Drive folder ID")
+    folder_url: str | None = Field(None, min_length=1, description="Drive folder shareable URL")
+    import_existing: bool = Field(True, description="Auto-import files already in the folder as documents")
+
+
+class DriveFolderInfo(BaseModel):
+    folder_id: str
+    folder_name: str
+    folder_url: str
+    file_count: int
+    imported_count: int
 
 
 class StatusUpdate(BaseModel):
@@ -86,6 +103,7 @@ class MatterResponse(BaseModel):
     status: MatterStatus
     description: str | None
     drive_folder_url: str | None
+    drive_folder_id: str | None
     opened_at: datetime
     target_close_at: datetime | None
     closed_at: datetime | None

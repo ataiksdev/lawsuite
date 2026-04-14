@@ -67,6 +67,14 @@ class Settings(BaseSettings):
     paystack_pro_plan_code: str = ""
     paystack_agency_plan_code: str = ""
 
+    # Email (SMTP)
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    emails_from_address: str = ""
+    emails_from_name: str = "LegalOps"
+
     # App
     app_env: str = "development"
     app_url: str = "http://localhost:8000"

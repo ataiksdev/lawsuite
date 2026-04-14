@@ -33,6 +33,7 @@ python-dotenv = "^1.0.0"
 pyotp = "^2.9.0"
 qrcode = {extras = ["pil"], version = "^8.2"}
 authlib = "^1.6.9"
+fastapi-mail = "^1.4.2"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.0"

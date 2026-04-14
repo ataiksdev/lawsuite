@@ -247,11 +247,11 @@ function InviteMemberDialog({
               ))}
             </div>
           </div>
-          <div className="flex items-start gap-2 rounded-lg bg-blue-50 p-3 dark:bg-blue-950/20">
-            <Mail className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
-            <p className="text-xs text-blue-700 dark:text-blue-400">
-              The backend creates the member immediately with a pending invite state and returns an
-              invitation link for delivery.
+          <div className="flex items-start gap-2 rounded-lg bg-primary/5 p-3">
+            <Mail className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+            <p className="text-xs text-primary/80">
+              An invitation email will be sent to this address with a secure link to set their
+              password and join your organisation.
             </p>
           </div>
         </div>

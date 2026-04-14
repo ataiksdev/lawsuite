@@ -271,7 +271,20 @@ class AuthService:
         await self.db.refresh(user)
 
         invite_url = f"{settings.frontend_url}/#/accept-invite?token={invite_token}"
-        print(f"[INVITE] {data.email} → {invite_url}")
+
+        # Look up inviter's name for the email
+        inviter_result = await self.db.execute(select(User).where(User.id == invited_by))
+        inviter = inviter_result.scalar_one_or_none()
+        inviter_name = inviter.full_name if inviter else "Your team"
+
+        from app.services.email_service import send_invite_email
+        await send_invite_email(
+            to=data.email,
+            name=data.full_name.strip(),
+            invited_by=inviter_name,
+            role=data.role,
+            invite_url=invite_url,
+        )
         return user, invite_url
 
     # ── Resend invite ─────────────────────────────────────────────────────
@@ -302,7 +315,15 @@ class AuthService:
         await self.db.refresh(user)
 
         invite_url = f"{settings.frontend_url}/#/accept-invite?token={invite_token}"
-        print(f"[RESEND INVITE] {user.email} → {invite_url}")
+
+        from app.services.email_service import send_invite_email
+        await send_invite_email(
+            to=user.email,
+            name=user.full_name,
+            invited_by="Your team",
+            role="member",
+            invite_url=invite_url,
+        )
         return user, invite_url
 
     # ── Accept invite ─────────────────────────────────────────────────────

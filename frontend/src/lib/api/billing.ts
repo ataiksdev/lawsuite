@@ -33,12 +33,14 @@ export interface SubscriptionSummary {
   features: PlanFeatures;
   limits: SubscriptionLimits;
   paystack_customer_code: string | null;
+  paystack_public_key: string;
 }
 
 export interface CheckoutResponse {
   authorization_url: string;
   reference: string;
   access_code: string;
+  amount_kobo: number;
 }
 
 export interface BillingPortalResponse {

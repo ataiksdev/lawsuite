@@ -233,8 +233,37 @@ function PlanCard({
   );
 }
 
+declare global {
+  interface Window {
+    PaystackPop: {
+      setup: (options: any) => { openIframe: () => void };
+    };
+  }
+}
+
+function usePaystackScript() {
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    const script = document.createElement('script');
+    script.src = 'https://js.paystack.co/v1/inline.js';
+    script.async = true;
+    script.onload = () => setLoaded(true);
+    document.body.appendChild(script);
+
+    return () => {
+      if (document.body.contains(script)) {
+        document.body.removeChild(script);
+      }
+    };
+  }, []);
+
+  return loaded;
+}
+
 export function BillingPage() {
   const { user, organisation } = useAuthStore();
+  const isPaystackLoaded = usePaystackScript();
   const handledCheckoutRef = useRef<string | null>(null);
   const [subscription, setSubscription] = useState<SubscriptionSummary | null>(null);
   const [memberCount, setMemberCount] = useState(0);
@@ -362,11 +391,55 @@ export function BillingPage() {
   }
 
   const handleUpgrade = async (plan: PaidBillingPlan) => {
+    if (!subscription) return;
+    if (!isPaystackLoaded || !window.PaystackPop) {
+      toast.error('Payment system is not ready yet. Please refresh or try again in a few seconds.');
+      return;
+    }
+
     setCheckoutPlan(plan);
     try {
-      const response = await startCheckout(plan);
-      window.location.href = response.authorization_url;
+      const checkoutData = await startCheckout(plan);
+      
+      const handler = window.PaystackPop.setup({
+        key: subscription.paystack_public_key,
+        email: user?.email,
+        amount: checkoutData.amount_kobo,
+        access_code: checkoutData.access_code,
+        callback: (verifiedResponse: { reference: string }) => {
+          setIsVerifyingCheckout(true);
+          void (async () => {
+            try {
+              const result = await verifyCheckout(verifiedResponse.reference);
+              setSubscription(result.subscription);
+              setCheckoutMessage({
+                tone: 'success',
+                title: `${result.plan === 'agency' ? 'Agency' : 'Pro'} plan activated`,
+                detail: 'Your payment was confirmed and your subscription is now active.',
+              });
+              toast.success(`Payment confirmed. Your ${result.plan} plan is active.`);
+            } catch (err) {
+              console.error('Verification error:', err);
+              toast.error('Verification failed. We will update your account shortly via webhook.');
+            } finally {
+              setIsVerifyingCheckout(false);
+              setCheckoutPlan(null);
+            }
+          })();
+        },
+        onClose: () => {
+          setCheckoutPlan(null);
+          toast.info('Checkout closed.');
+        },
+      });
+
+      if (handler && typeof handler.openIframe === 'function') {
+        handler.openIframe();
+      } else {
+        throw new Error('Paystack could not be initialized.');
+      }
     } catch (err) {
+      console.error('Paystack Checkout Error:', err);
       const message =
         err instanceof ApiClientError ? err.detail : 'Unable to start checkout right now.';
       toast.error(message);

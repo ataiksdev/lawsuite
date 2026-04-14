@@ -44,80 +44,129 @@
 }
 
 /* ============================================================================
-   Light Theme — Emerald/Teal Professional Legal Aesthetic
+   Remap Emerald → Burnt Orange Brand Palette
+   Overrides all emerald-* Tailwind classes throughout the app
+   ============================================================================ */
+
+@theme {
+  --color-emerald-50:  oklch(0.974 0.018 42);
+  --color-emerald-100: oklch(0.942 0.040 40);
+  --color-emerald-200: oklch(0.882 0.078 38);
+  --color-emerald-300: oklch(0.792 0.128 36);
+  --color-emerald-400: oklch(0.692 0.162 35);
+  --color-emerald-500: oklch(0.600 0.180 34);
+  --color-emerald-600: oklch(0.540 0.182 33);
+  --color-emerald-700: oklch(0.498 0.178 32);
+  --color-emerald-800: oklch(0.420 0.152 31);
+  --color-emerald-900: oklch(0.348 0.125 30);
+  --color-emerald-950: oklch(0.228 0.085 28);
+
+  /* ============================================================================
+     Remap Slate → Warm Neutral Palette (removes the blue-dark tint in dark mode)
+     Based on the HTML's ink (#0D0D0D) / paper (#F5F0E8) tonal range
+     ============================================================================ */
+  --color-slate-50:  oklch(0.968 0.010 78);
+  --color-slate-100: oklch(0.930 0.012 76);
+  --color-slate-200: oklch(0.840 0.012 75);
+  --color-slate-300: oklch(0.730 0.012 72);
+  --color-slate-400: oklch(0.580 0.012 70);
+  --color-slate-500: oklch(0.472 0.013 70);
+  --color-slate-600: oklch(0.380 0.012 68);
+  --color-slate-700: oklch(0.295 0.012 66);
+  --color-slate-800: oklch(0.220 0.014 65);
+  --color-slate-900: oklch(0.155 0.014 64);
+  --color-slate-950: oklch(0.105 0.006 63);
+}
+
+/* ============================================================================
+   Light Theme — Warm Paper / Burnt Orange Legal Aesthetic
    ============================================================================ */
 
 :root {
   --radius: 0.625rem;
-  --background: oklch(0.985 0.001 155);
-  --foreground: oklch(0.18 0.02 240);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.18 0.02 240);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.18 0.02 240);
-  --primary: oklch(0.45 0.14 160);
-  --primary-foreground: oklch(0.99 0.005 155);
-  --secondary: oklch(0.96 0.008 155);
-  --secondary-foreground: oklch(0.25 0.02 240);
-  --muted: oklch(0.96 0.005 155);
-  --muted-foreground: oklch(0.50 0.02 240);
-  --accent: oklch(0.95 0.02 160);
-  --accent-foreground: oklch(0.25 0.06 160);
+  /* Warm cream paper background */
+  --background: oklch(0.963 0.012 78);
+  --foreground: oklch(0.105 0.004 65);
+  /* Warm white cards */
+  --card: oklch(0.992 0.006 80);
+  --card-foreground: oklch(0.105 0.004 65);
+  --popover: oklch(0.992 0.006 80);
+  --popover-foreground: oklch(0.105 0.004 65);
+  /* Burnt orange primary */
+  --primary: oklch(0.498 0.178 32);
+  --primary-foreground: oklch(0.985 0.006 75);
+  /* Warm secondary tones */
+  --secondary: oklch(0.920 0.015 78);
+  --secondary-foreground: oklch(0.205 0.010 65);
+  --muted: oklch(0.920 0.015 78);
+  --muted-foreground: oklch(0.472 0.013 72);
+  /* Accent — very light warm tint */
+  --accent: oklch(0.942 0.020 78);
+  --accent-foreground: oklch(0.348 0.125 30);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.91 0.01 155);
-  --input: oklch(0.91 0.01 155);
-  --ring: oklch(0.45 0.14 160);
-  --chart-1: oklch(0.45 0.14 160);
-  --chart-2: oklch(0.55 0.12 200);
-  --chart-3: oklch(0.65 0.15 140);
-  --chart-4: oklch(0.75 0.12 80);
-  --chart-5: oklch(0.55 0.10 250);
-  --sidebar: oklch(1 0 0);
-  --sidebar-foreground: oklch(0.18 0.02 240);
-  --sidebar-primary: oklch(0.45 0.14 160);
-  --sidebar-primary-foreground: oklch(0.99 0.005 155);
-  --sidebar-accent: oklch(0.95 0.02 160);
-  --sidebar-accent-foreground: oklch(0.25 0.06 160);
-  --sidebar-border: oklch(0.91 0.01 155);
-  --sidebar-ring: oklch(0.45 0.14 160);
+  /* Warm borders */
+  --border: oklch(0.840 0.012 78);
+  --input: oklch(0.840 0.012 78);
+  --ring: oklch(0.498 0.178 32);
+  /* Charts — orange-family */
+  --chart-1: oklch(0.498 0.178 32);
+  --chart-2: oklch(0.600 0.150 52);
+  --chart-3: oklch(0.380 0.140 250);
+  --chart-4: oklch(0.620 0.115 80);
+  --chart-5: oklch(0.540 0.105 300);
+  /* Sidebar */
+  --sidebar: oklch(0.992 0.006 80);
+  --sidebar-foreground: oklch(0.105 0.004 65);
+  --sidebar-primary: oklch(0.498 0.178 32);
+  --sidebar-primary-foreground: oklch(0.985 0.006 75);
+  --sidebar-accent: oklch(0.942 0.020 78);
+  --sidebar-accent-foreground: oklch(0.348 0.125 30);
+  --sidebar-border: oklch(0.840 0.012 78);
+  --sidebar-ring: oklch(0.498 0.178 32);
 }
 
 /* ============================================================================
-   Dark Theme
+   Dark Theme — Warm Ink / Burnt Orange
    ============================================================================ */
 
 .dark {
-  --background: oklch(0.13 0.015 240);
-  --foreground: oklch(0.95 0.005 155);
-  --card: oklch(0.18 0.015 240);
-  --card-foreground: oklch(0.95 0.005 155);
-  --popover: oklch(0.18 0.015 240);
-  --popover-foreground: oklch(0.95 0.005 155);
-  --primary: oklch(0.55 0.14 160);
-  --primary-foreground: oklch(0.13 0.015 240);
-  --secondary: oklch(0.22 0.015 240);
-  --secondary-foreground: oklch(0.95 0.005 155);
-  --muted: oklch(0.22 0.015 240);
-  --muted-foreground: oklch(0.65 0.01 240);
-  --accent: oklch(0.22 0.025 160);
-  --accent-foreground: oklch(0.85 0.05 160);
+  /* Warm near-black background (#1A1510) */
+  --background: oklch(0.142 0.016 65);
+  --foreground: oklch(0.963 0.012 78);
+  /* Slightly lighter warm dark for cards (#231E17) */
+  --card: oklch(0.182 0.016 65);
+  --card-foreground: oklch(0.963 0.012 78);
+  --popover: oklch(0.182 0.016 65);
+  --popover-foreground: oklch(0.963 0.012 78);
+  /* Brighter burnt orange for dark bg */
+  --primary: oklch(0.618 0.180 34);
+  --primary-foreground: oklch(0.142 0.016 65);
+  --secondary: oklch(0.222 0.016 65);
+  --secondary-foreground: oklch(0.963 0.012 78);
+  --muted: oklch(0.222 0.016 65);
+  --muted-foreground: oklch(0.620 0.014 72);
+  /* Very dark orange tint for accent */
+  --accent: oklch(0.248 0.028 34);
+  --accent-foreground: oklch(0.855 0.058 36);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(0.25 0.015 240);
-  --input: oklch(0.25 0.015 240);
-  --ring: oklch(0.55 0.14 160);
-  --chart-1: oklch(0.55 0.14 160);
-  --chart-2: oklch(0.60 0.12 200);
-  --chart-3: oklch(0.65 0.12 140);
-  --chart-4: oklch(0.70 0.10 80);
-  --chart-5: oklch(0.55 0.10 250);
-  --sidebar: oklch(0.15 0.015 240);
-  --sidebar-foreground: oklch(0.95 0.005 155);
-  --sidebar-primary: oklch(0.55 0.14 160);
-  --sidebar-primary-foreground: oklch(0.13 0.015 240);
-  --sidebar-accent: oklch(0.22 0.025 160);
-  --sidebar-accent-foreground: oklch(0.85 0.05 160);
-  --sidebar-border: oklch(0.25 0.015 240);
-  --sidebar-ring: oklch(0.55 0.14 160);
+  --border: oklch(0.280 0.015 65);
+  --input: oklch(0.280 0.015 65);
+  --ring: oklch(0.618 0.180 34);
+  /* Charts */
+  --chart-1: oklch(0.618 0.180 34);
+  --chart-2: oklch(0.650 0.145 52);
+  --chart-3: oklch(0.500 0.120 250);
+  --chart-4: oklch(0.680 0.105 80);
+  --chart-5: oklch(0.580 0.095 300);
+  /* Sidebar — slightly darker than bg */
+  --sidebar: oklch(0.122 0.014 65);
+  --sidebar-foreground: oklch(0.963 0.012 78);
+  --sidebar-primary: oklch(0.618 0.180 34);
+  --sidebar-primary-foreground: oklch(0.142 0.016 65);
+  --sidebar-accent: oklch(0.248 0.028 34);
+  --sidebar-accent-foreground: oklch(0.855 0.058 36);
+  --sidebar-border: oklch(0.280 0.015 65);
+  --sidebar-ring: oklch(0.618 0.180 34);
 }
 
 /* ============================================================================
@@ -147,30 +196,30 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: oklch(0.80 0.01 160);
+  background: oklch(0.780 0.060 38);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: oklch(0.65 0.03 160);
+  background: oklch(0.620 0.120 35);
 }
 
 .dark ::-webkit-scrollbar-thumb {
-  background: oklch(0.30 0.02 160);
+  background: oklch(0.320 0.060 34);
 }
 
 .dark ::-webkit-scrollbar-thumb:hover {
-  background: oklch(0.40 0.03 160);
+  background: oklch(0.420 0.100 34);
 }
 
 /* Firefox scrollbar */
 * {
   scrollbar-width: thin;
-  scrollbar-color: oklch(0.80 0.01 160) transparent;
+  scrollbar-color: oklch(0.780 0.060 38) transparent;
 }
 
 .dark * {
-  scrollbar-color: oklch(0.30 0.02 160) transparent;
+  scrollbar-color: oklch(0.320 0.060 34) transparent;
 }
 
 /* ============================================================================
@@ -194,7 +243,7 @@
 }
 
 .badge-closed {
-  @apply bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800/40 dark:text-slate-400 dark:border-slate-700;
+  @apply bg-stone-100 text-stone-600 border-stone-200 dark:bg-stone-800/40 dark:text-stone-400 dark:border-stone-700;
 }
 
 .badge-archived {
@@ -203,7 +252,7 @@
 
 /* Task status badges */
 .badge-todo {
-  @apply bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800/40 dark:text-slate-400 dark:border-slate-700;
+  @apply bg-stone-100 text-stone-600 border-stone-200 dark:bg-stone-800/40 dark:text-stone-400 dark:border-stone-700;
 }
 
 .badge-in_progress {
@@ -220,7 +269,7 @@
 
 /* Priority badges */
 .badge-low {
-  @apply bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800/40 dark:text-slate-400 dark:border-slate-700;
+  @apply bg-stone-100 text-stone-500 border-stone-200 dark:bg-stone-800/40 dark:text-stone-400 dark:border-stone-700;
 }
 
 .badge-medium {
@@ -228,7 +277,7 @@
 }
 
 .badge-high {
-  @apply bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800;
+  @apply bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800;
 }
 
 /* ============================================================================
@@ -289,7 +338,7 @@
 }
 
 .status-dot-closed {
-  @apply bg-slate-400;
+  @apply bg-stone-400;
 }
 
 .status-dot-archived {
@@ -301,15 +350,15 @@
    ============================================================================ */
 
 .legal-gradient {
-  background: linear-gradient(135deg, oklch(0.35 0.14 160) 0%, oklch(0.45 0.14 160) 100%);
+  background: linear-gradient(135deg, oklch(0.380 0.165 31) 0%, oklch(0.498 0.178 32) 100%);
 }
 
 .legal-gradient-subtle {
-  background: linear-gradient(135deg, oklch(0.97 0.01 160) 0%, oklch(0.99 0.005 155) 100%);
+  background: linear-gradient(135deg, oklch(0.955 0.018 42) 0%, oklch(0.992 0.006 80) 100%);
 }
 
 .dark .legal-gradient-subtle {
-  background: linear-gradient(135deg, oklch(0.18 0.015 240) 0%, oklch(0.15 0.01 240) 100%);
+  background: linear-gradient(135deg, oklch(0.182 0.016 65) 0%, oklch(0.142 0.012 65) 100%);
 }
 
 /* Card hover effects */
@@ -363,16 +412,16 @@
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: oklch(0.80 0.01 160);
+  background: oklch(0.780 0.060 38);
   border-radius: 2px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: oklch(0.65 0.03 160);
+  background: oklch(0.620 0.120 35);
 }
 
 .dark .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: oklch(0.30 0.02 160);
+  background: oklch(0.320 0.060 34);
 }
 
 /* Kanban drag-over highlight */
@@ -384,5 +433,5 @@
 .task-card-dragging {
   opacity: 0.5;
   transform: rotate(2deg) scale(1.05);
-  box-shadow: 0 10px 25px -5px oklch(0.2 0.02 240 / 0.2);
+  box-shadow: 0 10px 25px -5px oklch(0.2 0.02 65 / 0.2);
 }

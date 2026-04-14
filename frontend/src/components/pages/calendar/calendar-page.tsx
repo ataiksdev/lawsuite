@@ -158,7 +158,7 @@ export function CalendarPage() {
       <Card>
         <CardContent className="flex items-center gap-3 py-10">
           <Loader2 className="h-5 w-5 animate-spin text-emerald-600" />
-          <span className="text-sm text-slate-500">Loading calendar…</span>
+          <span className="text-sm text-slate-500 dark:text-slate-400">Loading calendar…</span>
         </CardContent>
       </Card>
     );
@@ -168,7 +168,7 @@ export function CalendarPage() {
     return (
       <Card>
         <CardContent className="space-y-4 py-8">
-          <p className="text-sm text-slate-600">{error}</p>
+          <p className="text-sm text-slate-600 dark:text-slate-400">{error}</p>
           <Button variant="outline" onClick={() => void loadData()}>Try Again</Button>
         </CardContent>
       </Card>
@@ -180,7 +180,7 @@ export function CalendarPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">Calendar</h1>
-          <p className="mt-0.5 text-sm text-slate-500">
+          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
             Track court dates, deadlines, and meetings with optional Google Calendar sync.
           </p>
         </div>
@@ -196,7 +196,7 @@ export function CalendarPage() {
           <CardContent className="space-y-4 p-4">
             <div className="flex items-center gap-2">
               <CalendarDays className="h-4 w-4 text-emerald-600" />
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-900">Calendar</h2>
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-900 dark:text-slate-100">Calendar</h2>
             </div>
             <Calendar
               mode="single"
@@ -206,7 +206,7 @@ export function CalendarPage() {
             />
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-medium text-slate-900">
+                <h3 className="text-sm font-medium text-slate-900 dark:text-slate-100">
                   {selectedDate
                     ? selectedDate.toLocaleDateString('en-NG', { month: 'long', day: 'numeric', year: 'numeric' })
                     : 'All events'}
@@ -214,15 +214,15 @@ export function CalendarPage() {
                 <Badge variant="outline">{eventsOnSelectedDay.length}</Badge>
               </div>
               {eventsOnSelectedDay.length === 0 ? (
-                <p className="text-sm text-slate-500">No events on this date.</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">No events on this date.</p>
               ) : (
                 <div className="space-y-2">
                   {eventsOnSelectedDay.map((event) => (
-                    <div key={event.id} className="rounded-xl border border-slate-200 p-3">
+                    <div key={event.id} className="rounded-xl border border-slate-200 dark:border-slate-700 p-3">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="text-sm font-semibold text-slate-900">{event.title}</p>
-                          <p className="mt-1 text-xs text-slate-500">
+                          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{event.title}</p>
+                          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                             {matterById.get(event.matter_id)?.reference_no} · {matterById.get(event.matter_id)?.title}
                           </p>
                         </div>
@@ -230,7 +230,7 @@ export function CalendarPage() {
                           {EVENT_LABELS[event.event_type]}
                         </Badge>
                       </div>
-                      <p className="mt-2 text-xs text-slate-500">{formatDateTime(event.starts_at)}</p>
+                      <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{formatDateTime(event.starts_at)}</p>
                       <div className="mt-3 flex flex-wrap gap-2">
                         <Button
                           size="sm" variant="outline" className="h-8 text-xs"
@@ -274,7 +274,7 @@ export function CalendarPage() {
           <CardContent className="space-y-4 p-6">
             <div className="flex items-center gap-2">
               <Plus className="h-4 w-4 text-emerald-600" />
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-900">New Calendar Event</h2>
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-900 dark:text-slate-100">New Calendar Event</h2>
             </div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-2">

@@ -85,10 +85,14 @@ async def test_checkout_pro_returns_authorization_url(client: AsyncClient):
     assert "reference" in body
     assert "checkout.paystack.com" in body["authorization_url"]
 
-    # Verify callback_url and cancel_action include the /#/ hash prefix
+    # Verify callback_url and cancel_action include the admin billing hash route
     call_args = mock_instance.transactions.initialize.call_args[1]
-    assert "/#/settings/billing" in call_args["callback_url"]
-    assert "/#/settings/billing" in call_args["metadata"]["cancel_action"]
+    assert "/#/admin/billing" in call_args["callback_url"]
+    assert "/#/admin/billing" in call_args["metadata"]["cancel_action"]
+    customer_args = mock_instance.customers.create.call_args[1]
+    assert customer_args["email"] == REGISTER["email"]
+    assert customer_args["first_name"] == "Emeka"
+    assert customer_args["last_name"] == "Obi"
 
 
 @pytest.mark.asyncio
@@ -106,6 +110,46 @@ async def test_checkout_invalid_plan_rejected(client: AsyncClient):
 async def test_checkout_requires_admin(client: AsyncClient):
     resp = await client.post("/billing/checkout", json={"plan": "pro"})
     assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_verify_checkout_updates_subscription(client: AsyncClient, db_session):
+    from sqlalchemy import select
+
+    from app.models.organisation import Organisation
+
+    token = await get_admin_token(client)
+
+    verify_response = MagicMock()
+    verify_response.status = True
+    verify_response.data = MagicMock(
+        status="success",
+        metadata={"plan": "agency"},
+        customer=MagicMock(customer_code="CUS_verify123"),
+    )
+    verify_response.data.metadata["org_id"] = None
+
+    with patch("pypaystack2.AsyncPaystackClient") as MockClient:
+        mock_instance = MockClient.return_value
+        mock_instance.transactions.verify = AsyncMock(return_value=verify_response)
+
+        resp = await client.get(
+            "/billing/verify",
+            params={"reference": "ref_verify_123"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["verified"] is True
+    assert body["plan"] == "agency"
+    assert body["subscription"]["plan"] == "agency"
+
+    result = await db_session.execute(select(Organisation))
+    org = result.scalar_one()
+    assert org.plan == "agency"
+    assert org.paystack_customer_code == "CUS_verify123"
+    assert org.trial_used is True
 
 
 # ─── GET /billing/portal ─────────────────────────────────────────────────────

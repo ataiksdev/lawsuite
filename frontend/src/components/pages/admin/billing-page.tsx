@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   CheckCircle2,
   CreditCard,
@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/lib/auth-store';
 import { ApiClientError } from '@/lib/api-client';
 import { UserRole } from '@/lib/types';
+import { replaceNavigation } from '@/lib/router';
 import {
   getBillingPortal,
   getSubscription,
@@ -23,6 +24,7 @@ import {
   type BillingPlan,
   type PaidBillingPlan,
   type SubscriptionSummary,
+  verifyCheckout,
 } from '@/lib/api/billing';
 import { listMembers } from '@/lib/api/members';
 import { listMatters } from '@/lib/api/matters';
@@ -82,6 +84,35 @@ const plans: PlanConfig[] = [
   },
 ];
 
+const PLAN_ORDER: Record<BillingPlan, number> = {
+  free: 0,
+  trial: 0,
+  pro: 1,
+  agency: 2,
+};
+
+function getBillingCallbackParams() {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  const hash = window.location.hash;
+  if (!hash.includes('?')) {
+    return null;
+  }
+
+  const query = hash.split('?')[1] ?? '';
+  const params = new URLSearchParams(query);
+  const state = params.get('paystack');
+  const reference = params.get('reference') ?? params.get('trxref');
+
+  if (!state && !reference) {
+    return null;
+  }
+
+  return { state, reference };
+}
+
 function UsageMeter({
   label,
   current,
@@ -126,7 +157,12 @@ function PlanCard({
   isBusy: boolean;
   onUpgrade: (plan: PaidBillingPlan) => Promise<void>;
 }) {
+  const comparableCurrentPlan = currentPlan === 'trial' ? 'free' : currentPlan;
+  const currentRank = PLAN_ORDER[comparableCurrentPlan];
+  const targetRank = PLAN_ORDER[plan.key];
   const isCurrent = plan.key === currentPlan || (currentPlan === 'trial' && plan.key === 'free');
+  const isDowngrade = targetRank < currentRank;
+  const ctaLabel = currentRank === 0 ? 'Subscribe' : 'Upgrade';
 
   return (
     <Card
@@ -166,7 +202,7 @@ function PlanCard({
           <Button variant="outline" className="w-full" disabled>
             Current Plan
           </Button>
-        ) : plan.key === 'free' ? (
+        ) : plan.key === 'free' || isDowngrade ? (
           <Button variant="outline" className="w-full" disabled>
             Downgrade via Support
           </Button>
@@ -187,7 +223,7 @@ function PlanCard({
             ) : (
               <>
                 <Crown className="mr-2 h-4 w-4" />
-                Upgrade
+                {ctaLabel}
               </>
             )}
           </Button>
@@ -199,6 +235,7 @@ function PlanCard({
 
 export function BillingPage() {
   const { user, organisation } = useAuthStore();
+  const handledCheckoutRef = useRef<string | null>(null);
   const [subscription, setSubscription] = useState<SubscriptionSummary | null>(null);
   const [memberCount, setMemberCount] = useState(0);
   const [matterCount, setMatterCount] = useState(0);
@@ -206,6 +243,12 @@ export function BillingPage() {
   const [error, setError] = useState<string | null>(null);
   const [checkoutPlan, setCheckoutPlan] = useState<PaidBillingPlan | null>(null);
   const [openingPortal, setOpeningPortal] = useState(false);
+  const [isVerifyingCheckout, setIsVerifyingCheckout] = useState(false);
+  const [checkoutMessage, setCheckoutMessage] = useState<{
+    tone: 'success' | 'warning' | 'error';
+    title: string;
+    detail: string;
+  } | null>(null);
 
   const loadBilling = async () => {
     setIsLoading(true);
@@ -221,10 +264,12 @@ export function BillingPage() {
       setSubscription(subscriptionResponse);
       setMemberCount(membersResponse.length);
       setMatterCount(mattersResponse.total);
+      return subscriptionResponse;
     } catch (err) {
       const message =
         err instanceof ApiClientError ? err.detail : 'Unable to load billing information right now.';
       setError(message);
+      return null;
     } finally {
       setIsLoading(false);
     }
@@ -232,6 +277,71 @@ export function BillingPage() {
 
   useEffect(() => {
     void loadBilling();
+  }, []);
+
+  useEffect(() => {
+    const callback = getBillingCallbackParams();
+    if (!callback) {
+      return;
+    }
+
+    const marker = `${callback.state ?? 'unknown'}:${callback.reference ?? 'none'}`;
+    if (handledCheckoutRef.current === marker) {
+      return;
+    }
+    handledCheckoutRef.current = marker;
+
+    const handleCallback = async () => {
+      if (callback.state === 'cancelled') {
+        setCheckoutMessage({
+          tone: 'warning',
+          title: 'Checkout cancelled',
+          detail: 'No payment was taken. You can restart checkout whenever you are ready.',
+        });
+        setCheckoutPlan(null);
+        replaceNavigation('/admin/billing');
+        return;
+      }
+
+      if (!callback.reference) {
+        setCheckoutMessage({
+          tone: 'warning',
+          title: 'Awaiting payment confirmation',
+          detail: 'We are waiting for Paystack to return a transaction reference for this checkout.',
+        });
+        await loadBilling();
+        replaceNavigation('/admin/billing');
+        return;
+      }
+
+      setIsVerifyingCheckout(true);
+      try {
+        const result = await verifyCheckout(callback.reference);
+        setSubscription(result.subscription);
+        setCheckoutMessage({
+          tone: 'success',
+          title: `${result.plan === 'agency' ? 'Agency' : 'Pro'} plan activated`,
+          detail: 'Your payment was confirmed with Paystack and your subscription is now active.',
+        });
+        toast.success(`Payment confirmed. Your ${result.plan} plan is active.`);
+      } catch (err) {
+        const message =
+          err instanceof ApiClientError ? err.detail : 'We could not verify your payment yet.';
+        setCheckoutMessage({
+          tone: 'error',
+          title: 'Payment verification pending',
+          detail: message,
+        });
+        toast.error(message);
+      } finally {
+        setCheckoutPlan(null);
+        setIsVerifyingCheckout(false);
+        await loadBilling();
+        replaceNavigation('/admin/billing');
+      }
+    };
+
+    void handleCallback();
   }, []);
 
   const currentPlanConfig = useMemo(() => {
@@ -284,16 +394,32 @@ export function BillingPage() {
           Billing & Subscription
         </h1>
         <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-          Manage your plan, view invoices, and track usage.
+          Subscribe, upgrade, and manage your firm&apos;s plan with Paystack.
         </p>
       </div>
 
-      {isLoading ? (
+      {checkoutMessage && (
+        <Card
+          className={cn(
+            'border',
+            checkoutMessage.tone === 'success' && 'border-emerald-200 bg-emerald-50/80 dark:border-emerald-800 dark:bg-emerald-950/20',
+            checkoutMessage.tone === 'warning' && 'border-amber-200 bg-amber-50/80 dark:border-amber-800 dark:bg-amber-950/20',
+            checkoutMessage.tone === 'error' && 'border-rose-200 bg-rose-50/80 dark:border-rose-800 dark:bg-rose-950/20'
+          )}
+        >
+          <CardContent className="py-4">
+            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{checkoutMessage.title}</p>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{checkoutMessage.detail}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {isLoading || isVerifyingCheckout ? (
         <Card className="border-slate-200/80 dark:border-slate-700/80">
           <CardContent className="flex items-center gap-3 py-10">
             <Loader2 className="h-5 w-5 animate-spin text-emerald-600" />
             <span className="text-sm text-slate-600 dark:text-slate-400">
-              Loading subscription details...
+              {isVerifyingCheckout ? 'Confirming your Paystack payment...' : 'Loading subscription details...'}
             </span>
           </CardContent>
         </Card>
@@ -418,23 +544,23 @@ export function BillingPage() {
 
           <Card className="border-slate-200/80 dark:border-slate-700/80">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold">Invoices & Payment History</CardTitle>
+              <CardTitle className="text-base font-semibold">Payments & Receipts</CardTitle>
               <CardDescription className="text-xs">
-                Current backend coverage for billing records
+                Manage billing activity through your Paystack subscription
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="flex items-start gap-3 rounded-lg bg-slate-50 p-4 dark:bg-slate-900">
-                <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+                <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                    Payment history is not exposed by the backend yet.
+                    Your active subscription is billed securely through Paystack.
                   </p>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">
-                    The live backend currently supports subscription status, checkout, and the
-                    Paystack portal. Invoice lists and downloadable receipts should be added on the
-                    backend before this page shows them as real data.
-                  </p>
+                  <ul className="space-y-1 text-sm text-slate-500 dark:text-slate-400">
+                    <li>Open the Paystack portal to update payment methods or manage your subscription.</li>
+                    <li>Receipts and charge history are available from your Paystack billing records.</li>
+                    <li>Any successful plan change will sync back here automatically after payment confirmation.</li>
+                  </ul>
                 </div>
               </div>
             </CardContent>
@@ -444,14 +570,18 @@ export function BillingPage() {
             <Button
               variant="outline"
               onClick={() => void handleManageSubscription()}
-              disabled={openingPortal}
+              disabled={openingPortal || !subscription.paystack_customer_code}
             >
               <CreditCard className="mr-2 h-4 w-4" />
               {openingPortal ? 'Opening Portal...' : 'Manage Subscription'}
             </Button>
-            <Button variant="outline" disabled>
+            <Button
+              variant="outline"
+              onClick={() => void handleManageSubscription()}
+              disabled={openingPortal || !subscription.paystack_customer_code}
+            >
               <Download className="mr-2 h-4 w-4" />
-              Invoices Coming Soon
+              View Receipts in Paystack
             </Button>
           </div>
         </>

@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"from pypaystack2 import AsyncPaystackClient; print\\('OK'\\)\")"
+    ]
+  }
+}

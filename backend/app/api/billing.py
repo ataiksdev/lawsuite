@@ -1,7 +1,7 @@
 # backend/app/api/billing.py
 from typing import Literal
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from pydantic import BaseModel
 
 from app.core.config import settings
@@ -34,7 +34,7 @@ async def create_checkout(
       3. Frontend redirects user to authorization_url
       4. User completes payment on Paystack-hosted page
       5. Paystack sends charge.success webhook → plan activated
-      6. Paystack redirects user to /settings/billing?reference=xxx
+      6. Paystack redirects user to /admin/billing?reference=xxx
     """
     from sqlalchemy import select
 
@@ -53,7 +53,7 @@ async def create_checkout(
         name=user.full_name,
     )
 
-    callback_url = f"{settings.frontend_url}/#/settings/billing?paystack=success"
+    callback_url = f"{settings.frontend_url}/#/admin/billing?paystack=success"
 
     result = await service.initialize_subscription(
         org_id=current_user.org_id,
@@ -63,6 +63,20 @@ async def create_checkout(
     )
 
     return result
+
+
+@router.get("/verify", response_model=dict)
+async def verify_checkout(
+    current_user: AdminUser,
+    db: DB,
+    reference: str = Query(..., min_length=3),
+):
+    """
+    Verify a Paystack checkout reference after redirect.
+    Admin only because plan changes affect the whole organisation.
+    """
+    service = BillingService(db)
+    return await service.verify_transaction(current_user.org_id, reference)
 
 
 @router.get("/subscription", response_model=dict)

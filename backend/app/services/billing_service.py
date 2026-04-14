@@ -3,7 +3,7 @@ import uuid
 import hmac
 import hashlib
 from datetime import datetime, timezone
-from typing import Literal
+from typing import Any, Literal
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from fastapi import HTTPException, status
@@ -29,7 +29,7 @@ PLAN_FEATURES = {
     "pro": {
         "name": "Pro",
         "plan_code": settings.paystack_pro_plan_code,
-        "amount_kobo": 2_900_000,   # ₦29,000/month
+        "amount_kobo": 1_000_000,   # ₦10,000/month
         "max_matters": None,         # unlimited
         "max_seats": 5,
         "drive_integration": True,
@@ -41,7 +41,7 @@ PLAN_FEATURES = {
     "agency": {
         "name": "Agency",
         "plan_code": settings.paystack_agency_plan_code,
-        "amount_kobo": 7_900_000,   # ₦79,000/month
+        "amount_kobo": 5_000_000,   # ₦50,000/month
         "max_matters": None,
         "max_seats": None,           # unlimited
         "drive_integration": True,
@@ -132,6 +132,34 @@ def get_effective_plan(org: Organisation) -> tuple[str, dict]:
 
     return plan_name, features
 
+
+def _read_value(source: Any, *path: str) -> Any:
+    """
+    Read nested values from either SDK objects or plain dicts.
+    Paystack SDK responses can expose attributes while tests often use dicts/mocks.
+    """
+    value = source
+    for key in path:
+        if value is None:
+            return None
+        if isinstance(value, dict):
+            value = value.get(key)
+        else:
+            value = getattr(value, key, None)
+    return value
+
+
+def _split_full_name(name: str) -> tuple[str | None, str | None]:
+    """
+    Paystack's customer API expects first_name/last_name, not full_name.
+    """
+    parts = [part for part in name.strip().split() if part]
+    if not parts:
+        return None, None
+    if len(parts) == 1:
+        return parts[0], None
+    return parts[0], " ".join(parts[1:])
+
 class BillingService:
 
     def __init__(self, db: AsyncSession):
@@ -165,10 +193,12 @@ class BillingService:
         if org.paystack_customer_code:
             return org.paystack_customer_code
 
-        client = AsyncPaystackClient(auth_key=settings.paystack_secret_key)
+        first_name, last_name = _split_full_name(name)
+        client = AsyncPaystackClient(secret_key=settings.paystack_secret_key)
         response = await client.customers.create(
             email=email,
-            full_name=name,
+            first_name=first_name,
+            last_name=last_name,
         )
 
         if not response.status:
@@ -211,7 +241,7 @@ class BillingService:
                 detail="Billing plan not configured. Contact support.",
             )
 
-        client = AsyncPaystackClient(auth_key=settings.paystack_secret_key)
+        client = AsyncPaystackClient(secret_key=settings.paystack_secret_key)
         response = await client.transactions.initialize(
             amount=plan_config["amount_kobo"],
             email=user_email,
@@ -220,7 +250,7 @@ class BillingService:
             metadata={
                 "org_id": str(org_id),
                 "plan": plan,
-                "cancel_action": f"{settings.frontend_url}/#/settings/billing",
+                "cancel_action": f"{settings.frontend_url}/#/admin/billing?paystack=cancelled",
             },
         )
 
@@ -234,6 +264,64 @@ class BillingService:
             "authorization_url": response.data.authorization_url,
             "reference": response.data.reference,
             "access_code": response.data.access_code,
+        }
+
+    async def verify_transaction(self, org_id: uuid.UUID, reference: str) -> dict:
+        """
+        Verify a Paystack transaction reference after redirecting back from checkout.
+        This lets the frontend confirm the upgrade immediately instead of waiting
+        for the webhook to update the organisation.
+        """
+        from pypaystack2 import AsyncPaystackClient
+
+        org = await self._get_org(org_id)
+        client = AsyncPaystackClient(secret_key=settings.paystack_secret_key)
+        response = await client.transactions.verify(reference)
+
+        if not response.status:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Paystack verification failed: {response.message}",
+            )
+
+        data = response.data
+        payment_status = _read_value(data, "status")
+        if payment_status != "success":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Payment has not been completed yet.",
+            )
+
+        metadata = _read_value(data, "metadata") or {}
+        metadata_org_id = metadata.get("org_id")
+        plan = metadata.get("plan")
+        customer_code = _read_value(data, "customer", "customer_code")
+
+        if metadata_org_id and metadata_org_id != str(org_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="This payment reference belongs to a different organisation.",
+            )
+
+        if plan not in ("pro", "agency"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Payment reference is not linked to a paid billing plan.",
+            )
+
+        org.plan = plan
+        org.trial_used = True
+        if customer_code and not org.paystack_customer_code:
+            org.paystack_customer_code = customer_code
+        await self.db.commit()
+        await self.db.refresh(org)
+
+        return {
+            "verified": True,
+            "reference": reference,
+            "status": payment_status,
+            "plan": org.plan,
+            "subscription": await self.get_subscription(org_id),
         }
 
     # ── Webhook event handlers ────────────────────────────────────────────

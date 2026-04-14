@@ -243,7 +243,7 @@ export function DashboardPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
-            {greeting()}, {user?.first_name || 'there'} 👋
+            {greeting()}, Barrister {user?.first_name || 'there'}
           </h1>
           <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
             {organisation?.name} · {new Date().toLocaleDateString('en-NG', { weekday: 'long', day: 'numeric', month: 'long' })}

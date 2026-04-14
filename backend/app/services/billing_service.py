@@ -264,6 +264,7 @@ class BillingService:
             "authorization_url": response.data.authorization_url,
             "reference": response.data.reference,
             "access_code": response.data.access_code,
+            "amount_kobo": plan_config["amount_kobo"],
         }
 
     async def verify_transaction(self, org_id: uuid.UUID, reference: str) -> dict:
@@ -292,21 +293,54 @@ class BillingService:
                 detail="Payment has not been completed yet.",
             )
 
-        metadata = _read_value(data, "metadata") or {}
+        metadata_source = _read_value(data, "metadata")
+        metadata = {}
+        if isinstance(metadata_source, str):
+            import json
+            try:
+                metadata = json.loads(metadata_source)
+            except:
+                pass
+        elif isinstance(metadata_source, dict):
+            metadata = metadata_source
+            
         metadata_org_id = metadata.get("org_id")
         plan = metadata.get("plan")
+        
+        # Fallback: Detect plan from plan_code if missing from metadata
+        plan_ref = _read_value(data, "plan")
+        found_plan_code = None
+        if isinstance(plan_ref, dict):
+            found_plan_code = plan_ref.get("plan_code")
+        elif isinstance(plan_ref, str):
+            found_plan_code = plan_ref
+            
+        if not plan and found_plan_code:
+            for p_name, p_config in PLAN_FEATURES.items():
+                if p_config.get("plan_code") == found_plan_code:
+                    plan = p_name
+                    break
+        
+        # Ultimate fallback: Detect plan from the amount paid
+        if not plan:
+            amount_paid = _read_value(data, "amount")
+            if amount_paid == 1000000:
+                plan = "pro"
+            elif amount_paid == 5000000:
+                plan = "agency"
+        
         customer_code = _read_value(data, "customer", "customer_code")
 
         if metadata_org_id and metadata_org_id != str(org_id):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="This payment reference belongs to a different organisation.",
+                detail=f"Org ID mismatch. Metadata: {metadata_org_id}, Auth Org: {org_id}",
             )
 
         if plan not in ("pro", "agency"):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Payment reference is not linked to a paid billing plan.",
+                detail=f"Payment reference is not linked to a paid billing plan. Detected plan: {plan}, Found code: {found_plan_code}",
             )
 
         org.plan = plan
@@ -430,6 +464,7 @@ class BillingService:
                 "max_seats": features["max_seats"],
             },
             "paystack_customer_code": org.paystack_customer_code,
+            "paystack_public_key": settings.paystack_public_key,
         }
 
     async def manage_subscription_portal( self, org_id: uuid.UUID) -> dict:

@@ -1184,29 +1184,23 @@ export function MatterDetailPage() {
       )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Card className="shadow-sm">
-          <CardContent className="space-y-4 p-6">
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-900 dark:text-slate-100">
-              Matter Details
-            </h3>
-            <DetailRow label="Reference" value={matter.reference_no} />
-            <DetailRow label="Type" value={matterTypeLabel(matter.matter_type)} />
-            <DetailRow label="Status" value={statusLabel(matter.status)} />
-            <DetailRow label="Assigned To" value={assigneeName} />
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm">
-          <CardContent className="space-y-4 p-6">
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-900 dark:text-slate-100">
-              Record Info
-            </h3>
-            <DetailRow label="Created" value={formatDateTime(matter.created_at)} />
-            <DetailRow label="Opened" value={formatDateTime(matter.opened_at)} />
-            <DetailRow
-              label="Closed"
-              value={matter.closed_at ? formatDateTime(matter.closed_at) : 'Not closed'}
-            />
+        <Card className="shadow-sm lg:col-span-2">
+          <CardContent className="p-4">
+            <div className="grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-4">
+              <div className="space-y-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Matter Details</p>
+                <DetailRow label="Reference" value={matter.reference_no} />
+                <DetailRow label="Type" value={matterTypeLabel(matter.matter_type)} />
+                <DetailRow label="Status" value={statusLabel(matter.status)} />
+                <DetailRow label="Assigned To" value={assigneeName} />
+              </div>
+              <div className="space-y-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Record Info</p>
+                <DetailRow label="Created" value={formatDateTime(matter.created_at)} />
+                <DetailRow label="Opened" value={formatDateTime(matter.opened_at)} />
+                <DetailRow label="Closed" value={matter.closed_at ? formatDateTime(matter.closed_at) : 'Not closed'} />
+              </div>
+            </div>
           </CardContent>
         </Card>
 

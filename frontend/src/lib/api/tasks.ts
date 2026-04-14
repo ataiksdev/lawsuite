@@ -1,6 +1,6 @@
 import apiClient from '../api-client';
 
-export type BackendTaskStatus = 'todo' | 'in_progress' | 'done' | 'cancelled';
+export type BackendTaskStatus = 'todo' | 'in_progress' | 'done' | 'cancelled' | 'archived';
 export type BackendTaskPriority = 'low' | 'medium' | 'high';
 
 export interface BackendTask {

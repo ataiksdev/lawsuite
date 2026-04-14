@@ -75,7 +75,7 @@ function getHashPath(): string {
 
   // If we have a hash, it takes precedence (SPA mode)
   if (hash) {
-    const path = hash.replace(/^#\/?/, '/');
+    const path = hash.replace(/^#\/?/, '/').split('?')[0];
     return path === '' ? '/' : path;
   }
 

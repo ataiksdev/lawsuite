@@ -46,6 +46,14 @@ export interface BillingPortalResponse {
   message: string;
 }
 
+export interface VerifyCheckoutResponse {
+  verified: boolean;
+  reference: string;
+  status: string;
+  plan: PaidBillingPlan;
+  subscription: SubscriptionSummary;
+}
+
 export async function getSubscription() {
   return apiClient.get<SubscriptionSummary>('/billing/subscription');
 }
@@ -56,4 +64,8 @@ export async function startCheckout(plan: PaidBillingPlan) {
 
 export async function getBillingPortal() {
   return apiClient.get<BillingPortalResponse>('/billing/portal');
+}
+
+export async function verifyCheckout(reference: string) {
+  return apiClient.get<VerifyCheckoutResponse>('/billing/verify', { reference });
 }

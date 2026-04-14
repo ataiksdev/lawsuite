@@ -321,26 +321,28 @@ class BillingService:
                     plan = p_name
                     break
         
-        # Ultimate fallback: Detect plan from the amount paid
+        # Ultimate fallback: Detect plan by matching the amount paid against our PLAN_FEATURES config
         if not plan:
             amount_paid = _read_value(data, "amount")
-            if amount_paid == 1000000:
-                plan = "pro"
-            elif amount_paid == 5000000:
-                plan = "agency"
+            if amount_paid:
+                for p_name, p_config in PLAN_FEATURES.items():
+                    # Match paid plans by amount (excluding trial/free which are 0)
+                    if p_config.get("amount_kobo") == amount_paid and p_config.get("amount_kobo", 0) > 0:
+                        plan = p_name
+                        break
         
         customer_code = _read_value(data, "customer", "customer_code")
 
         if metadata_org_id and metadata_org_id != str(org_id):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Org ID mismatch. Metadata: {metadata_org_id}, Auth Org: {org_id}",
+                detail="This payment reference belongs to a different organisation.",
             )
 
         if plan not in ("pro", "agency"):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Payment reference is not linked to a paid billing plan. Detected plan: {plan}, Found code: {found_plan_code}",
+                detail="Payment reference is not linked to a paid billing plan.",
             )
 
         org.plan = plan

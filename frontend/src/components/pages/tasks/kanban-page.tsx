@@ -179,8 +179,8 @@ const TASK_COLUMNS: {
     emptyBorderCls: 'border-emerald-200 dark:border-emerald-800',
   },
   {
-    id: 'cancelled',
-    title: 'Cancelled',
+    id: 'archived',
+    title: 'Archived',
     icon: XCircle,
     headerCls: 'border-slate-200 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-900/30',
     boardCls: 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950',
@@ -213,7 +213,7 @@ function fmtRelative(iso: string) {
 }
 
 function isOverdue(due?: string | null, status?: BackendTaskStatus) {
-  if (!due || status === 'done' || status === 'cancelled') return false;
+  if (!due || status === 'done' || status === 'archived') return false;
   return new Date(due) < new Date();
 }
 
@@ -266,7 +266,7 @@ function TaskCard({
     >
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
-          <p className={cn('text-sm font-medium leading-snug text-slate-900 dark:text-slate-100', task.status === 'cancelled' && 'line-through text-slate-400')}>
+          <p className={cn('text-sm font-medium leading-snug text-slate-900 dark:text-slate-100', task.status === 'archived' && 'line-through text-slate-400')}>
             {task.title}
           </p>
           {task.client_name && (
@@ -895,13 +895,13 @@ function TaskFormDialog({
             <Label>Notes</Label>
             <Textarea value={state.notes} onChange={(e) => set({ notes: e.target.value })} rows={3} />
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-2 sm:col-span-2">
               <Label>Matter</Label>
               <Select value={state.matterId} onValueChange={(v) => set({ matterId: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {matters.map((m) => <SelectItem key={m.id} value={m.id}>{m.reference_no} â€“ {m.title}</SelectItem>)}
+                  {matters.map((m) => <SelectItem key={m.id} value={m.id}>{m.reference_no} - {m.title}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -945,7 +945,7 @@ function TaskFormDialog({
           <DialogFooter>
             <Button variant="outline" type="button" onClick={() => onOpenChange(false)}>Cancel</Button>
             <Button type="submit" disabled={saving || !state.title.trim()} className="bg-emerald-600 hover:bg-emerald-700 text-white">
-              {saving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Savingâ€¦</> : state.taskId ? 'Save Changes' : 'Create Task'}
+              {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</> : state.taskId ? 'Save Changes' : 'Create Task'}
             </Button>
           </DialogFooter>
         </form>
@@ -1010,7 +1010,24 @@ export function KanbanPage() {
       );
       setMatters(activeMatters);
       setMembers(memberRes.filter((m) => m.is_active));
-      setTasks(merged);
+
+      // Auto-archive done tasks that have been in "done" state for over 1 year
+      const oneYearAgo = new Date();
+      oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+      const toArchive = merged.filter(
+        (t) => t.status === 'done' && t.updated_at && new Date(t.updated_at) < oneYearAgo
+      );
+      let finalTasks = merged;
+      if (toArchive.length > 0) {
+        await Promise.allSettled(
+          toArchive.map((t) => updateTask(t.matter_id, t.id, { status: 'archived' }))
+        );
+        const archivedIds = new Set(toArchive.map((t) => t.id));
+        finalTasks = merged.map((t) =>
+          archivedIds.has(t.id) ? { ...t, status: 'archived' as BackendTaskStatus } : t
+        );
+      }
+      setTasks(finalTasks);
     } catch (err) {
       setError(extractErrorMessage(err, 'Unable to load the task board.'));
     } finally {
@@ -1062,7 +1079,7 @@ export function KanbanPage() {
     if (!over) return;
     const taskId = String(active.id);
     const newStatus = String(over.id) as BackendTaskStatus;
-    if (!(['todo', 'in_progress', 'done', 'cancelled'] as string[]).includes(newStatus)) return;
+    if (!(['todo', 'in_progress', 'done', 'archived'] as string[]).includes(newStatus)) return;
     const task = tasks.find((t) => t.id === taskId);
     if (!task || task.status === newStatus) return;
 
@@ -1317,4 +1334,3 @@ export function KanbanPage() {
 }
 
 export default KanbanPage;
-

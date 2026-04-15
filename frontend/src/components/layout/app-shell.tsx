@@ -26,6 +26,10 @@ import {
   CheckCircle2,
   AlertTriangle,
   Info,
+  ChevronsUpDown,
+  Check,
+  Building2,
+  Loader2,
 } from 'lucide-react';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
@@ -283,6 +287,89 @@ function NavItemButton({
 // Sidebar Content
 // ============================================================================
 
+function OrgSwitcher({ collapsed }: { collapsed: boolean }) {
+  const { organisation, myOrgs, switchOrg } = useAuthStore();
+  const [switching, setSwitching] = useState<string | null>(null);
+
+  // Only render when the user belongs to more than one org
+  if (myOrgs.length <= 1) return null;
+
+  const handleSwitch = async (orgId: string) => {
+    if (orgId === organisation?.id) return;
+    setSwitching(orgId);
+    try {
+      await switchOrg(orgId);
+    } finally {
+      setSwitching(null);
+    }
+  };
+
+  const trigger = (
+    <button
+      className={cn(
+        'flex w-full items-center gap-2 rounded-md px-2 py-1 text-left',
+        'hover:bg-primary/10 transition-colors',
+        collapsed && 'justify-center px-0'
+      )}
+    >
+      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-primary/10">
+        <Building2 className="h-3.5 w-3.5 text-primary" />
+      </div>
+      {!collapsed && (
+        <>
+          <span className="flex-1 truncate text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+            {organisation?.name}
+          </span>
+          <ChevronsUpDown className="h-3 w-3 shrink-0 text-slate-400" />
+        </>
+      )}
+    </button>
+  );
+
+  const menu = (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
+      <DropdownMenuContent side={collapsed ? 'right' : 'bottom'} align="start" className="w-56">
+        <DropdownMenuLabel className="text-xs text-slate-500">Switch Organisation</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {myOrgs.map((org) => (
+          <DropdownMenuItem
+            key={org.id}
+            disabled={org.id === organisation?.id || switching !== null}
+            onClick={() => void handleSwitch(org.id)}
+            className="flex items-center gap-2"
+          >
+            {switching === org.id ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0 text-primary" />
+            ) : org.id === organisation?.id ? (
+              <Check className="h-3.5 w-3.5 shrink-0 text-primary" />
+            ) : (
+              <Building2 className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium">{org.name}</p>
+              <p className="text-[10px] text-slate-400 capitalize">{org.role} · {org.plan}</p>
+            </div>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
+  if (collapsed) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span>{menu}</span>
+        </TooltipTrigger>
+        <TooltipContent side="right" className="text-xs">Switch Organisation</TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  return menu;
+}
+
 function SidebarContent({
   collapsed,
   onNavigate,
@@ -317,7 +404,7 @@ function SidebarContent({
         {/* Logo + collapse toggle */}
         <div
           className={cn(
-            'flex h-16 items-center border-b border-emerald-100 dark:border-emerald-900/30',
+            'flex min-h-16 items-start border-b border-emerald-100 dark:border-emerald-900/30 py-3',
             collapsed ? 'justify-center px-2' : 'gap-3 px-4'
           )}
         >
@@ -327,15 +414,19 @@ function SidebarContent({
             </div>
           )}
           {!collapsed && (
-            <div className="flex flex-col min-w-0 flex-1">
-              <span className="text-sm font-bold text-emerald-900 dark:text-emerald-100 tracking-tight truncate">
-                LegalOps
-              </span>
-              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium truncate">
-                {organisation?.name || mockOrganisation.name}
-              </span>
+            <div className="flex flex-col min-w-0 flex-1 gap-1">
+              <div>
+                <span className="text-sm font-bold text-emerald-900 dark:text-emerald-100 tracking-tight truncate block">
+                  LegalOps
+                </span>
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium truncate block">
+                  {organisation?.name || mockOrganisation.name}
+                </span>
+              </div>
+              <OrgSwitcher collapsed={false} />
             </div>
           )}
+          {collapsed && <OrgSwitcher collapsed={true} />}
           <Tooltip>
             <TooltipTrigger asChild>
               <Button

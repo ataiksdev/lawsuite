@@ -74,3 +74,39 @@ async def send_invite_email(
     fm = FastMail(_get_mail_config())
     await fm.send_message(message)
     print(f"[EMAIL] Invite sent to {to}")
+
+
+# ---------------------------------------------------------------------------
+# Password reset email
+# ---------------------------------------------------------------------------
+
+async def send_password_reset_email(
+    *,
+    to: str,
+    name: str,
+    reset_url: str,
+) -> None:
+    """
+    Send a password reset email via SMTP.
+    Silently skips (logs a warning) when SMTP is not configured.
+    """
+    if not settings.smtp_host or not settings.smtp_user:
+        print(f"[EMAIL] SMTP not configured — skipping password reset email to {to}")
+        print(f"[EMAIL] Reset URL: {reset_url}")
+        return
+
+    html = _load_template("password_reset.html").format(
+        name=name or to,
+        reset_url=reset_url,
+    )
+
+    message = MessageSchema(
+        subject="Reset your LegalOps password",
+        recipients=[to],
+        body=html,
+        subtype=MessageType.html,
+    )
+
+    fm = FastMail(_get_mail_config())
+    await fm.send_message(message)
+    print(f"[EMAIL] Password reset sent to {to}")

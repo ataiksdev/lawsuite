@@ -95,9 +95,19 @@ function mapBackendOrganisation(org: BackendAuthOrganisation): OrgResponse {
 // State Interface
 // ============================================================================
 
+export interface OrgSummary {
+  id: string;
+  name: string;
+  slug: string;
+  plan: string;
+  role: string;
+  is_current: boolean;
+}
+
 interface AuthState {
   user: UserResponse | null;
   organisation: OrgResponse | null;
+  myOrgs: OrgSummary[];
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
@@ -109,13 +119,15 @@ interface AuthState {
   login: (email: string, password: string) => Promise<{ mfaRequired: boolean }>;
   completeMfaLogin: (code: string) => Promise<void>;
   register: (data: RegisterRequest) => Promise<void>;
-  acceptInvite: (token: string, password: string) => Promise<void>;
+  acceptInvite: (token: string, password?: string) => Promise<void>;
   logout: () => void;
   refreshAuth: () => Promise<void>;
   loadFromStorage: () => void;
   clearError: () => void;
   setUser: (user: UserResponse) => void;
   setOrganisation: (org: OrgResponse) => void;
+  loadMyOrgs: () => Promise<void>;
+  switchOrg: (orgId: string) => Promise<void>;
 }
 
 // ============================================================================
@@ -130,6 +142,7 @@ export const useAuthStore = create<AuthState>()(
       // --------------------------------------------------------------------------
       user: null,
       organisation: null,
+      myOrgs: [],
       isAuthenticated: false,
       isLoading: false,
       error: null,
@@ -184,6 +197,7 @@ export const useAuthStore = create<AuthState>()(
           });
 
           toast.success(`Welcome back, ${mappedUser.first_name || 'there'}!`);
+          void get().loadMyOrgs();
           return { mfaRequired: false };
         } catch (error) {
           const message =
@@ -238,6 +252,7 @@ export const useAuthStore = create<AuthState>()(
           });
 
           toast.success(`Welcome back, ${mappedUser.first_name || 'there'}!`);
+          void get().loadMyOrgs();
         } catch (error) {
           const message =
             error instanceof ApiClientError
@@ -287,12 +302,12 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      acceptInvite: async (token: string, password: string) => {
+      acceptInvite: async (token: string, password?: string) => {
         set({ isLoading: true, error: null });
         try {
           const tokens = await apiClient.post<BackendTokenResponse>(
             '/auth/accept-invite',
-            { token, password },
+            password ? { token, password } : { token },
             { skipAuth: true }
           );
 
@@ -312,6 +327,7 @@ export const useAuthStore = create<AuthState>()(
           });
 
           toast.success('Invitation accepted! Welcome to LegalOps.');
+          void get().loadMyOrgs();
         } catch (error) {
           const message =
             error instanceof ApiClientError
@@ -336,6 +352,7 @@ export const useAuthStore = create<AuthState>()(
         set({
           user: null,
           organisation: null,
+          myOrgs: [],
           isAuthenticated: false,
           isLoading: false,
           error: null,
@@ -388,6 +405,47 @@ export const useAuthStore = create<AuthState>()(
       setUser: (user: UserResponse) => set({ user }),
 
       setOrganisation: (org: OrgResponse) => set({ organisation: org }),
+
+      loadMyOrgs: async () => {
+        try {
+          const orgs = await apiClient.get<OrgSummary[]>('/auth/my-orgs');
+          set({ myOrgs: orgs });
+        } catch {
+          // Non-critical — silently ignore
+        }
+      },
+
+      switchOrg: async (orgId: string) => {
+        set({ isLoading: true, error: null });
+        try {
+          const tokens = await apiClient.post<BackendTokenResponse>('/auth/switch-org', { org_id: orgId });
+          apiClient.setTokens(tokens.access_token, tokens.refresh_token);
+
+          const [user, organisation, orgs] = await Promise.all([
+            apiClient.get<BackendAuthUser>('/auth/me'),
+            apiClient.get<BackendAuthOrganisation>('/auth/organisation'),
+            apiClient.get<OrgSummary[]>('/auth/my-orgs'),
+          ]);
+
+          const mappedUser = mapBackendUser(user);
+          set({
+            user: mappedUser,
+            organisation: mapBackendOrganisation(organisation),
+            myOrgs: orgs,
+            isAuthenticated: true,
+            isLoading: false,
+            error: null,
+          });
+
+          toast.success(`Switched to ${organisation.name}`);
+        } catch (error) {
+          const message =
+            error instanceof ApiClientError ? error.detail : 'Failed to switch organisation.';
+          set({ isLoading: false, error: message });
+          toast.error(message);
+          throw error;
+        }
+      },
     }),
     {
       name: 'lawsuite-auth',

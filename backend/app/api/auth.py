@@ -452,9 +452,93 @@ async def remove_member(user_id: uuid.UUID, current_user: AdminUser, db: DB):
     )
 
 
+@router.get("/invite-check", response_model=dict)
+async def invite_check(token: str, db: DB):
+    """
+    Check an invite token before accepting it.
+    Returns whether the invitee already has an active account (no password needed)
+    and their name/email for display.
+    """
+    from sqlalchemy import select
+    from app.models.user import User
+    from datetime import datetime, timezone
+
+    result = await db.execute(select(User).where(User.invite_token == token))
+    user = result.scalar_one_or_none()
+
+    if not user:
+        from fastapi import HTTPException, status as http_status
+        raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="Invalid invite token")
+
+    if user.invite_expires_at and user.invite_expires_at < datetime.now(timezone.utc):
+        from fastapi import HTTPException, status as http_status
+        raise HTTPException(status_code=http_status.HTTP_410_GONE, detail="Invite token has expired")
+
+    return {
+        "email": user.email,
+        "full_name": user.full_name,
+        "needs_password": not user.is_active,
+    }
+
+
 @router.post("/accept-invite", response_model=TokenResponse)
 async def accept_invite(payload: AcceptInviteRequest, db: DB):
     """Accept an invite token, set password, and log in immediately."""
     service = AuthService(db)
     _, _, tokens = await service.accept_invite(payload)
     return tokens
+
+
+@router.get("/my-orgs", response_model=list[dict])
+async def my_orgs(current_user: AuthUser, db: DB):
+    """Return all organisations the current user belongs to, with their role in each."""
+    from sqlalchemy import select
+    from app.models.user import OrganisationMember
+    from app.models.organisation import Organisation
+
+    rows = (await db.execute(
+        select(Organisation, OrganisationMember)
+        .join(OrganisationMember, OrganisationMember.organisation_id == Organisation.id)
+        .where(OrganisationMember.user_id == current_user.user_id)
+        .order_by(OrganisationMember.joined_at)
+    )).all()
+
+    return [
+        {
+            "id": str(org.id),
+            "name": org.name,
+            "slug": org.slug,
+            "plan": org.plan,
+            "role": member.role.value,
+            "is_current": org.id == current_user.org_id,
+        }
+        for org, member in rows
+    ]
+
+
+class SwitchOrgRequest(BaseModel):
+    org_id: uuid.UUID
+
+
+@router.post("/switch-org", response_model=TokenResponse)
+async def switch_org(payload: SwitchOrgRequest, current_user: AuthUser, db: DB):
+    """
+    Issue a new token pair scoped to a different organisation the user belongs to.
+    The frontend replaces its stored tokens with the response.
+    """
+    from sqlalchemy import select
+    from app.models.user import OrganisationMember
+    from app.services.auth_service import _build_tokens
+
+    result = await db.execute(
+        select(OrganisationMember).where(
+            OrganisationMember.user_id == current_user.user_id,
+            OrganisationMember.organisation_id == payload.org_id,
+        )
+    )
+    membership = result.scalar_one_or_none()
+    if not membership:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a member of that organisation")
+
+    return _build_tokens(current_user.user_id, payload.org_id, membership.role.value)

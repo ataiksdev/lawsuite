@@ -10,6 +10,7 @@ from fastapi import HTTPException, status
 
 from app.core.config import settings
 from app.models.organisation import Organisation
+from app.services.notification_service import NotificationService
 
 
 # Plan definitions — amounts in Kobo (NGN × 100)
@@ -164,6 +165,7 @@ class BillingService:
 
     def __init__(self, db: AsyncSession):
         self.db = db
+        self.notifications = NotificationService(db)
 
     async def _get_org(self, org_id: uuid.UUID) -> Organisation:
         result = await self.db.execute(
@@ -294,27 +296,20 @@ class BillingService:
             )
 
         metadata_source = _read_value(data, "metadata")
-        metadata = {}
         if isinstance(metadata_source, str):
             import json
-            try:
-                metadata = json.loads(metadata_source)
-            except:
-                pass
-        elif isinstance(metadata_source, dict):
-            metadata = metadata_source
-            
+            try: metadata = json.loads(metadata_source)
+            except: metadata = {}
+        elif isinstance(metadata_source, dict): metadata = metadata_source
+        else: metadata = {}
+
         metadata_org_id = metadata.get("org_id")
         plan = metadata.get("plan")
-        
-        # Fallback: Detect plan from plan_code if missing from metadata
+
+        # Fallback: detect plan from plan_code if missing from metadata
         plan_ref = _read_value(data, "plan")
-        found_plan_code = None
-        if isinstance(plan_ref, dict):
-            found_plan_code = plan_ref.get("plan_code")
-        elif isinstance(plan_ref, str):
-            found_plan_code = plan_ref
-            
+        found_plan_code = plan_ref.get("plan_code") if isinstance(plan_ref, dict) else (plan_ref if isinstance(plan_ref, str) else None)
+
         if not plan and found_plan_code:
             for p_name, p_config in PLAN_FEATURES.items():
                 if p_config.get("plan_code") == found_plan_code:
@@ -352,6 +347,12 @@ class BillingService:
         await self.db.commit()
         await self.db.refresh(org)
 
+        await self.notifications.fan_out_to_org_admins(
+            org_id=org_id, actor_id=uuid.UUID(int=0), type="success",
+            title=f"Plan upgraded to {plan.capitalize()}",
+            message="Your organisation's subscription is now active.", link="/admin/billing",
+        )
+
         return {
             "verified": True,
             "reference": reference,
@@ -381,9 +382,13 @@ class BillingService:
         org = await self._get_org(org_id)
         if plan in PLAN_FEATURES:
             org.plan = plan
-                        # Upgrading to paid plan ends the trial
-            org.trial_used=True
+            org.trial_used = True
             await self.db.commit()
+            await self.notifications.fan_out_to_org_admins(
+                org_id=org_id, actor_id=uuid.UUID(int=0), type="success",
+                title=f"Plan upgraded to {plan.capitalize()}",
+                message="Your organisation's subscription is now active.", link="/admin/billing",
+            )
 
     async def handle_subscription_create(self, event_data: dict) -> None:
         """

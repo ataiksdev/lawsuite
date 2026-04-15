@@ -13,6 +13,7 @@ from app.models.matter import Matter, MatterStatus
 from app.models.matter_document import DocumentType, MatterDocument, MatterDocumentVersion
 from app.schemas.matter import MatterCreate, MatterUpdate, StatusUpdate
 from app.services.activity_service import ActivityService
+from app.services.notification_service import NotificationService
 
 # Valid stage transitions — prevents arbitrary jumps
 ALLOWED_TRANSITIONS: dict[MatterStatus, list[MatterStatus]] = {
@@ -48,6 +49,7 @@ class MatterService:
     def __init__(self, db: AsyncSession):
         self.db = db
         self.activity = ActivityService(db)
+        self.notifications = NotificationService(db)
 
     # ── Helpers ───────────────────────────────────────────────────────────
 
@@ -151,6 +153,17 @@ class MatterService:
             },
         )
 
+        # Notify the assigned lawyer if someone else created the matter
+        if matter.assigned_to and matter.assigned_to != user_id:
+            await self.notifications.create(
+                user_id=matter.assigned_to,
+                org_id=org_id,
+                type="info",
+                title=f'Matter assigned to you: "{matter.title}"',
+                message="A new matter has been assigned to you.",
+                link=f"/matters/{matter.id}",
+            )
+
         await self.db.commit()
         await self.db.refresh(matter)
         return await self._get_matter(matter.id, org_id)
@@ -184,6 +197,18 @@ class MatterService:
                 event_type="matter_updated",
                 payload={"changes": changed},
             )
+
+            # Notify new assignee if assigned_to changed
+            new_assignee = update_data.get("assigned_to")
+            if new_assignee and new_assignee != matter.assigned_to and new_assignee != user_id:
+                await self.notifications.create(
+                    user_id=new_assignee,
+                    org_id=org_id,
+                    type="info",
+                    title=f'Matter assigned to you: "{matter.title}"',
+                    message="A matter has been assigned to you.",
+                    link=f"/matters/{matter_id}",
+                )
 
         await self.db.commit()
         return await self._get_matter(matter_id, org_id)
@@ -227,6 +252,17 @@ class MatterService:
                 "reason": data.reason,
             },
         )
+
+        # Notify the assigned lawyer about the status change
+        if matter.assigned_to and matter.assigned_to != user_id:
+            await self.notifications.create(
+                user_id=matter.assigned_to,
+                org_id=org_id,
+                type="info",
+                title=f'Matter status updated: "{matter.title}"',
+                message=f"Status changed from {old_status} to {new_status}.",
+                link=f"/matters/{matter_id}",
+            )
 
         await self.db.commit()
         return await self._get_matter(matter_id, org_id)

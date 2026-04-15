@@ -125,6 +125,17 @@ class TaskService:
             },
         )
 
+        # Notify the assignee if someone else assigned them
+        if data.assigned_to and data.assigned_to != user_id:
+            await self.notifications.create(
+                user_id=data.assigned_to,
+                org_id=org_id,
+                type="info",
+                title=f'New task assigned: "{task.title}"',
+                message="You have been assigned a new task.",
+                link=f"/matters/{matter_id}",
+            )
+
         await self.db.commit()
         await self.db.refresh(task)
         return task
@@ -151,6 +162,18 @@ class TaskService:
                     "to": str(value) if value is not None else None,
                 }
                 setattr(task, field, value)
+
+        # Notify new assignee if assigned_to changed
+        new_assignee = update_data.get("assigned_to")
+        if new_assignee and new_assignee != task.assigned_to and new_assignee != user_id:
+            await self.notifications.create(
+                user_id=new_assignee,
+                org_id=org_id,
+                type="info",
+                title=f'Task assigned to you: "{task.title}"',
+                message="You have been assigned a task.",
+                link=f"/matters/{matter_id}",
+            )
 
         # Handle completion timestamp
         new_status = update_data.get("status")

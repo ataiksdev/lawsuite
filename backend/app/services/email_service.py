@@ -1,14 +1,8 @@
 # backend/app/services/email_service.py
+import resend
 from pathlib import Path
 
-from fastapi_mail import ConnectionConfig, FastMail, MessageSchema, MessageType
-from pydantic import SecretStr
-
 from app.core.config import settings
-
-# fastapi-mail uses SecretStr as a forward reference inside ConnectionConfig.
-# On Pydantic v2 the model won't instantiate until that reference is resolved.
-ConnectionConfig.model_rebuild(_types_namespace={"SecretStr": SecretStr})
 
 # ---------------------------------------------------------------------------
 # Template loader
@@ -21,23 +15,19 @@ def _load_template(name: str) -> str:
     return (_TEMPLATES_DIR / name).read_text(encoding="utf-8")
 
 
-# ---------------------------------------------------------------------------
-# Connection config — built lazily so missing env vars don't crash at import
-# ---------------------------------------------------------------------------
+def _is_configured() -> bool:
+    return bool(settings.resend_api_key)
 
-def _get_mail_config() -> ConnectionConfig:
-    return ConnectionConfig(
-        MAIL_USERNAME=settings.smtp_user,
-        MAIL_PASSWORD=settings.smtp_password,
-        MAIL_FROM=settings.emails_from_address or settings.smtp_user,
-        MAIL_FROM_NAME=settings.emails_from_name,
-        MAIL_PORT=settings.smtp_port,
-        MAIL_SERVER=settings.smtp_host,
-        MAIL_STARTTLS=False,
-        MAIL_SSL_TLS=True,
-        USE_CREDENTIALS=True,
-        VALIDATE_CERTS=True,
-    )
+
+def _send(*, to: str, subject: str, html: str) -> None:
+    """Synchronous Resend send — Resend's Python SDK is sync-only."""
+    resend.api_key = settings.resend_api_key
+    resend.Emails.send({
+        "from": f"{settings.emails_from_name} <{settings.emails_from_address}>",
+        "to": [to],
+        "subject": subject,
+        "html": html,
+    })
 
 
 # ---------------------------------------------------------------------------
@@ -52,13 +42,8 @@ async def send_invite_email(
     role: str,
     invite_url: str,
 ) -> None:
-    """
-    Send a team invite email via SMTP.
-    Silently skips (logs a warning) when SMTP is not configured,
-    so dev environments without email still work.
-    """
-    if not settings.smtp_host or not settings.smtp_user:
-        print(f"[EMAIL] SMTP not configured — skipping invite email to {to}")
+    if not _is_configured():
+        print(f"[EMAIL] Resend not configured — skipping invite email to {to}")
         print(f"[EMAIL] Invite URL: {invite_url}")
         return
 
@@ -68,16 +53,7 @@ async def send_invite_email(
         role=role.capitalize(),
         invite_url=invite_url,
     )
-
-    message = MessageSchema(
-        subject="You've been invited to LegalOps",
-        recipients=[to],
-        body=html,
-        subtype=MessageType.html,
-    )
-
-    fm = FastMail(_get_mail_config())
-    await fm.send_message(message)
+    _send(to=to, subject="You've been invited to LegalOps", html=html)
     print(f"[EMAIL] Invite sent to {to}")
 
 
@@ -91,12 +67,8 @@ async def send_password_reset_email(
     name: str,
     reset_url: str,
 ) -> None:
-    """
-    Send a password reset email via SMTP.
-    Silently skips (logs a warning) when SMTP is not configured.
-    """
-    if not settings.smtp_host or not settings.smtp_user:
-        print(f"[EMAIL] SMTP not configured — skipping password reset email to {to}")
+    if not _is_configured():
+        print(f"[EMAIL] Resend not configured — skipping password reset email to {to}")
         print(f"[EMAIL] Reset URL: {reset_url}")
         return
 
@@ -104,14 +76,5 @@ async def send_password_reset_email(
         name=name or to,
         reset_url=reset_url,
     )
-
-    message = MessageSchema(
-        subject="Reset your LegalOps password",
-        recipients=[to],
-        body=html,
-        subtype=MessageType.html,
-    )
-
-    fm = FastMail(_get_mail_config())
-    await fm.send_message(message)
+    _send(to=to, subject="Reset your LegalOps password", html=html)
     print(f"[EMAIL] Password reset sent to {to}")

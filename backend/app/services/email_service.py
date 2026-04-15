@@ -2,8 +2,13 @@
 from pathlib import Path
 
 from fastapi_mail import ConnectionConfig, FastMail, MessageSchema, MessageType
+from pydantic import SecretStr
 
 from app.core.config import settings
+
+# fastapi-mail uses SecretStr as a forward reference inside ConnectionConfig.
+# On Pydantic v2 the model won't instantiate until that reference is resolved.
+ConnectionConfig.model_rebuild(_types_namespace={"SecretStr": SecretStr})
 
 # ---------------------------------------------------------------------------
 # Template loader

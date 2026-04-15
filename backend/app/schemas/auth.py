@@ -61,11 +61,14 @@ class InviteRequest(BaseModel):
 
 class AcceptInviteRequest(BaseModel):
     token: str
-    password: str = Field(..., min_length=8, max_length=100)
+    # Optional for users who already have an active account being added to a new org.
+    password: str | None = Field(default=None, min_length=8, max_length=100)
 
     @field_validator("password")
     @classmethod
-    def password_strength(cls, v: str) -> str:
+    def password_strength(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
         if not any(c.isupper() for c in v):
             raise ValueError("Password must contain at least one uppercase letter")
         if not any(c.isdigit() for c in v):

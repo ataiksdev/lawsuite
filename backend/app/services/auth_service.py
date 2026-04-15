@@ -343,13 +343,24 @@ class AuthService:
                 detail="Invite token has expired",
             )
 
-        user.hashed_password = hash_password(data.password)
-        user.is_active = True
-        user.is_verified = True
+        # Only set password/activate for new accounts.
+        # Existing active users are just joining a new org — don't touch their credentials.
+        if not user.is_active:
+            if not data.password:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="Password is required to activate your account.",
+                )
+            user.hashed_password = hash_password(data.password)
+            user.is_active = True
+            user.is_verified = True
+
         user.invite_token = None
         user.invite_expires_at = None
         await self.db.flush()
 
+        # Find the membership that was just created by this invite (most recently added,
+        # not yet active). For existing users this is the new org; for new users it's their only one.
         mem_result = await self.db.execute(
             select(OrganisationMember)
             .where(OrganisationMember.user_id == user.id)
@@ -573,7 +584,13 @@ class AuthService:
         await self.db.commit()
 
         reset_url = f"{settings.frontend_url}/#/reset-password?token={reset_token}"
-        print(f"[PASSWORD RESET] {user.email} → {reset_url}")
+
+        from app.services.email_service import send_password_reset_email
+        await send_password_reset_email(
+            to=user.email,
+            name=user.full_name,
+            reset_url=reset_url,
+        )
         return reset_url
 
     async def reset_password(self, data: ResetPasswordRequest) -> None:

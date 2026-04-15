@@ -13,12 +13,14 @@ from app.models.user import User
 from app.schemas.calendar import CalendarEventCreate, CalendarEventUpdate, MatterNoteCreate, MatterNoteUpdate
 from app.services.activity_service import ActivityService
 from app.services.google_calendar_service import GoogleCalendarService
+from app.services.notification_service import NotificationService
 
 
 class CalendarService:
     def __init__(self, db: AsyncSession):
         self.db = db
         self.activity = ActivityService(db)
+        self.notifications = NotificationService(db)
 
     async def _get_matter(self, matter_id: uuid.UUID, org_id: uuid.UUID) -> Matter:
         result = await self.db.execute(
@@ -116,6 +118,19 @@ class CalendarService:
             event_type="calendar_event_created",
             payload={"event_id": str(event.id), "title": event.title, "event_type": event.event_type.value},
         )
+
+        # Notify the matter's assigned lawyer if they didn't create the event
+        matter = await self._get_matter(matter_id, org_id)
+        if matter.assigned_to and matter.assigned_to != user_id:
+            starts = event.starts_at.strftime("%d %b %Y, %H:%M") if event.starts_at else ""
+            await self.notifications.create(
+                user_id=matter.assigned_to,
+                org_id=org_id,
+                type="info",
+                title=f'New calendar event: "{event.title}"',
+                message=f"Added to matter — {starts}" if starts else "Added to your matter.",
+                link="/calendar",
+            )
 
         await self.db.commit()
         await self.db.refresh(event)

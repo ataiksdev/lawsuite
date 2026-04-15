@@ -88,6 +88,45 @@ class NotificationService:
 
         return count
 
+    async def fan_out_to_org_admins(
+        self,
+        org_id: uuid.UUID,
+        actor_id: uuid.UUID,
+        type: str,
+        title: str,
+        message: str,
+        link: str | None = None,
+    ) -> int:
+        """
+        Send a notification to all admin members of an org, excluding the actor.
+        Used for org-wide events like billing changes.
+        """
+        result = await self.db.execute(
+            select(OrganisationMember).where(
+                OrganisationMember.organisation_id == org_id,
+                OrganisationMember.role == UserRole.admin,
+                OrganisationMember.user_id != actor_id,
+            )
+        )
+        admins = result.scalars().all()
+
+        count = 0
+        for admin in admins:
+            await self.create(
+                user_id=admin.user_id,
+                org_id=org_id,
+                type=type,
+                title=title,
+                message=message,
+                link=link,
+            )
+            count += 1
+
+        if count:
+            await self.db.flush()
+
+        return count
+
     # ── Read ──────────────────────────────────────────────────────────────
 
     async def list_for_user(

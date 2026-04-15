@@ -67,11 +67,8 @@ class Settings(BaseSettings):
     paystack_pro_plan_code: str = ""
     paystack_agency_plan_code: str = ""
 
-    # Email (SMTP)
-    smtp_host: str = ""
-    smtp_port: int = 587
-    smtp_user: str = ""
-    smtp_password: str = ""
+    # Email (Resend — https://resend.com)
+    resend_api_key: str = ""
     emails_from_address: str = ""
     emails_from_name: str = "LegalOps"
 

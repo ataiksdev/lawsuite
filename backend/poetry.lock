@@ -2619,6 +2619,25 @@ requests = ">=2.0.0"
 rsa = ["oauthlib[signedtoken] (>=3.0.0)"]
 
 [[package]]
+name = "resend"
+version = "2.28.1"
+description = "Resend Python SDK"
+optional = false
+python-versions = ">=3.7"
+groups = ["main"]
+files = [
+    {file = "resend-2.28.1-py2.py3-none-any.whl", hash = "sha256:353b87469d96b04b31947974083a3dbcd8fb0418392b8cdb835dac89ea4d2532"},
+    {file = "resend-2.28.1.tar.gz", hash = "sha256:c3809ea696fc727b3bd4f4bdd121385d9b3eea453bbb8325e28bdabbd73df356"},
+]
+
+[package.dependencies]
+requests = ">=2.31.0"
+typing-extensions = ">=4.4.0"
+
+[package.extras]
+async = ["httpx (>=0.24.0)"]
+
+[[package]]
 name = "rich"
 version = "14.3.3"
 description = "Render rich text, tables, progress bars, syntax highlighting, markdown and more to the terminal"
@@ -3256,4 +3275,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "5ff371a01d3c631a8dfe7317b51c3c19207e40d65769cd6c710fbd93ab40212e"
+content-hash = "60c7b82bd66db2c029753b156de857d7cac56d2c9c3c2058fe15b0b6c5511fb2"

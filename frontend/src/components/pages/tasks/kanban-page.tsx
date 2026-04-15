@@ -444,7 +444,7 @@ function TaskDetailSheet({
         const [c, w, n] = await Promise.all([
           listTaskComments(currentTask.matter_id, currentTask.id),
           listTaskWatchers(currentTask.matter_id, currentTask.id),
-          listNotes({ matter_id: currentTask.matter_id }),
+          listNotes({ limit: 100 }), // all org notes — matter-linked ones shown first
         ]);
         if (!cancelled) { setComments(c); setWatchers(w); setMatterNotes(n); }
       } catch {
@@ -745,15 +745,26 @@ function TaskDetailSheet({
                             }))}
                           >
                             <SelectTrigger className="h-7 w-[220px] text-xs">
-                              <SelectValue placeholder={loadingNotes ? 'Loading notesâ€¦' : 'Add to related matter note'} />
+                              <SelectValue placeholder={loadingNotes ? 'Loading notes…' : 'Add to a note'} />
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="none">Select note</SelectItem>
-                              {matterNotes.map((note) => (
-                                <SelectItem key={note.id} value={note.id}>
-                                  {note.title}
-                                </SelectItem>
-                              ))}
+                              {/* Matter-linked notes first */}
+                              {matterNotes
+                                .filter((note) => note.matter_id === task.matter_id)
+                                .map((note) => (
+                                  <SelectItem key={note.id} value={note.id}>
+                                    📁 {note.title}
+                                  </SelectItem>
+                                ))}
+                              {/* Standalone / other notes */}
+                              {matterNotes
+                                .filter((note) => note.matter_id !== task.matter_id)
+                                .map((note) => (
+                                  <SelectItem key={note.id} value={note.id}>
+                                    {note.title}
+                                  </SelectItem>
+                                ))}
                             </SelectContent>
                           </Select>
                           <Button
@@ -767,7 +778,7 @@ function TaskDetailSheet({
                             Add to note
                           </Button>
                           {matterNotes.length === 0 && !loadingNotes && (
-                            <span className="text-[10px] text-slate-400">Create a matter note first.</span>
+                            <span className="text-[10px] text-slate-400">No notes yet. Create one in Notes.</span>
                           )}
                         </div>
                       </div>

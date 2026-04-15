@@ -56,6 +56,7 @@ from app.api import (
     notes,
     notifications,
     reports,
+    search,
     tasks,
     webhooks,
 )
@@ -76,3 +77,4 @@ app.include_router(billing.router, prefix="/billing", tags=["billing"])
 app.include_router(admin.router, prefix="/admin", tags=["admin"])
 app.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
 app.include_router(notes.router, prefix="/notes", tags=["notes"])
+app.include_router(search.router, prefix="/search", tags=["search"])

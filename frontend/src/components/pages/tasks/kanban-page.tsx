@@ -736,7 +736,7 @@ function TaskDetailSheet({
                           )}
                         </div>
                         <p className="text-sm text-slate-700 dark:text-slate-300 mt-0.5 whitespace-pre-wrap">{c.body}</p>
-                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                           <Select
                             value={noteTargetByComment[c.id] ?? 'none'}
                             onValueChange={(value) => setNoteTargetByComment((current) => ({
@@ -744,7 +744,7 @@ function TaskDetailSheet({
                               [c.id]: value === 'none' ? '' : value,
                             }))}
                           >
-                            <SelectTrigger className="h-7 w-[220px] text-xs">
+                            <SelectTrigger className="h-7 w-full sm:w-[220px] text-xs">
                               <SelectValue placeholder={loadingNotes ? 'Loading notes…' : 'Add to a note'} />
                             </SelectTrigger>
                             <SelectContent>

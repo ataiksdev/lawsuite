@@ -147,7 +147,7 @@ export function GlobalSearch() {
       />
 
       {/* Palette */}
-      <div className="fixed left-1/2 top-[15vh] z-50 w-full max-w-xl -translate-x-1/2 px-4">
+      <div className="fixed left-1/2 top-[8vh] sm:top-[15vh] z-50 w-full max-w-xl -translate-x-1/2 px-3 sm:px-4">
         <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden">
 
           {/* Input */}
@@ -175,7 +175,7 @@ export function GlobalSearch() {
 
           {/* Results */}
           {query.trim().length >= 2 && (
-            <div className="max-h-[60vh] overflow-y-auto py-2">
+            <div className="max-h-[50vh] sm:max-h-[60vh] overflow-y-auto py-2">
               {flat.length === 0 && !loading ? (
                 <div className="px-4 py-8 text-center text-sm text-slate-400">
                   No results for &ldquo;{query}&rdquo;

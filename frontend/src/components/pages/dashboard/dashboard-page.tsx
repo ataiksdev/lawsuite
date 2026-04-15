@@ -141,15 +141,15 @@ function StatCard({
       )}
       onClick={onClick}
     >
-      <CardContent className="flex items-center gap-4 p-5">
-        <div className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-xl', iconClass || 'bg-emerald-50 dark:bg-emerald-950/30')}>
-          <Icon className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+      <CardContent className="flex items-center gap-3 p-4 sm:gap-4 sm:p-5">
+        <div className={cn('flex h-9 w-9 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl', iconClass || 'bg-emerald-50 dark:bg-emerald-950/30')}>
+          <Icon className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600 dark:text-emerald-400" />
         </div>
         <div className="min-w-0">
           {loading ? (
-            <Skeleton className="h-7 w-16 mb-1" />
+            <Skeleton className="h-6 w-12 mb-1 sm:h-7 sm:w-16" />
           ) : (
-            <p className="text-2xl font-bold text-slate-900 dark:text-slate-50 tabular-nums">{value}</p>
+            <p className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-50 tabular-nums">{value}</p>
           )}
           <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{label}</p>
           {sub && !loading && (

@@ -218,22 +218,33 @@ function NoteViewer({
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center justify-between gap-3 pb-4 border-b border-slate-200 dark:border-slate-800">
-        <div className="min-w-0 flex-1">
-          {editing ? (
-            <Input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="text-lg font-semibold h-auto py-1 px-2"
-              autoFocus
-            />
-          ) : (
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50 truncate">
-              {note.title}
-            </h2>
-          )}
-          <p className="text-xs text-slate-400 mt-0.5">
-            {note.author_name} · Updated {formatRelative(note.updated_at)}
-          </p>
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          {/* Back button visible only on mobile (xl hides when left panel is visible) */}
+          <Button
+            size="icon"
+            variant="ghost"
+            className="xl:hidden h-8 w-8 text-slate-400 shrink-0"
+            onClick={onClose}
+          >
+            <X className="h-4 w-4 rotate-0" />
+          </Button>
+          <div className="min-w-0 flex-1">
+            {editing ? (
+              <Input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="text-lg font-semibold h-auto py-1 px-2"
+                autoFocus
+              />
+            ) : (
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50 truncate">
+                {note.title}
+              </h2>
+            )}
+            <p className="text-xs text-slate-400 mt-0.5">
+              {note.author_name} · Updated {formatRelative(note.updated_at)}
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {editing ? (
@@ -260,7 +271,7 @@ function NoteViewer({
               Edit
             </Button>
           )}
-          <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-400" onClick={onClose}>
+          <Button size="icon" variant="ghost" className="hidden xl:flex h-8 w-8 text-slate-400" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -595,8 +606,8 @@ export function NotesPage() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-[340px_minmax(0,1fr)]">
-          {/* ── Left panel: list + filters ── */}
-          <div className="space-y-3">
+          {/* ── Left panel: list + filters — hidden on mobile when a note is open ── */}
+          <div className={cn('space-y-3', (selectedNote || isCreating) && 'hidden xl:block')}>
             {/* Search + filters */}
             <div className="space-y-2">
               <div className="relative">

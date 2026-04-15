@@ -12,6 +12,7 @@ import {
   FolderOpen,
   Building2,
   Loader2,
+  MoreHorizontal,
   Pencil,
   Plus,
   RefreshCw,
@@ -96,6 +97,12 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { DocumentFormDialog } from './components/document-form-dialog';
 import { UploadDocumentDialog } from './components/upload-document-dialog';
 import { LinkDriveFolderDialog } from './components/link-drive-folder-dialog';
@@ -1243,6 +1250,7 @@ export function MatterDetailPage() {
 
               {/* ── Toolbar ── */}
               <div className="flex flex-wrap gap-2">
+                {/* On mobile: collapse secondary actions into a dropdown */}
                 <Button
                   variant="outline"
                   size="sm"
@@ -1269,26 +1277,46 @@ export function MatterDetailPage() {
                     Sync Files
                   </Button>
                 )}
-                <Button variant="outline" size="sm" onClick={() => setIsDriveFilesDialogOpen(true)}>
-                  <ExternalLink className="mr-1.5 h-4 w-4" />
+                {/* Secondary actions: hidden on mobile, visible sm+ */}
+                <Button variant="outline" size="sm" className="hidden sm:flex h-8 text-xs" onClick={() => setIsDriveFilesDialogOpen(true)}>
+                  <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
                   Browse Drive
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => setIsGenerateDialogOpen(true)}>
-                  <Wand2 className="mr-1.5 h-4 w-4" />
+                <Button variant="outline" size="sm" className="hidden sm:flex h-8 text-xs" onClick={() => setIsGenerateDialogOpen(true)}>
+                  <Wand2 className="mr-1.5 h-3.5 w-3.5" />
                   From Template
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => setIsLinkDialogOpen(true)}>
-                  <Plus className="mr-1.5 h-4 w-4" />
+                <Button variant="outline" size="sm" className="hidden sm:flex h-8 text-xs" onClick={() => setIsLinkDialogOpen(true)}>
+                  <Plus className="mr-1.5 h-3.5 w-3.5" />
                   Link by ID
                 </Button>
                 <Button
                   size="sm"
                   onClick={() => setIsUploadDialogOpen(true)}
-                  className="bg-emerald-600 text-white hover:bg-emerald-700"
+                  className="bg-emerald-600 text-white hover:bg-emerald-700 h-8 text-xs"
                 >
-                  <Upload className="mr-1.5 h-4 w-4" />
-                  Upload File
+                  <Upload className="mr-1.5 h-3.5 w-3.5" />
+                  Upload
                 </Button>
+                {/* Mobile overflow menu for secondary actions */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="sm:hidden h-8 text-xs">
+                      <MoreHorizontal className="h-3.5 w-3.5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-44">
+                    <DropdownMenuItem onClick={() => setIsDriveFilesDialogOpen(true)}>
+                      <ExternalLink className="mr-2 h-4 w-4" /> Browse Drive
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setIsGenerateDialogOpen(true)}>
+                      <Wand2 className="mr-2 h-4 w-4" /> From Template
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setIsLinkDialogOpen(true)}>
+                      <Plus className="mr-2 h-4 w-4" /> Link by ID
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
 

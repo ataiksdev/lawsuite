@@ -70,6 +70,7 @@ import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 import { markNotificationRead, markAllNotificationsRead, type BackendNotification } from '@/lib/api/notifications';
+import { GlobalSearch } from '@/components/shared/global-search';
 
 import { mockOrganisation } from '@/lib/mock-data';
 
@@ -588,6 +589,8 @@ function HeaderBar({ onMenuClick }: { onMenuClick: () => void }) {
       </Breadcrumb>
 
       <div className="flex-1" />
+
+      <GlobalSearch />
 
       {/* Notifications */}
       <DropdownMenu>

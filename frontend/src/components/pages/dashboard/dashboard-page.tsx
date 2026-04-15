@@ -27,6 +27,8 @@ import { listMatters } from '@/lib/api/matters';
 import { listOverdueTasks, listMatterTasks } from '@/lib/api/tasks';
 import { listMembers } from '@/lib/api/members';
 import { listClients } from '@/lib/api/clients';
+import { listNotes } from '@/lib/api/notes';
+import { listCalendarEvents } from '@/lib/api/calendar';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -52,7 +54,9 @@ interface ActivityEntry {
   payload: Record<string, unknown>;
   actor_id: string | null;
   created_at: string;
-  matter_id: string;
+  matter_id: string | null;
+  // synthetic fields for non-matter-activity items
+  _synthetic?: boolean;
 }
 
 interface OverdueTaskEntry {
@@ -101,8 +105,10 @@ function getEventColor(type: string): string {
   if (type.includes('created') || type.includes('opened')) return 'bg-emerald-500';
   if (type.includes('closed')) return 'bg-slate-400';
   if (type.includes('document')) return 'bg-blue-500';
-  if (type.includes('task')) return 'bg-purple-500';
+  if (type.includes('task') || type.includes('completed')) return 'bg-purple-500';
   if (type.includes('email')) return 'bg-amber-500';
+  if (type.includes('note')) return 'bg-violet-500';
+  if (type.includes('calendar') || type.includes('upcoming')) return 'bg-orange-500';
   return 'bg-emerald-400';
 }
 
@@ -200,24 +206,69 @@ export function DashboardPage() {
 
       setOverdueTasks(overdueRes.items.slice(0, 5));
 
-      // Fetch recent activity from first few open matters
+      // Build activity feed from three sources in parallel:
+      // 1. Matter activity logs from the top open matters
+      // 2. Recent notes (note_created synthetic entries)
+      // 3. Upcoming calendar events (calendar_event synthetic entries)
+      const allActivity: ActivityEntry[] = [];
+
+      // Source 1 — matter activity logs
       if (openRes.total > 0) {
-        const recentMatters = await listMatters({ status: 'open', page_size: 3 });
+        const recentMatters = await listMatters({ status: 'open', page_size: 5 });
         const activityResults = await Promise.allSettled(
           recentMatters.items.map((m) =>
             apiClient.get<{ items: ActivityEntry[]; total: number }>(
               `/matters/${m.id}/activity`,
-              { page_size: 5 }
+              { page_size: 8 }
             )
           )
         );
-        const allActivity: ActivityEntry[] = activityResults
+        activityResults
           .filter((r): r is PromiseFulfilledResult<{ items: ActivityEntry[]; total: number }> => r.status === 'fulfilled')
-          .flatMap((r) => r.value.items);
-        // Sort by date desc, take top 8
-        allActivity.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-        setRecentActivity(allActivity.slice(0, 8));
+          .flatMap((r) => r.value.items)
+          .forEach((e) => allActivity.push(e));
       }
+
+      // Source 2 — recent notes
+      try {
+        const recentNotes = await listNotes({ limit: 5 });
+        recentNotes.forEach((n) => {
+          allActivity.push({
+            id: `note-${n.id}`,
+            event_type: 'note_created',
+            payload: { title: n.title, note_type: n.note_type },
+            actor_id: n.author_id ?? null,
+            created_at: n.created_at,
+            matter_id: n.matter_id ?? null,
+            _synthetic: true,
+          });
+        });
+      } catch { /* non-fatal */ }
+
+      // Source 3 — upcoming calendar events (next 7 days)
+      try {
+        const now = new Date();
+        const week = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+        const calRes = await listCalendarEvents({
+          starts_from: now.toISOString(),
+          ends_before: week.toISOString(),
+        });
+        calRes.items.slice(0, 5).forEach((ev) => {
+          allActivity.push({
+            id: `cal-${ev.id}`,
+            event_type: 'calendar_event_upcoming',
+            payload: { title: ev.title, event_type: ev.event_type, starts_at: ev.starts_at },
+            actor_id: ev.created_by ?? null,
+            created_at: ev.starts_at,
+            matter_id: ev.matter_id,
+            _synthetic: true,
+          });
+        });
+      } catch { /* non-fatal */ }
+
+      // Sort newest first, cap at 10
+      allActivity.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      setRecentActivity(allActivity.slice(0, 10));
     } catch (err) {
       const msg = err instanceof ApiClientError ? err.detail : 'Could not load dashboard data.';
       setError(msg);
@@ -394,7 +445,7 @@ export function DashboardPage() {
                 <CardTitle className="text-base font-semibold">Recent Activity</CardTitle>
               </div>
             </div>
-            <CardDescription className="text-xs">Latest events across your open matters</CardDescription>
+            <CardDescription className="text-xs">Latest events across matters, notes, and upcoming calendar items</CardDescription>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -421,7 +472,10 @@ export function DashboardPage() {
                   <div
                     key={entry.id}
                     className="flex items-start gap-3 rounded-lg p-2 hover:bg-slate-50 dark:hover:bg-slate-900/50 cursor-pointer transition-colors"
-                    onClick={() => { if (entry.matter_id) navigate(`/matters/${entry.matter_id}`); }}
+                    onClick={() => {
+                      if (entry.event_type === 'note_created') { navigate('/notes'); }
+                      else if (entry.matter_id) { navigate(`/matters/${entry.matter_id}`); }
+                    }}
                   >
                     <div className={cn('mt-1.5 h-2 w-2 rounded-full shrink-0', getEventColor(entry.event_type))} />
                     <div className="min-w-0 flex-1">

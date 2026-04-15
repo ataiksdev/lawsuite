@@ -15,6 +15,7 @@ import {
   Scale,
   Menu,
   Bell,
+  Search,
   ChevronRight,
   ChevronLeft,
   UsersRound,
@@ -590,7 +591,19 @@ function HeaderBar({ onMenuClick }: { onMenuClick: () => void }) {
 
       <div className="flex-1" />
 
+      {/* Search — full bar on sm+, icon-only on mobile */}
       <GlobalSearch />
+      <Button
+        variant="ghost"
+        size="icon"
+        className="sm:hidden h-8 w-8 text-slate-500 hover:text-emerald-600 shrink-0"
+        onClick={() => {
+          // Trigger global search open via keyboard shortcut simulation
+          window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }));
+        }}
+      >
+        <Search className="h-4 w-4" />
+      </Button>
 
       {/* Notifications */}
       <DropdownMenu>
@@ -766,9 +779,10 @@ export function AppShell({ children }: AppShellProps) {
           />
           <aside
             className={cn(
-              'fixed left-0 top-0 z-50 h-full w-64 flex flex-col',
+              'fixed left-0 top-0 z-50 h-full w-72 flex flex-col',
               'border-r border-emerald-100 dark:border-emerald-900/20 bg-white dark:bg-slate-950',
-              'shadow-xl md:hidden transition-transform duration-200'
+              'shadow-xl md:hidden',
+              'animate-in slide-in-from-left duration-200'
             )}
           >
             <SidebarContent collapsed={false} onNavigate={() => setMobileOpen(false)} />

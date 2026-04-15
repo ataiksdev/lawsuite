@@ -11,8 +11,10 @@ import {
   Briefcase,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   MoreHorizontal,
   Loader2,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { navigate } from '@/lib/router';
@@ -138,6 +140,7 @@ export function MatterListPage() {
   const [sortField, setSortField] = useState<SortField>('created_at');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [page, setPage] = useState(1);
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
   const [matters, setMatters] = useState<BackendMatter[]>([]);
   const [clients, setClients] = useState<BackendClient[]>([]);
   const [members, setMembers] = useState<MemberSummary[]>([]);
@@ -301,7 +304,7 @@ export function MatterListPage() {
 
           <div className="flex flex-wrap items-center gap-2">
             <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as StatusFilter)}>
-              <SelectTrigger className="h-9 w-[150px]">
+              <SelectTrigger className="h-9 w-[140px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -314,7 +317,7 @@ export function MatterListPage() {
             </Select>
 
             <Select value={typeFilter} onValueChange={(value) => setTypeFilter(value as TypeFilter)}>
-              <SelectTrigger className="h-9 w-[155px]">
+              <SelectTrigger className="h-9 w-[140px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -326,8 +329,9 @@ export function MatterListPage() {
               </SelectContent>
             </Select>
 
+            {/* Client filter — always visible sm+, hidden on xs */}
             <Select value={clientFilter} onValueChange={setClientFilter}>
-              <SelectTrigger className="hidden h-9 w-[180px] md:block">
+              <SelectTrigger className="hidden sm:flex h-9 w-[160px]">
                 <SelectValue placeholder="All Clients" />
               </SelectTrigger>
               <SelectContent>
@@ -340,8 +344,9 @@ export function MatterListPage() {
               </SelectContent>
             </Select>
 
+            {/* Assignee filter — always visible md+, hidden on xs/sm */}
             <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
-              <SelectTrigger className="hidden h-9 w-[170px] lg:block">
+              <SelectTrigger className="hidden md:flex h-9 w-[155px]">
                 <SelectValue placeholder="All Assignees" />
               </SelectTrigger>
               <SelectContent>
@@ -354,6 +359,22 @@ export function MatterListPage() {
               </SelectContent>
             </Select>
 
+            {/* More filters toggle — only on mobile where client/assignee are hidden */}
+            <Button
+              variant="outline"
+              size="sm"
+              className="sm:hidden h-9 text-xs"
+              onClick={() => setShowMoreFilters((v) => !v)}
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5 mr-1.5" />
+              Filters
+              {(clientFilter !== 'all' || assigneeFilter !== 'all') && (
+                <span className="ml-1 h-4 w-4 rounded-full bg-emerald-600 text-white text-[9px] flex items-center justify-center">
+                  {(clientFilter !== 'all' ? 1 : 0) + (assigneeFilter !== 'all' ? 1 : 0)}
+                </span>
+              )}
+            </Button>
+
             {hasActiveFilters && (
               <Button
                 variant="ghost"
@@ -365,6 +386,7 @@ export function MatterListPage() {
                   setTypeFilter('all');
                   setClientFilter('all');
                   setAssigneeFilter('all');
+                  setShowMoreFilters(false);
                 }}
               >
                 Clear
@@ -372,6 +394,38 @@ export function MatterListPage() {
             )}
           </div>
         </div>
+
+        {/* Expanded mobile filters for client + assignee */}
+        {showMoreFilters && (
+          <div className="flex flex-wrap gap-2 sm:hidden">
+            <Select value={clientFilter} onValueChange={setClientFilter}>
+              <SelectTrigger className="h-9 flex-1 min-w-[140px]">
+                <SelectValue placeholder="All Clients" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Clients</SelectItem>
+                {clients.map((client) => (
+                  <SelectItem key={client.id} value={client.id}>
+                    {client.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
+              <SelectTrigger className="h-9 flex-1 min-w-[140px]">
+                <SelectValue placeholder="All Assignees" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Assignees</SelectItem>
+                {members.map((member) => (
+                  <SelectItem key={member.id} value={member.id}>
+                    {member.full_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         {!isLoading && !error && (
           <div className="text-sm text-slate-500 dark:text-slate-400">

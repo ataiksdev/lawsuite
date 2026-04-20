@@ -220,7 +220,7 @@ async def test_update_organisation_name(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_update_organisation_requires_admin(client: AsyncClient):
     resp = await client.patch("/auth/organisation", json={"name": "x"})
-    assert resp.status_code == 403
+    assert resp.status_code == 401
 
 
 # ─── Platform admin (stats + org management) ──────────────────────────────────

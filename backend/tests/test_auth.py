@@ -134,7 +134,7 @@ async def test_me_authenticated(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_me_unauthenticated(client: AsyncClient):
     response = await client.get("/auth/me")
-    assert response.status_code == 403
+    assert response.status_code == 401
 
 
 # ─── Invite + accept ──────────────────────────────────────────────────────────
@@ -181,7 +181,7 @@ async def test_invite_requires_admin(client: AsyncClient):
             "full_name": "Blocked User",
         },
     )
-    assert response.status_code == 403
+    assert response.status_code == 401
 
 
 @pytest.mark.asyncio

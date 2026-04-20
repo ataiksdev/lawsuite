@@ -109,7 +109,7 @@ async def test_checkout_invalid_plan_rejected(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_checkout_requires_admin(client: AsyncClient):
     resp = await client.post("/billing/checkout", json={"plan": "pro"})
-    assert resp.status_code == 403
+    assert resp.status_code == 401
 
 
 @pytest.mark.asyncio

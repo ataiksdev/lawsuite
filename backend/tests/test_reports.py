@@ -212,26 +212,22 @@ async def test_generate_report_with_drive_export(client: AsyncClient):
     token = await setup_with_data(client)
     headers = {"Authorization": f"Bearer {token}"}
 
-    from app.core.deps import get_google_credentials
-    from app.main import app
-
     fake_creds = MagicMock()
-    app.dependency_overrides[get_google_credentials] = lambda: fake_creds
-
-    with patch(
-        "app.services.report_service.ReportService.export_to_doc",
-        new_callable=AsyncMock,
-        return_value=("drive-file-id-001", "https://docs.google.com/drive-file-id-001/edit"),
-    ):
-        resp = await client.post(
-            "/reports/generate",
-            json={
-                "period_type": "monthly",
-                "export_to_drive": True,
-                "send_email": False,
-            },
-            headers=headers,
-        )
+    with patch("app.services.google_auth_service.GoogleAuthService.get_valid_credentials", return_value=fake_creds):
+        with patch(
+            "app.services.report_service.ReportService.export_to_doc",
+            new_callable=AsyncMock,
+            return_value=("drive-file-id-001", "https://docs.google.com/drive-file-id-001/edit"),
+        ):
+            resp = await client.post(
+                "/reports/generate",
+                json={
+                    "period_type": "monthly",
+                    "export_to_drive": True,
+                    "send_email": False,
+                },
+                headers=headers,
+            )
 
     assert resp.status_code == 201
     body = resp.json()

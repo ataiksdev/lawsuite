@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.notification import Notification
 from app.models.task_watcher import TaskWatcher
+from app.models.user import OrganisationMember, UserRole
 
 
 class NotificationService:

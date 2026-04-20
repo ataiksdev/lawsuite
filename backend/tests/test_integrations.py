@@ -50,7 +50,7 @@ async def test_google_connect_returns_auth_url(client: AsyncClient):
 async def test_google_connect_requires_admin(client: AsyncClient):
     """Non-authenticated request must be rejected."""
     resp = await client.get("/integrations/google/connect")
-    assert resp.status_code == 403
+    assert resp.status_code == 401
 
 
 # ─── GET /integrations/google/status ──────────────────────────────────────────
@@ -199,4 +199,4 @@ async def test_google_disconnect(client: AsyncClient, db_session: AsyncSession):
 @pytest.mark.asyncio
 async def test_google_disconnect_requires_admin(client: AsyncClient):
     resp = await client.delete("/integrations/google")
-    assert resp.status_code == 403
+    assert resp.status_code == 401

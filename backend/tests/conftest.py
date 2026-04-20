@@ -9,6 +9,13 @@ from app import models as _models  # noqa: F401
 from app.core.config import settings
 from app.core.database import Base, get_db
 from app.main import app as main_app
+from unittest.mock import MagicMock, patch
+
+@pytest_asyncio.fixture(autouse=True)
+def mock_resend():
+    """Globally mock Resend to avoid API calls and errors in tests."""
+    with patch("resend.Emails.send") as mock_send:
+        yield mock_send
 
 # Separate test database
 TEST_DATABASE_URL = settings.database_url.replace("/legalops", "/legalops_test")

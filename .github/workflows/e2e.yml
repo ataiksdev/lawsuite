@@ -1,0 +1,112 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  e2e-tests:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: legalops_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      # Build and Start Backend
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Install Backend dependencies
+        working-directory: backend
+        run: poetry install
+
+      - name: Run migrations
+        working-directory: backend
+        run: |
+          poetry run alembic upgrade head
+        env:
+          DATABASE_URL_SYNC: postgresql+psycopg2://postgres:postgres@localhost:5432/legalops_test
+
+      - name: Start Backend
+        working-directory: backend
+        run: |
+          poetry run uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+        env:
+          DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/legalops_test
+          DATABASE_URL_SYNC: postgresql+psycopg2://postgres:postgres@localhost:5432/legalops_test
+          REDIS_URL: redis://localhost:6379/0
+          JWT_SECRET: ci-test-secret
+          APP_ENV: test
+
+      # Build and Start Frontend
+      - name: Install Frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Start Frontend
+        working-directory: frontend
+        run: |
+          npm run dev -- -p 3000 &
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8000
+
+      # Set up E2E and Run Tests
+      - name: Install Playwright Browsers
+        working-directory: backend
+        run: |
+          poetry run playwright install --with-deps chromium
+
+      - name: Wait for services
+        run: |
+          npx wait-on http://localhost:8000/health http://localhost:3000
+
+      - name: Run E2E tests
+        working-directory: backend
+        run: poetry run pytest e2e
+        env:
+          PYTEST_BASE_URL: http://localhost:3000
+
+      - name: Upload Playwright Trace
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-traces
+          path: backend/test-results/

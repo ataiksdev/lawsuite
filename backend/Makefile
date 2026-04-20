@@ -1,4 +1,4 @@
-.PHONY: install dev worker beat test lint format typecheck migrate migrate-auto migrate-down db-create db-drop seed
+.PHONY: install dev worker beat test test-e2e test-e2e-headed lint format typecheck migrate migrate-auto migrate-down db-create db-drop seed
 
 # ─── Setup ────────────────────────────────────────────────────────────────────
 
@@ -46,10 +46,10 @@ rls:
 # ─── Quality ─────────────────────────────────────────────────────────────────
 
 lint:
-	ruff check app tests
+	ruff check app tests e2e
 
 format:
-	ruff format app tests
+	ruff format app tests e2e
 
 typecheck:
 	mypy app
@@ -57,10 +57,16 @@ typecheck:
 # ─── Tests ────────────────────────────────────────────────────────────────────
 
 test:
-	pytest -v
+	pytest -v tests
 
 test-cov:
-	pytest -v --cov=app --cov-report=html
+	pytest -v tests --cov=app --cov-report=html
+
+test-e2e:
+	python -m poetry run pytest -v e2e --base-url http://localhost:3000 --browser chromium --browser-channel chrome
+
+test-e2e-headed:
+	python -m poetry run pytest -v e2e --base-url http://localhost:3000 --browser chromium --browser-channel chrome --headed
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 

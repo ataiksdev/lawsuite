@@ -1,9 +1,14 @@
 # backend/app/services/google_auth_service.py
 import json
+import os
 import uuid
 from datetime import datetime, timedelta, timezone
 
+# Allow scope changes (Google often adds 'profile' or normalizes scopes)
+os.environ["OAUTHLIB_RELAX_TOKEN_SCOPE"] = "1"
+
 from fastapi import HTTPException, status
+from google.auth.exceptions import RefreshError
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
@@ -18,6 +23,7 @@ from app.models.organisation import Organisation
 GOOGLE_SCOPES = [
     "openid",
     "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/userinfo.profile",
     "https://www.googleapis.com/auth/drive",
     "https://www.googleapis.com/auth/drive.activity.readonly",
     "https://www.googleapis.com/auth/documents",
@@ -89,6 +95,7 @@ class GoogleAuthService:
         self,
         code: str,
         state: str,
+        url: str | None = None,
     ) -> Organisation:
         """
         Exchange the auth code for tokens and store them encrypted on the org.
@@ -103,10 +110,27 @@ class GoogleAuthService:
             )
 
         flow = _build_flow()
-        flow.fetch_token(code=code)
-        credentials = flow.credentials
+        try:
+            if url:
+                # Use the full URL to handle Google's latest security parameters (like 'iss')
+                flow.state = state
+                flow.fetch_token(authorization_response=url)
+            else:
+                flow.fetch_token(code=code)
+        except Exception as e:
+            # Convert exchange errors to 400 instead of 500
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Failed to exchange Google tokens: {str(e)}",
+            )
 
+        credentials = flow.credentials
         org = await self._get_org(org_id)
+
+        # Ensure expiry is timezone-aware for SQLAlchemy DateTime(timezone=True)
+        if credentials.expiry and credentials.expiry.tzinfo is None:
+            credentials.expiry = credentials.expiry.replace(tzinfo=timezone.utc)
+
         await self._store_tokens(org, credentials)
         await self.db.commit()
         await self.db.refresh(org)
@@ -152,9 +176,21 @@ class GoogleAuthService:
             if expiry_aware.tzinfo is None:
                 expiry_aware = expiry_aware.replace(tzinfo=timezone.utc)
             if expiry_aware <= datetime.now(timezone.utc) + timedelta(minutes=5):
-                credentials.refresh(Request())
-                await self._store_tokens(org, credentials)
-                await self.db.commit()
+                try:
+                    credentials.refresh(Request())
+                    await self._store_tokens(org, credentials)
+                    await self.db.commit()
+                except RefreshError:
+                    # Token was revoked or is otherwise invalid. Clear it locally.
+                    org.google_access_token = None
+                    org.google_refresh_token = None
+                    org.google_token_expiry = None
+                    org.google_scopes = None
+                    await self.db.commit()
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Google Workspace connection has expired or been revoked. Please reconnect.",
+                    )
 
         return credentials
 

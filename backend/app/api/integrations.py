@@ -38,7 +38,7 @@ async def google_callback(
     Redirects to the frontend settings page on success.
     """
     service = GoogleAuthService(db)
-    await service.handle_callback(code=code, state=state)
+    await service.handle_callback(code=code, state=state, url=str(request.url))
 
     # Redirect to frontend settings with success flag
     return RedirectResponse(url=f"{settings.frontend_url}/#/settings/integrations?google=connected")

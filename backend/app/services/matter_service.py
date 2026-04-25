@@ -11,6 +11,7 @@ from sqlalchemy.orm import selectinload
 from app.models.client import Client
 from app.models.matter import Matter, MatterStatus
 from app.models.matter_document import DocumentType, MatterDocument, MatterDocumentVersion
+from app.models.organisation import Organisation
 from app.schemas.matter import MatterCreate, MatterUpdate, StatusUpdate
 from app.services.activity_service import ActivityService
 from app.services.notification_service import NotificationService
@@ -445,6 +446,61 @@ class MatterService:
 
         await self.db.commit()
         return {"file_count": len(files), "imported_count": imported}
+
+    async def create_drive_folder(
+        self,
+        matter_id: uuid.UUID,
+        org_id: uuid.UUID,
+        user_id: uuid.UUID,
+        drive_service,
+    ) -> dict:
+        """
+        Create a new Google Drive folder for this matter and link it.
+        The folder is created in the root or a pre-configured root folder.
+        """
+        matter = await self._get_matter(matter_id, org_id)
+        if matter.drive_folder_id:
+            raise HTTPException(
+                status_code=400,
+                detail="This matter already has a linked Drive folder.",
+            )
+
+        # Get organisation to check for a root folder ID
+        result = await self.db.execute(select(Organisation).where(Organisation.id == org_id))
+        org = result.scalar_one_or_none()
+        root_id = getattr(org, "google_drive_root_folder_id", None) if org else None
+
+        # Create folder structure
+        folder_id, folder_url = await drive_service.create_matter_folder_structure(
+            client_name=matter.client.name,
+            matter_title=matter.title,
+            reference_no=matter.reference_no,
+            root_folder_id=root_id,
+        )
+
+        matter.drive_folder_id = folder_id
+        matter.drive_folder_url = folder_url
+
+        await self.activity.log(
+            matter_id=matter_id,
+            org_id=org_id,
+            actor_id=user_id,
+            event_type="drive_folder_created",
+            payload={
+                "folder_id": folder_id,
+                "folder_url": folder_url,
+            },
+        )
+
+        await self.db.commit()
+
+        return {
+            "folder_id": folder_id,
+            "folder_name": f"{matter.reference_no} — {matter.title}",
+            "folder_url": folder_url,
+            "file_count": 0,
+            "imported_count": 0,
+        }
 
     async def _import_drive_files(
         self,

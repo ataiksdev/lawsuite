@@ -245,6 +245,35 @@ async def sync_drive_folder(
     )
 
 
+@router.post(
+    "/{matter_id}/drive-folder/create",
+    response_model=DriveFolderInfo,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_drive_folder(
+    matter_id: uuid.UUID,
+    current_user: AuthUser,
+    google_creds: GoogleCreds,
+    db: DB,
+):
+    """
+    Create a new Google Drive folder for this matter and link it instantly.
+    The folder will be named "{reference_no} — {title}" and placed within
+    the client's folder (auto-created if missing).
+    """
+    from app.services.google_drive_service import GoogleDriveService
+
+    drive_service = GoogleDriveService(db, google_creds)
+    matter_service = MatterService(db)
+
+    return await matter_service.create_drive_folder(
+        matter_id=matter_id,
+        org_id=current_user.org_id,
+        user_id=current_user.user_id,
+        drive_service=drive_service,
+    )
+
+
 # ─── Phase 8: Gmail thread linking ────────────────────────────────────────────
 
 

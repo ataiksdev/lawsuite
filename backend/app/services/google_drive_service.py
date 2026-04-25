@@ -75,13 +75,25 @@ class GoogleDriveService:
         safe_client = _safe_folder_name(client_name)
         safe_matter = _safe_folder_name(f"{reference_no} — {matter_title}")
 
-        # Client folder — find or create under root
-        client_folder = await self._find_or_create_folder(
-            name=safe_client,
+        # 1. LegalOps folder under root
+        legal_ops = await self._find_or_create_folder(
+            name="LegalOps",
             parent_id=root_folder_id,
         )
 
-        # Matter folder under client folder
+        # 2. Clients folder under LegalOps
+        clients_folder = await self._find_or_create_folder(
+            name="Clients",
+            parent_id=legal_ops["id"],
+        )
+
+        # 3. Client name folder under Clients
+        client_folder = await self._find_or_create_folder(
+            name=safe_client,
+            parent_id=clients_folder["id"],
+        )
+
+        # 4. Matter folder under client folder
         matter_folder = await self.create_folder(
             name=safe_matter,
             parent_id=client_folder["id"],

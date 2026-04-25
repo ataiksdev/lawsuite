@@ -122,3 +122,12 @@ export async function syncDriveFolder(
     {}
   );
 }
+
+export async function createDriveFolder(
+  matterId: string
+): Promise<DriveFolderInfo> {
+  return apiClient.post<DriveFolderInfo>(
+    `/matters/${matterId}/drive-folder/create`,
+    {}
+  );
+}

@@ -169,6 +169,7 @@ export function UploadDocumentDialog({ open, onOpenChange, matterId, onUploaded 
       });
       setUploadedDoc(doc);
       onUploaded(doc);
+      setUploading(false);
     } catch (err) {
       setServerError(err instanceof Error ? err.message : 'Upload failed. Please try again.');
       setUploading(false);
@@ -189,7 +190,7 @@ export function UploadDocumentDialog({ open, onOpenChange, matterId, onUploaded 
             <div>
               <p className="text-lg font-semibold text-slate-900 dark:text-slate-50">Upload complete!</p>
               <p className="text-sm text-slate-500 mt-1">
-                <span className="font-medium">{uploadedDoc.name}</span> has been uploaded to Drive and linked to this matter.
+                <span className="font-medium break-words break-all">{uploadedDoc.name}</span> has been uploaded to Drive and linked to this matter.
               </p>
             </div>
             <Button
@@ -250,10 +251,10 @@ export function UploadDocumentDialog({ open, onOpenChange, matterId, onUploaded 
               <div className="flex items-center gap-3 p-4">
                 <span className="text-3xl">{fileIcon(selectedFile.type)}</span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
+                  <p className="text-sm font-medium text-slate-900 dark:text-slate-100 break-words break-all">
                     {selectedFile.name}
                   </p>
-                  <p className="text-xs text-slate-500 mt-0.5">
+                  <p className="text-xs text-slate-500 mt-0.5 break-words break-all">
                     {formatBytes(selectedFile.size)} · {selectedFile.type || 'Unknown type'}
                   </p>
                 </div>

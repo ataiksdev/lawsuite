@@ -168,7 +168,7 @@ export function LinkDriveFolderDialog({
                   <p className="text-sm font-medium text-emerald-900 dark:text-emerald-100">
                     Folder linked
                   </p>
-                  <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-0.5 font-mono truncate">
+                  <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-0.5 font-mono break-all">
                     {existingFolderId}
                   </p>
                 </div>

@@ -5,7 +5,7 @@
 ../.github
 ../.gitignore
 ../alembic
-report.html
+list.txt
 .env
 .env.example
 
@@ -26,4 +26,6 @@ __pycache__/
 *.pyo
 *.pyc
 .pytest_cache/
+.venv/
+
 

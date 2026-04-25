@@ -27,6 +27,8 @@ import { navigate, useRouteParams } from '@/lib/router';
 import { ApiClientError } from '@/lib/api-client';
 import { handleApiError, extractErrorMessage } from '@/lib/error-utils';
 import {
+  syncDriveFolder,
+  createDriveFolder,
   changeMatterStatus,
   getMatter,
   type BackendMatter,
@@ -59,7 +61,6 @@ import {
   type DriveFileResponse,
   type TemplateFileResponse,
 } from '@/lib/api/documents';
-import { syncDriveFolder } from '@/lib/api/matters';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -1047,6 +1048,27 @@ export function MatterDetailPage() {
     }
   };
 
+  const [isCreatingFolder, setIsCreatingFolder] = useState(false);
+
+  const handleCreateFolder = async () => {
+    if (!matter) return;
+    setIsCreatingFolder(true);
+    try {
+      const result = await createDriveFolder(matter.id);
+      // Update matter state with the new folder details
+      setMatter({
+        ...matter,
+        drive_folder_id: result.folder_id,
+        drive_folder_url: result.folder_url,
+      });
+      toast.success('Drive folder created and linked to this matter.');
+    } catch (err) {
+      handleApiError(err, 'Unable to create Drive folder.');
+    } finally {
+      setIsCreatingFolder(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <Card className="shadow-sm">
@@ -1265,6 +1287,22 @@ export function MatterDetailPage() {
                   <FolderOpen className="mr-1.5 h-3.5 w-3.5" />
                   {matter.drive_folder_id ? 'Manage Folder' : 'Link Drive Folder'}
                 </Button>
+                {!matter.drive_folder_id && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs border-emerald-200 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-950/20"
+                    disabled={isCreatingFolder}
+                    onClick={() => void handleCreateFolder()}
+                  >
+                    {isCreatingFolder ? (
+                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Plus className="mr-1.5 h-3.5 w-3.5" />
+                    )}
+                    Create Drive Folder
+                  </Button>
+                )}
                 {matter.drive_folder_id && (
                   <Button
                     variant="outline"

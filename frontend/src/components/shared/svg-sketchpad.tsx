@@ -59,6 +59,7 @@ export function SvgSketchpad({
   };
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    event.currentTarget.setPointerCapture(event.pointerId);
     const point = pointerToPoint(event);
     setDrawing(true);
     setCurrentPoints([point]);
@@ -94,9 +95,11 @@ export function SvgSketchpad({
     <div className={cn('space-y-2', className)}>
       <div
         className="relative h-44 rounded-xl border border-dashed border-emerald-300 bg-white"
+        style={{ touchAction: 'none' }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={finishStroke}
+        onPointerCancel={finishStroke}
         onPointerLeave={finishStroke}
       >
         {displaySvg ? (

@@ -30,17 +30,19 @@ async def list_notes(
     db: DB,
     matter_id: uuid.UUID | None = Query(None),
     event_id: uuid.UUID | None = Query(None),
+    task_id: uuid.UUID | None = Query(None),
     limit: int = Query(50, ge=1, le=200),
 ):
     """
     List notes for the current org, newest first.
-    Optionally filter by matter_id and/or event_id.
+    Optionally filter by matter_id, event_id, and/or task_id.
     """
     service = NoteService(db)
     notes = await service.list_notes(
         org_id=current_user.org_id,
         matter_id=matter_id,
         event_id=event_id,
+        task_id=task_id,
         limit=limit,
     )
     return [NoteResponse.model_validate(note) for note in notes]

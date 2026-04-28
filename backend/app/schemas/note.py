@@ -20,6 +20,7 @@ class NoteCreate(BaseModel):
     # Optional links
     matter_id: uuid.UUID | None = None
     event_id: uuid.UUID | None = None
+    task_id: uuid.UUID | None = None
 
     @model_validator(mode="after")
     def validate_content(self) -> "NoteCreate":
@@ -34,6 +35,7 @@ class NoteUpdate(BaseModel):
     svg_content: str | None = None
     matter_id: uuid.UUID | None = None
     event_id: uuid.UUID | None = None
+    task_id: uuid.UUID | None = None
 
     @model_validator(mode="after")
     def validate_content(self) -> "NoteUpdate":
@@ -50,6 +52,7 @@ class NoteResponse(BaseModel):
     id: uuid.UUID
     matter_id: uuid.UUID | None
     event_id: uuid.UUID | None
+    task_id: uuid.UUID | None
     organisation_id: uuid.UUID
     author_id: uuid.UUID | None
     created_from_task_comment_id: uuid.UUID | None

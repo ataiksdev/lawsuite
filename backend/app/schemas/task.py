@@ -105,3 +105,20 @@ class TaskWatcherResponse(BaseModel):
     added_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+# ─── Document Links ───────────────────────────────────────────────────────────
+
+
+class TaskDocumentLinkAdd(BaseModel):
+    document_id: uuid.UUID
+
+
+class TaskDocumentLinkResponse(BaseModel):
+    task_id: uuid.UUID
+    document_id: uuid.UUID
+    organisation_id: uuid.UUID
+    linked_by: uuid.UUID | None
+    linked_at: datetime
+
+    model_config = {"from_attributes": True}

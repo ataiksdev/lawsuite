@@ -52,6 +52,12 @@ class Note(Base):
     author_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
+    task_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("tasks.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     created_from_task_comment_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("task_comments.id", ondelete="SET NULL"),

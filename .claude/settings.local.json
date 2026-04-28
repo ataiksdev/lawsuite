@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python -c \"from pypaystack2 import AsyncPaystackClient; print\\('OK'\\)\")"
+      "Bash(python -c \"from pypaystack2 import AsyncPaystackClient; print\\('OK'\\)\")",
+      "Bash(node -e ' *)",
+      "Bash(npx tsc *)"
     ]
   }
 }

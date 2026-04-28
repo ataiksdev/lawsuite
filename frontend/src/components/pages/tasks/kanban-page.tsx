@@ -23,10 +23,14 @@ import {
   Circle,
   CircleDot,
   Clock,
+  ExternalLink,
+  FileText,
   Filter,
+  Link2,
   Loader2,
   MessageSquare,
   MoreHorizontal,
+  Paperclip,
   Plus,
   RefreshCw,
   Search,
@@ -50,10 +54,12 @@ import { listMembers, type MemberSummary } from '@/lib/api/members';
 import {
   addCommentToNote,
   listNotes,
+  updateNote,
   type BackendNote,
 } from '@/lib/api/notes';
 import {
   addTaskComment,
+  addTaskDocumentLink,
   addTaskWatcher,
   createTask,
   deleteTask,
@@ -61,7 +67,9 @@ import {
   listMatterTasks,
   listOverdueTasks,
   listTaskComments,
+  listTaskDocumentLinks,
   listTaskWatchers,
+  removeTaskDocumentLink,
   removeTaskWatcher,
   updateTask,
   type BackendTask,
@@ -70,6 +78,7 @@ import {
   type TaskComment,
   type TaskWatcher,
 } from '@/lib/api/tasks';
+import { listDocuments, type BackendDocument } from '@/lib/api/documents';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -195,7 +204,7 @@ const PRIORITY_STYLE: Record<BackendTaskPriority, string> = {
   high:   'border-red-200 bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400',
 };
 
-// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â"€â"€ Helpers â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 
 function fmtDate(v?: string | null) {
   if (!v) return 'No due date';
@@ -235,7 +244,7 @@ function estimateTimeInColumn(task: BackendTask): string {
   return `${Math.floor(d / 7)}w`;
 }
 
-// â”€â”€ Draggable Task Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â"€â"€ Draggable Task Card â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 
 function TaskCard({
   task, memberNameById, isBusy, onEdit, onDelete, onStatusChange, onClick, cardBorderCls,
@@ -335,7 +344,7 @@ function TaskCard({
   );
 }
 
-// â”€â”€ Droppable Column â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â"€â"€ Droppable Column â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 
 function KanbanColumn({
   col, tasks, memberNameById, busyTaskId, onEdit, onDelete, onStatusChange, onCardClick, onAdd,
@@ -396,7 +405,7 @@ function KanbanColumn({
   );
 }
 
-// â”€â”€ Task Detail Sheet (Comments + Watchers) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â"€â"€ Task Detail Sheet (Comments + Watchers) â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 
 function TaskDetailSheet({
   task, memberNameById, members, onClose, onEdit, onStatusChange, onWatchersChange,
@@ -415,15 +424,25 @@ function TaskDetailSheet({
   const [comments, setComments] = useState<TaskComment[]>([]);
   const [matterNotes, setMatterNotes] = useState<BackendNote[]>([]);
   const [watchers, setWatchers] = useState<TaskWatcher[]>([]);
+  const [attachedNotes, setAttachedNotes] = useState<BackendNote[]>([]);
+  const [linkedDocs, setLinkedDocs] = useState<BackendDocument[]>([]);
+  const [matterDocs, setMatterDocs] = useState<BackendDocument[]>([]);
   const [loadingComments, setLoadingComments] = useState(false);
   const [loadingWatchers, setLoadingWatchers] = useState(false);
   const [loadingNotes, setLoadingNotes] = useState(false);
+  const [loadingAttachments, setLoadingAttachments] = useState(false);
   const [commentBody, setCommentBody] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
   const [addingToNoteId, setAddingToNoteId] = useState<string | null>(null);
   const [togglingWatch, setTogglingWatch] = useState(false);
   const [noteTargetByComment, setNoteTargetByComment] = useState<Record<string, string>>({});
+  const [selectedNoteToLink, setSelectedNoteToLink] = useState('');
+  const [selectedDocToLink, setSelectedDocToLink] = useState('');
+  const [linkingNote, setLinkingNote] = useState(false);
+  const [linkingDoc, setLinkingDoc] = useState(false);
+  const [unlinkingNoteId, setUnlinkingNoteId] = useState<string | null>(null);
+  const [unlinkingDocId, setUnlinkingDocId] = useState<string | null>(null);
   const commentEndRef = useRef<HTMLDivElement>(null);
 
   const isWatching = useMemo(
@@ -432,7 +451,13 @@ function TaskDetailSheet({
   );
 
   useEffect(() => {
-    if (!task) { setComments([]); setMatterNotes([]); setWatchers([]); setCommentBody(''); setNoteTargetByComment({}); return; }
+    if (!task) {
+      setComments([]); setMatterNotes([]); setWatchers([]);
+      setAttachedNotes([]); setLinkedDocs([]); setMatterDocs([]);
+      setCommentBody(''); setNoteTargetByComment({});
+      setSelectedNoteToLink(''); setSelectedDocToLink('');
+      return;
+    }
     const currentTask = task;
     let cancelled = false;
 
@@ -440,17 +465,27 @@ function TaskDetailSheet({
       setLoadingComments(true);
       setLoadingWatchers(true);
       setLoadingNotes(true);
+      setLoadingAttachments(true);
       try {
-        const [c, w, n] = await Promise.all([
+        const [c, w, n, an, ld, md] = await Promise.all([
           listTaskComments(currentTask.matter_id, currentTask.id),
           listTaskWatchers(currentTask.matter_id, currentTask.id),
-          listNotes({ limit: 100 }), // all org notes — matter-linked ones shown first
+          listNotes({ limit: 100 }),
+          listNotes({ task_id: currentTask.id, limit: 50 }),
+          listTaskDocumentLinks(currentTask.matter_id, currentTask.id),
+          listDocuments(currentTask.matter_id),
         ]);
-        if (!cancelled) { setComments(c); setWatchers(w); setMatterNotes(n); }
+        if (!cancelled) {
+          setComments(c); setWatchers(w); setMatterNotes(n);
+          setAttachedNotes(an); setLinkedDocs(ld); setMatterDocs(md);
+        }
       } catch {
-        // Non-fatal â€” comments/watchers may not be implemented on backend yet
+        // Non-fatal
       } finally {
-        if (!cancelled) { setLoadingComments(false); setLoadingWatchers(false); setLoadingNotes(false); }
+        if (!cancelled) {
+          setLoadingComments(false); setLoadingWatchers(false);
+          setLoadingNotes(false); setLoadingAttachments(false);
+        }
       }
     }
 
@@ -562,6 +597,62 @@ function TaskDetailSheet({
     }
   };
 
+  const handleLinkNote = async () => {
+    if (!selectedNoteToLink) return;
+    setLinkingNote(true);
+    try {
+      const updated = await updateNote(selectedNoteToLink, { task_id: task.id });
+      setAttachedNotes((cur) => [updated, ...cur.filter((n) => n.id !== updated.id)]);
+      setSelectedNoteToLink('');
+      toast.success('Note linked to task.');
+    } catch (err) {
+      handleApiError(err, 'Unable to link note.');
+    } finally {
+      setLinkingNote(false);
+    }
+  };
+
+  const handleUnlinkNote = async (noteId: string) => {
+    setUnlinkingNoteId(noteId);
+    try {
+      await updateNote(noteId, { task_id: null });
+      setAttachedNotes((cur) => cur.filter((n) => n.id !== noteId));
+      toast.success('Note unlinked.');
+    } catch (err) {
+      handleApiError(err, 'Unable to unlink note.');
+    } finally {
+      setUnlinkingNoteId(null);
+    }
+  };
+
+  const handleLinkDoc = async () => {
+    if (!selectedDocToLink) return;
+    setLinkingDoc(true);
+    try {
+      const doc = await addTaskDocumentLink(task.matter_id, task.id, { document_id: selectedDocToLink });
+      setLinkedDocs((cur) => [doc, ...cur.filter((d) => d.id !== doc.id)]);
+      setSelectedDocToLink('');
+      toast.success('Document linked to task.');
+    } catch (err) {
+      handleApiError(err, 'Unable to link document.');
+    } finally {
+      setLinkingDoc(false);
+    }
+  };
+
+  const handleUnlinkDoc = async (documentId: string) => {
+    setUnlinkingDocId(documentId);
+    try {
+      await removeTaskDocumentLink(task.matter_id, task.id, documentId);
+      setLinkedDocs((cur) => cur.filter((d) => d.id !== documentId));
+      toast.success('Document unlinked.');
+    } catch (err) {
+      handleApiError(err, 'Unable to unlink document.');
+    } finally {
+      setUnlinkingDocId(null);
+    }
+  };
+
   const handleStatusChange = (newStatus: string) => {
     onStatusChange(task, newStatus as BackendTaskStatus);
     // Fire notification to watchers
@@ -590,7 +681,7 @@ function TaskDetailSheet({
                 className="text-emerald-600 hover:underline dark:text-emerald-400 text-sm"
                 onClick={() => { navigate(`/matters/${task.matter_id}`); onClose(); }}
               >
-                {task.matter_reference_no} â€” {task.matter_title}
+                {task.matter_reference_no} â€" {task.matter_title}
               </button>
             </SheetDescription>
           </SheetHeader>
@@ -652,16 +743,19 @@ function TaskDetailSheet({
               <TabsTrigger value="comments" className="text-xs">
                 Comments {comments.length > 0 && `(${comments.length})`}
               </TabsTrigger>
+              <TabsTrigger value="attachments" className="text-xs">
+                Attachments {(attachedNotes.length + linkedDocs.length) > 0 && `(${attachedNotes.length + linkedDocs.length})`}
+              </TabsTrigger>
               <TabsTrigger value="watchers" className="text-xs">
                 Watchers {watchers.length > 0 && `(${watchers.length})`}
               </TabsTrigger>
             </TabsList>
 
-            {/* â”€â”€ Details tab â”€â”€ */}
+            {/* â"€â"€ Details tab â"€â"€ */}
             <TabsContent value="details" className="mt-0 p-6 space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 {[
-                  { label: 'Client', value: task.client_name ?? 'â€”' },
+                  { label: 'Client', value: task.client_name ?? 'â€"' },
                   { label: 'Assigned To', value: assigneeName },
                   { label: 'Due Date', value: fmtDate(task.due_date), red: overdue },
                   { label: 'Created', value: fmtDate(task.created_at) },
@@ -685,7 +779,7 @@ function TaskDetailSheet({
                     <span>{c.title}</span>
                     {c.id === task.status
                       ? <Badge className={cn('border text-[10px]', c.badgeCls)}>{estimateTimeInColumn(task)}</Badge>
-                      : <span>â€”</span>}
+                      : <span>â€"</span>}
                   </div>
                 ))}
                 <p className="mt-2 text-[10px] text-slate-400">Estimated from last status change</p>
@@ -699,7 +793,7 @@ function TaskDetailSheet({
               )}
             </TabsContent>
 
-            {/* â”€â”€ Comments tab â”€â”€ */}
+            {/* â"€â"€ Comments tab â"€â"€ */}
             <TabsContent value="comments" className="mt-0 flex flex-col h-[calc(100vh-240px)]">
               <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
                 {loadingComments ? (
@@ -818,7 +912,147 @@ function TaskDetailSheet({
               </div>
             </TabsContent>
 
-            {/* â”€â”€ Watchers tab â”€â”€ */}
+            {/* ── Attachments tab ── */}
+            <TabsContent value="attachments" className="mt-0 p-6 space-y-6">
+              {loadingAttachments ? (
+                <div className="flex items-center gap-2 text-sm text-slate-400">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+                </div>
+              ) : (
+                <>
+                  {/* Notes section */}
+                  <div className="space-y-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 flex items-center gap-1.5">
+                      <FileText className="h-3.5 w-3.5" /> Linked Notes
+                    </p>
+                    {attachedNotes.length === 0 ? (
+                      <p className="text-xs text-slate-400 py-1">No notes linked yet.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {attachedNotes.map((note) => (
+                          <div key={note.id} className="flex items-start gap-2 rounded-lg border border-slate-100 dark:border-slate-800 p-2.5">
+                            <FileText className="h-3.5 w-3.5 mt-0.5 text-slate-400 shrink-0" />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate">{note.title}</p>
+                              {note.body && (
+                                <p className="text-[11px] text-slate-400 line-clamp-2 mt-0.5">{note.body}</p>
+                              )}
+                            </div>
+                            <button
+                              className="shrink-0 text-slate-300 hover:text-red-500 transition-colors"
+                              disabled={unlinkingNoteId === note.id}
+                              onClick={() => void handleUnlinkNote(note.id)}
+                              title="Unlink note"
+                            >
+                              {unlinkingNoteId === note.id
+                                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                : <X className="h-3.5 w-3.5" />}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex gap-2">
+                      <Select value={selectedNoteToLink} onValueChange={setSelectedNoteToLink}>
+                        <SelectTrigger className="h-8 text-xs flex-1">
+                          <SelectValue placeholder={loadingNotes ? 'Loading…' : 'Link an existing note…'} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {matterNotes
+                            .filter((n) => !attachedNotes.some((an) => an.id === n.id))
+                            .map((n) => (
+                              <SelectItem key={n.id} value={n.id}>
+                                {n.matter_id === task.matter_id ? '📁 ' : ''}{n.title}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs shrink-0"
+                        disabled={!selectedNoteToLink || linkingNote}
+                        onClick={() => void handleLinkNote()}
+                      >
+                        {linkingNote ? <Loader2 className="h-3 w-3 animate-spin" /> : <Link2 className="h-3 w-3" />}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* Documents section */}
+                  <div className="space-y-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 flex items-center gap-1.5">
+                      <Paperclip className="h-3.5 w-3.5" /> Linked Documents
+                    </p>
+                    {linkedDocs.length === 0 ? (
+                      <p className="text-xs text-slate-400 py-1">No documents linked yet.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {linkedDocs.map((doc) => (
+                          <div key={doc.id} className="flex items-start gap-2 rounded-lg border border-slate-100 dark:border-slate-800 p-2.5">
+                            <Paperclip className="h-3.5 w-3.5 mt-0.5 text-slate-400 shrink-0" />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate">{doc.name}</p>
+                              <p className="text-[11px] text-slate-400 capitalize">{doc.doc_type.replace('_', ' ')} · {doc.status.replace('_', ' ')}</p>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              {doc.drive_url && (
+                                <a
+                                  href={doc.drive_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-slate-300 hover:text-emerald-600 transition-colors"
+                                  title="Open in Drive"
+                                >
+                                  <ExternalLink className="h-3.5 w-3.5" />
+                                </a>
+                              )}
+                              <button
+                                className="text-slate-300 hover:text-red-500 transition-colors"
+                                disabled={unlinkingDocId === doc.id}
+                                onClick={() => void handleUnlinkDoc(doc.id)}
+                                title="Unlink document"
+                              >
+                                {unlinkingDocId === doc.id
+                                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  : <X className="h-3.5 w-3.5" />}
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex gap-2">
+                      <Select value={selectedDocToLink} onValueChange={setSelectedDocToLink}>
+                        <SelectTrigger className="h-8 text-xs flex-1">
+                          <SelectValue placeholder={matterDocs.length === 0 ? 'No documents in this matter' : 'Link a document…'} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {matterDocs
+                            .filter((d) => !linkedDocs.some((ld) => ld.id === d.id))
+                            .map((d) => (
+                              <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs shrink-0"
+                        disabled={!selectedDocToLink || linkingDoc || matterDocs.length === 0}
+                        onClick={() => void handleLinkDoc()}
+                      >
+                        {linkingDoc ? <Loader2 className="h-3 w-3 animate-spin" /> : <Link2 className="h-3 w-3" />}
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </TabsContent>
+
+            {/* ── Watchers tab ── */}
             <TabsContent value="watchers" className="mt-0 p-6 space-y-4">
               {loadingWatchers ? (
                 <div className="flex items-center gap-2 text-sm text-slate-400">
@@ -876,7 +1110,7 @@ function TaskDetailSheet({
   );
 }
 
-// â”€â”€ Task Form Dialog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â"€â"€ Task Form Dialog â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 
 function TaskFormDialog({
   open, onOpenChange, members, matters, initialState, saving, onSubmit,
@@ -965,7 +1199,7 @@ function TaskFormDialog({
   );
 }
 
-// â”€â”€ Stat Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â"€â"€ Stat Card â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 
 function StatCard({ label, value, accent }: { label: string; value: number; accent?: string }) {
   return (
@@ -978,7 +1212,7 @@ function StatCard({ label, value, accent }: { label: string; value: number; acce
   );
 }
 
-// â”€â”€ Main KanbanPage â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â"€â"€ Main KanbanPage â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 
 export function KanbanPage() {
   const { user } = useAuthStore();
@@ -1081,7 +1315,7 @@ export function KanbanPage() {
   const hasFilters = kanban.search || kanban.matterFilter !== 'all' || kanban.assigneeFilter !== 'all' || kanban.myTasksOnly;
   const activeTask = activeId ? tasks.find((t) => t.id === activeId) : null;
 
-  // â”€â”€ Drag handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â"€â"€ Drag handlers â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 
   const handleDragStart = ({ active }: DragStartEvent) => setActiveId(String(active.id));
 
@@ -1110,7 +1344,7 @@ export function KanbanPage() {
     }
   };
 
-  // â”€â”€ Task CRUD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â"€â"€ Task CRUD â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 
   const openCreate = (status: BackendTaskStatus = 'todo') => {
     setTaskDialogState({ ...emptyForm(matters[0]?.id ?? ''), status });
@@ -1194,7 +1428,7 @@ export function KanbanPage() {
     }
   };
 
-  // â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â"€â"€ Render â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 
   if (isLoading) {
     return (
@@ -1266,7 +1500,7 @@ export function KanbanPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Matters</SelectItem>
-            {matters.map((m) => <SelectItem key={m.id} value={m.id}>{m.reference_no} â€“ {m.title}</SelectItem>)}
+            {matters.map((m) => <SelectItem key={m.id} value={m.id}>{m.reference_no} â€" {m.title}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={kanban.assigneeFilter} onValueChange={(v) => setKanbanFilters({ assigneeFilter: v, myTasksOnly: false })}>
@@ -1287,7 +1521,7 @@ export function KanbanPage() {
         )}
       </div>
 
-      {/* Board â€” min-w on each column ensures it scrolls before collapsing */}
+      {/* Board â€" min-w on each column ensures it scrolls before collapsing */}
       <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div className="flex gap-4 overflow-x-auto pb-4 min-w-0">
           {columns.map((col) => (

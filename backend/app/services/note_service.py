@@ -77,6 +77,7 @@ class NoteService:
         org_id: uuid.UUID,
         matter_id: uuid.UUID | None = None,
         event_id: uuid.UUID | None = None,
+        task_id: uuid.UUID | None = None,
         limit: int = 50,
     ) -> list[Note]:
         query = select(Note).where(Note.organisation_id == org_id)
@@ -84,6 +85,8 @@ class NoteService:
             query = query.where(Note.matter_id == matter_id)
         if event_id is not None:
             query = query.where(Note.event_id == event_id)
+        if task_id is not None:
+            query = query.where(Note.task_id == task_id)
         query = query.order_by(Note.updated_at.desc()).limit(limit)
         result = await self.db.execute(query)
         return list(result.scalars().all())
@@ -107,6 +110,7 @@ class NoteService:
         note = Note(
             matter_id=data.matter_id,
             event_id=data.event_id,
+            task_id=data.task_id,
             organisation_id=org_id,
             author_id=user_id,
             created_from_task_comment_id=created_from_task_comment_id,

@@ -7,6 +7,7 @@ export interface BackendNote {
   id: string;
   matter_id?: string | null;
   event_id?: string | null;
+  task_id?: string | null;
   organisation_id: string;
   author_id?: string | null;
   created_from_task_comment_id?: string | null;
@@ -25,6 +26,7 @@ export interface NoteCreatePayload {
   svg_content?: string;
   matter_id?: string;
   event_id?: string;
+  task_id?: string;
 }
 
 export interface NoteUpdatePayload {
@@ -33,6 +35,7 @@ export interface NoteUpdatePayload {
   svg_content?: string;
   matter_id?: string | null;
   event_id?: string | null;
+  task_id?: string | null;
 }
 
 export interface AddCommentToNotePayload {
@@ -43,6 +46,7 @@ export interface AddCommentToNotePayload {
 export async function listNotes(params: {
   matter_id?: string;
   event_id?: string;
+  task_id?: string;
   limit?: number;
 } = {}): Promise<BackendNote[]> {
   return apiClient.get<BackendNote[]>('/notes', params as Record<string, string | number | undefined>);

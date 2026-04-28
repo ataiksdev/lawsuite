@@ -73,6 +73,12 @@ export interface TaskCommentPayload {
   body: string;
 }
 
+// ── Document Links ────────────────────────────────────────────────────────────
+
+export interface TaskDocumentLinkPayload {
+  document_id: string;
+}
+
 // ── Watchers ──────────────────────────────────────────────────────────────────
 
 export interface TaskWatcher {
@@ -162,5 +168,34 @@ export async function removeTaskWatcher(
 ) {
   return apiClient.delete<void>(
     `/matters/${matterId}/tasks/${taskId}/watchers/${userId}`
+  );
+}
+
+// ── Document Links ────────────────────────────────────────────────────────────
+
+export async function listTaskDocumentLinks(matterId: string, taskId: string) {
+  return apiClient.get<import('./documents').BackendDocument[]>(
+    `/matters/${matterId}/tasks/${taskId}/document-links`
+  );
+}
+
+export async function addTaskDocumentLink(
+  matterId: string,
+  taskId: string,
+  payload: TaskDocumentLinkPayload
+) {
+  return apiClient.post<import('./documents').BackendDocument>(
+    `/matters/${matterId}/tasks/${taskId}/document-links`,
+    payload
+  );
+}
+
+export async function removeTaskDocumentLink(
+  matterId: string,
+  taskId: string,
+  documentId: string
+) {
+  return apiClient.delete<void>(
+    `/matters/${matterId}/tasks/${taskId}/document-links/${documentId}`
   );
 }

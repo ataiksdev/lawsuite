@@ -8,11 +8,15 @@ from sqlalchemy import select
 from app.core.deps import DB, AuthUser
 from app.models.task import TaskStatus
 from app.models.task_comment import TaskComment
+from app.models.matter_document import MatterDocument
+from app.models.task_document_link import TaskDocumentLink
+from app.schemas.document import DocumentResponse
 from app.schemas.task import (
     OverdueTaskResponse,
     TaskCommentCreate,
     TaskCommentResponse,
     TaskCreate,
+    TaskDocumentLinkAdd,
     TaskListResponse,
     TaskResponse,
     TaskUpdate,
@@ -310,3 +314,103 @@ async def remove_watcher(
         target_user_id=user_id,
         requesting_user_id=current_user.user_id,
     )
+
+
+# ─── Document Links ───────────────────────────────────────────────────────────
+
+
+@router.get(
+    "/{matter_id}/tasks/{task_id}/document-links",
+    response_model=list[DocumentResponse],
+)
+async def list_document_links(
+    matter_id: uuid.UUID,
+    task_id: uuid.UUID,
+    current_user: AuthUser,
+    db: DB,
+):
+    """List all documents linked to a task."""
+    result = await db.execute(
+        select(MatterDocument)
+        .join(TaskDocumentLink, TaskDocumentLink.document_id == MatterDocument.id)
+        .where(
+            TaskDocumentLink.task_id == task_id,
+            TaskDocumentLink.organisation_id == current_user.org_id,
+            MatterDocument.is_deleted.is_(False),
+        )
+        .order_by(TaskDocumentLink.linked_at.desc())
+    )
+    docs = result.scalars().all()
+    return [DocumentResponse.model_validate(d) for d in docs]
+
+
+@router.post(
+    "/{matter_id}/tasks/{task_id}/document-links",
+    response_model=DocumentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_document_link(
+    matter_id: uuid.UUID,
+    task_id: uuid.UUID,
+    payload: TaskDocumentLinkAdd,
+    current_user: AuthUser,
+    db: DB,
+):
+    """Link an existing matter document to a task."""
+    # Verify the document belongs to this matter and org
+    doc_result = await db.execute(
+        select(MatterDocument).where(
+            MatterDocument.id == payload.document_id,
+            MatterDocument.matter_id == matter_id,
+            MatterDocument.organisation_id == current_user.org_id,
+            MatterDocument.is_deleted.is_(False),
+        )
+    )
+    doc = doc_result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    # Idempotent — ignore if already linked
+    existing = await db.execute(
+        select(TaskDocumentLink).where(
+            TaskDocumentLink.task_id == task_id,
+            TaskDocumentLink.document_id == payload.document_id,
+        )
+    )
+    if not existing.scalar_one_or_none():
+        link = TaskDocumentLink(
+            task_id=task_id,
+            document_id=payload.document_id,
+            organisation_id=current_user.org_id,
+            linked_by=current_user.user_id,
+        )
+        db.add(link)
+        await db.commit()
+
+    return DocumentResponse.model_validate(doc)
+
+
+@router.delete(
+    "/{matter_id}/tasks/{task_id}/document-links/{document_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def remove_document_link(
+    matter_id: uuid.UUID,
+    task_id: uuid.UUID,
+    document_id: uuid.UUID,
+    current_user: AuthUser,
+    db: DB,
+):
+    """Unlink a document from a task."""
+    result = await db.execute(
+        select(TaskDocumentLink).where(
+            TaskDocumentLink.task_id == task_id,
+            TaskDocumentLink.document_id == document_id,
+            TaskDocumentLink.organisation_id == current_user.org_id,
+        )
+    )
+    link = result.scalar_one_or_none()
+    if not link:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Link not found")
+    await db.delete(link)
+    await db.commit()

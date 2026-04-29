@@ -4,6 +4,7 @@ import uuid
 
 from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from app.core.deps import DB, AuthUser
 from app.models.task import TaskStatus
@@ -332,6 +333,7 @@ async def list_document_links(
     """List all documents linked to a task."""
     result = await db.execute(
         select(MatterDocument)
+        .options(selectinload(MatterDocument.versions))
         .join(TaskDocumentLink, TaskDocumentLink.document_id == MatterDocument.id)
         .where(
             TaskDocumentLink.task_id == task_id,
@@ -357,9 +359,11 @@ async def add_document_link(
     db: DB,
 ):
     """Link an existing matter document to a task."""
-    # Verify the document belongs to this matter and org
+    # Verify the document belongs to this matter and org (eager-load versions for response)
     doc_result = await db.execute(
-        select(MatterDocument).where(
+        select(MatterDocument)
+        .options(selectinload(MatterDocument.versions))
+        .where(
             MatterDocument.id == payload.document_id,
             MatterDocument.matter_id == matter_id,
             MatterDocument.organisation_id == current_user.org_id,

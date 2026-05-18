@@ -1,12 +1,12 @@
 services:
   # ----------------------------------------------------------------------------
   # Database: PostgreSQL
-  # ----------------------------------------------------------------------------
-  - type: database
-    name: legalops-db
-    databaseName: legalops
-    user: legalops_user
-    plan: free
+  # # ----------------------------------------------------------------------------
+  # - type: database
+  #   name: legalops-db
+  #   databaseName: legalops
+  #   user: legalops_user
+  #   plan: free
 
   # ----------------------------------------------------------------------------
   # Redis: for Celery and Caching
@@ -35,13 +35,9 @@ services:
       - key: APP_ENV
         value: production
       - key: DATABASE_URL
-        fromDatabase:
-          name: legalops-db
-          property: connectionString
+        sync: false
       - key: DATABASE_URL_SYNC
-        fromDatabase:
-          name: legalops-db
-          property: connectionString
+        sync: false
       - key: REDIS_URL
         fromService:
           type: redis
@@ -87,13 +83,17 @@ services:
       - key: APP_ENV
         value: production
       - key: DATABASE_URL
-        fromDatabase:
-          name: legalops-db
-          property: connectionString
+        fromService:
+          type: web
+          name: legalops-backend
+          property: envVar
+          envVarKey: DATABASE_URL
       - key: DATABASE_URL_SYNC
-        fromDatabase:
-          name: legalops-db
-          property: connectionString
+        fromService:
+          type: web
+          name: legalops-backend
+          property: envVar
+          envVarKey: DATABASE_URL_SYNC
       - key: REDIS_URL
         fromService:
           type: redis
@@ -130,13 +130,17 @@ services:
       - key: APP_ENV
         value: production
       - key: DATABASE_URL
-        fromDatabase:
-          name: legalops-db
-          property: connectionString
+        fromService:
+          type: web
+          name: legalops-backend
+          property: envVar
+          envVarKey: DATABASE_URL
       - key: DATABASE_URL_SYNC
-        fromDatabase:
-          name: legalops-db
-          property: connectionString
+        fromService:
+          type: web
+          name: legalops-backend
+          property: envVar
+          envVarKey: DATABASE_URL_SYNC
       - key: REDIS_URL
         fromService:
           type: redis

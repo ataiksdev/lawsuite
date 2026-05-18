@@ -32,3 +32,12 @@ __pycache__/
 
 .vercel
 .env*.local
+
+#local scripts
+.vscode
+run-lawsuite.ps1
+run-lawsuite.sh
+
+# Celery beat files
+backend/celerybeat-schedule-shm
+backend/celerybeat-schedule-wal

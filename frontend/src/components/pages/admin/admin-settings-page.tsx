@@ -1,5 +1,5 @@
 // ============================================================================
-// LegalOps - Admin Settings Page
+// Lawmate - Admin Settings Page
 // Organisation profile management wired to live API
 // PATCH /auth/organisation — update org name
 // GET /auth/organisation — load org details

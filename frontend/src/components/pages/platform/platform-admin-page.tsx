@@ -1,5 +1,5 @@
 // ============================================================================
-// LegalOps - Platform Admin Portal
+// Lawmate - Platform Admin Portal
 // Operator-level view of all organisations on the platform.
 //
 // Access: user must be admin of the org whose ID matches
@@ -716,7 +716,7 @@ export function PlatformAdminPage() {
             Platform Admin
           </h1>
           <p className="mt-0.5 text-sm text-slate-500">
-            Operator-level view of all organisations on LegalOps.
+            Operator-level view of all organisations on Lawmate.
           </p>
         </div>
         <Button

@@ -1,5 +1,5 @@
 // ============================================================================
-// LegalOps - Hash-based SPA Router
+// Lawmate - Hash-based SPA Router
 // Simple client-side router using window.location.hash
 // ============================================================================
 

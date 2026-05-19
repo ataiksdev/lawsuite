@@ -1,5 +1,5 @@
 // ============================================================================
-// LegalOps - Mock Data
+// Lawmate - Mock Data
 // Realistic Nigerian legal operations data for development/demo
 // ============================================================================
 
@@ -1328,7 +1328,7 @@ export const mockIntegrations: Integration[] = [
     id: 'int-002',
     name: 'Microsoft Outlook',
     slug: 'microsoft-outlook',
-    description: 'Sync Outlook emails and calendar with LegalOps.',
+    description: 'Sync Outlook emails and calendar with Lawmate.',
     icon_url: '/integrations/outlook.svg',
     is_connected: false,
   },

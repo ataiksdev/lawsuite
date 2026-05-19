@@ -1,5 +1,5 @@
 // ============================================================================
-// LegalOps - API Client
+// Lawmate - API Client
 // Typed fetch wrapper with JWT authentication and token refresh
 // ============================================================================
 

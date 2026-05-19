@@ -1,5 +1,5 @@
 // ============================================================================
-// LegalOps - Unauthenticated Layout
+// Lawmate - Unauthenticated Layout
 // Wrapper layout for all authentication pages
 // ============================================================================
 
@@ -7,6 +7,7 @@
 
 import React from 'react';
 import { Scale } from 'lucide-react';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
 
 interface UnauthenticatedLayoutProps {
   children: React.ReactNode;
@@ -15,6 +16,11 @@ interface UnauthenticatedLayoutProps {
 export function UnauthenticatedLayout({ children }: UnauthenticatedLayoutProps) {
   return (
     <div className="relative min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-emerald-50 via-white to-teal-50 dark:from-slate-950 dark:via-slate-900 dark:to-emerald-950 p-4 overflow-hidden">
+      {/* Theme Toggle */}
+      <div className="absolute top-4 right-4 z-50">
+        <ThemeToggle />
+      </div>
+
       {/* Background decorative elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         {/* Gradient orbs */}
@@ -43,10 +49,10 @@ export function UnauthenticatedLayout({ children }: UnauthenticatedLayoutProps) 
             <Scale className="h-8 w-8" />
           </div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50 tracking-tight">
-            LegalOps
+            Lawmate
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Legal Operations Management Platform
+            Intelligent Legal Practice Management
           </p>
         </div>
 
@@ -58,7 +64,7 @@ export function UnauthenticatedLayout({ children }: UnauthenticatedLayoutProps) 
         {/* Footer */}
         <div className="mt-8 text-center space-y-1">
           <p className="text-xs text-slate-400 dark:text-slate-500">
-            &copy; {new Date().getFullYear()} LegalOps. All rights reserved.
+            &copy; {new Date().getFullYear()} Lawmate. All rights reserved.
           </p>
           <p className="text-xs text-slate-400 dark:text-slate-500">
             Built for Nigerian legal practice.

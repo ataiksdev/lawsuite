@@ -48,6 +48,7 @@ import { UserRole } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { TrialBanner } from '@/components/ui/trial-banner';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -419,7 +420,7 @@ function SidebarContent({
             <div className="flex flex-col min-w-0 flex-1 gap-1">
               <div>
                 <span className="text-sm font-bold text-emerald-900 dark:text-emerald-100 tracking-tight truncate block">
-                  LegalOps
+                  Lawmate
                 </span>
                 <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium truncate block">
                   {organisation?.name || mockOrganisation.name}
@@ -604,6 +605,9 @@ function HeaderBar({ onMenuClick }: { onMenuClick: () => void }) {
       >
         <Search className="h-4 w-4" />
       </Button>
+
+      {/* Theme Toggle */}
+      <ThemeToggle />
 
       {/* Notifications */}
       <DropdownMenu>

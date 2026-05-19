@@ -1,5 +1,5 @@
 // ============================================================================
-// LegalOps - Trial Banner
+// Lawmate - Trial Banner
 // Shows trial status and days remaining at the top of the app shell
 // ============================================================================
 

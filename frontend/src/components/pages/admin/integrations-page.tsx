@@ -364,7 +364,7 @@ export function IntegrationsPage() {
                           <p>This will stop Drive, Docs, Gmail, and webhook access for this organisation.</p>
                           <p className="mt-2 flex items-start gap-2 rounded-lg bg-amber-50 p-2 text-amber-700 dark:bg-amber-950/20 dark:text-amber-400">
                             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                            <span>Previously synced data stays in LegalOps, but it will no longer update automatically.</span>
+                            <span>Previously synced data stays in Lawmate, but it will no longer update automatically.</span>
                           </p>
                         </AlertDialogDescription>
                       </AlertDialogHeader>
@@ -389,7 +389,7 @@ export function IntegrationsPage() {
                       Connect Google Workspace
                     </h3>
                     <p className="mb-4 text-xs text-slate-500">
-                      LegalOps will request access to your Google Workspace so matters can use Drive, Docs, and Gmail features.
+                      Lawmate will request access to your Google Workspace so matters can use Drive, Docs, and Gmail features.
                     </p>
                     <div className="mb-6 space-y-2 text-left">
                       {[

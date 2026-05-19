@@ -1,5 +1,5 @@
 // ============================================================================
-// LegalOps - Login Page
+// Lawmate - Login Page
 // Handles email/password login with MFA second-factor step
 // ============================================================================
 
@@ -195,7 +195,7 @@ export function LoginPage() {
         <CardHeader className="text-center pb-2">
           <CardTitle className="text-xl">Welcome back</CardTitle>
           <CardDescription>
-            Sign in to your LegalOps account to continue
+            Sign in to your Lawmate account to continue
           </CardDescription>
         </CardHeader>
         <CardContent>

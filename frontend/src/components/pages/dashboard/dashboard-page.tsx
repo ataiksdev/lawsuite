@@ -1,5 +1,5 @@
 // ============================================================================
-// LegalOps - Dashboard Page
+// Lawmate - Dashboard Page
 // Wired to live backend API — replaces mock data
 // ============================================================================
 

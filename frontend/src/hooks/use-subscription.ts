@@ -1,5 +1,5 @@
 // ============================================================================
-// LegalOps - useSubscription hook
+// Lawmate - useSubscription hook
 // Fetches subscription + resolves trial/feature state once per session
 // ============================================================================
 

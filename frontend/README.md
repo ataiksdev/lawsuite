@@ -1,4 +1,4 @@
-# LegalOps — Nigerian Legal Operations Management Platform
+# Lawmate — Nigerian Legal Operations Management Platform
 
 A modern, full-featured frontend for managing legal operations, built with Next.js 16, TypeScript, Tailwind CSS 4, and shadcn/ui. Designed specifically for Nigerian law firms and legal departments.
 

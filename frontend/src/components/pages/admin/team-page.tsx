@@ -189,7 +189,7 @@ function InviteMemberDialog({
         <DialogHeader>
           <DialogTitle>Invite Team Member</DialogTitle>
           <DialogDescription>
-            Send an invitation to join your organisation on LegalOps.
+            Send an invitation to join your organisation on Lawmate.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">

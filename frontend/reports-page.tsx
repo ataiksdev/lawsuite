@@ -1,5 +1,5 @@
 // ============================================================================
-// LegalOps - Reports Page
+// Lawmate - Reports Page
 // Wired to real backend: POST /reports/generate + GET /reports/history
 // Feature-gated: requires reports feature (Pro/Agency/trial)
 // ============================================================================

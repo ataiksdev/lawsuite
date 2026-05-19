@@ -1,5 +1,5 @@
 // ============================================================================
-// LegalOps - Filter Store
+// Lawmate - Filter Store
 // Persists page-level filters across navigation using Zustand.
 // Filters survive navigation and only clear when the user explicitly clears them.
 // ============================================================================

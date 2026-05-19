@@ -1,5 +1,5 @@
 // ============================================================================
-// LegalOps - Error Handling Utilities
+// Lawmate - Error Handling Utilities
 // Centralised helpers for surfacing API errors in page components
 // ============================================================================
 

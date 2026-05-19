@@ -1,5 +1,5 @@
 // ============================================================================
-// LegalOps - Onboarding Page
+// Lawmate - Onboarding Page
 // For new Google OAuth users who need to name their organisation
 // ============================================================================
 
@@ -91,7 +91,7 @@ export function OnboardingPage() {
       apiClient.setTokens(response.tokens.access_token, response.tokens.refresh_token);
       await useAuthStore.getState().refreshAuth();
 
-      toast.success(`Welcome to LegalOps! "${trimmed}" is all set.`, {
+      toast.success(`Welcome to Lawmate! "${trimmed}" is all set.`, {
         description: 'Your 30-day free trial has started. You have full access to all features.',
       });
       navigate('/');

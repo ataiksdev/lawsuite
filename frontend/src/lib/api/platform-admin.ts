@@ -1,5 +1,5 @@
 // ============================================================================
-// LegalOps - Platform Admin API
+// Lawmate - Platform Admin API
 // Calls /admin/* — only accessible when the user's org matches
 // the PLATFORM_ADMIN_ORG_ID environment variable on the backend.
 // ============================================================================

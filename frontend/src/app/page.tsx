@@ -14,6 +14,7 @@ import { AcceptInvitePage } from '@/components/pages/auth/accept-invite-page';
 import { ForgotPasswordPage } from '@/components/pages/auth/forgot-password-page';
 import { ResetPasswordPage } from '@/components/pages/auth/reset-password-page';
 import { OnboardingPage } from '@/components/pages/auth/onboarding-page';
+import { LandingPage } from '@/components/pages/landing/landing-page';
 
 // Dashboard Page
 import { DashboardPage } from '@/components/pages/dashboard/dashboard-page';
@@ -97,6 +98,7 @@ function decodeBase64Url(value: string): string {
 function AuthRouter({ route, isAuthenticated }: { route: string; isAuthenticated: boolean }) {
   if (isAuthenticated) return null;
   const path = route.split('?')[0];
+  if (path === '/' || path === '') return <LandingPage />;
   if (path === '/register') return <RegisterPage />;
   if (path === '/forgot-password') return <ForgotPasswordPage />;
   if (path === '/reset-password') return <ResetPasswordPage />;

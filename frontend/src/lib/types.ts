@@ -1,5 +1,5 @@
 // ============================================================================
-// LegalOps - TypeScript Types & Interfaces
+// Lawmate - TypeScript Types & Interfaces
 // Nigerian Legal Operations Management Platform
 // ============================================================================
 

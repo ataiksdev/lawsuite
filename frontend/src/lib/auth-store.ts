@@ -1,5 +1,5 @@
 // ============================================================================
-// LegalOps - Authentication Store
+// Lawmate - Authentication Store
 // Zustand store with persist middleware for JWT auth state
 // ============================================================================
 
@@ -287,7 +287,7 @@ export const useAuthStore = create<AuthState>()(
             error: null,
           });
 
-          toast.success('Account created successfully! Welcome to LegalOps.');
+          toast.success('Account created successfully! Welcome to Lawmate.');
         } catch (error) {
           const message =
             error instanceof ApiClientError
@@ -326,7 +326,7 @@ export const useAuthStore = create<AuthState>()(
             error: null,
           });
 
-          toast.success('Invitation accepted! Welcome to LegalOps.');
+          toast.success('Invitation accepted! Welcome to Lawmate.');
           void get().loadMyOrgs();
         } catch (error) {
           const message =

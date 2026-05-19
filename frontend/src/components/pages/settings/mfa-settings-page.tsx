@@ -1,5 +1,5 @@
 // ============================================================================
-// LegalOps - MFA Settings Page
+// Lawmate - MFA Settings Page
 // Enable/disable TOTP-based two-factor authentication
 // ============================================================================
 

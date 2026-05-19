@@ -1,5 +1,5 @@
 // ============================================================================
-// LegalOps - Documents Page
+// Lawmate - Documents Page
 // Cross-matter document browser.
 //
 // The backend has no global documents endpoint — documents are always scoped

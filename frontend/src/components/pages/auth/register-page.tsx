@@ -1,5 +1,5 @@
 // ============================================================================
-// LegalOps - Registration Page
+// Lawmate - Registration Page
 // Registration with password strength indicator and validation
 // ============================================================================
 
@@ -143,7 +143,7 @@ export function RegisterPage() {
       });
 
       toast.success('Account created successfully!', {
-        description: `Welcome to LegalOps, ${firstName}! Your organisation "${formData.organisationName}" has been set up.`,
+        description: `Welcome to Lawmate, ${firstName}! Your organisation "${formData.organisationName}" has been set up.`,
       });
       navigate('/');
     } catch {
@@ -171,7 +171,7 @@ export function RegisterPage() {
         <CardHeader className="text-center pb-2">
           <CardTitle className="text-xl">Create your account</CardTitle>
           <CardDescription>
-            Get started with LegalOps for your law firm
+            Get started with Lawmate for your law firm
           </CardDescription>
         </CardHeader>
         <CardContent>

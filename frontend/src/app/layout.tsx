@@ -12,13 +12,13 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "LegalOps - Legal Operations Management",
-  description: "Nigerian legal operations management platform. Streamline matter management, task tracking, document handling, and team collaboration for law firms and legal departments.",
-  keywords: ["LegalOps", "legal management", "law firm", "Nigeria", "legal operations", "matter management", "case management"],
-  authors: [{ name: "LegalOps Team" }],
+  title: "Lawmate - Legal Operations & Practice Management",
+  description: "Next-generation legal operations and practice management platform. Streamline matter management, client intake, task tracking, secure document drives, and team collaboration for modern law firms and legal departments.",
+  keywords: ["Lawmate", "legal management", "law firm", "practice management", "legal operations", "matter management", "case management", "client management"],
+  authors: [{ name: "Lawmate Team" }],
   openGraph: {
-    title: "LegalOps - Legal Operations Management",
-    description: "Streamline your legal practice with LegalOps. Built for Nigerian law firms.",
+    title: "Lawmate - Legal Operations & Practice Management",
+    description: "Streamline your legal practice with Lawmate. Built for modern high-performing law firms.",
     type: "website",
   },
 };

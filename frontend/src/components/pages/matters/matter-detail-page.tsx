@@ -264,14 +264,14 @@ function MatterTasksSection({ matterId, members }: { matterId: string; members: 
             {tasks.map((task) => (
               <div key={task.id} className={cn('flex flex-col gap-2 sm:flex-row sm:items-center rounded-lg border p-3 transition-colors', task.status === 'done' ? 'opacity-60' : '')}>
                 <div className="min-w-0 flex-1">
-                  <p className={cn('text-sm font-medium text-slate-800 dark:text-slate-200', task.status === 'cancelled' && 'line-through text-slate-400')}>{task.title}</p>
+                  <p className={cn('text-sm font-medium text-slate-800 dark:text-slate-200', (task.status === 'cancelled' || task.status === 'archived') && 'line-through text-slate-400')}>{task.title}</p>
                   <div className="mt-1 flex flex-wrap items-center gap-2">
                     <Badge className={cn('text-[10px] border', TASK_PRIORITY_STYLE[task.priority])}>{task.priority}</Badge>
                     {task.assigned_to && (
                       <span className="text-[11px] text-slate-400">{memberNameById.get(task.assigned_to) ?? 'Assigned'}</span>
                     )}
                     {task.due_date && (
-                      <span className={cn('text-[11px]', new Date(task.due_date) < new Date() && task.status !== 'done' && task.status !== 'cancelled' ? 'text-red-500' : 'text-slate-400')}>
+                      <span className={cn('text-[11px]', new Date(task.due_date) < new Date() && task.status !== 'done' && task.status !== 'cancelled' && task.status !== 'archived' ? 'text-red-500' : 'text-slate-400')}>
                         Due {formatDate(task.due_date)}
                       </span>
                     )}
@@ -292,6 +292,7 @@ function MatterTasksSection({ matterId, members }: { matterId: string; members: 
                       <SelectItem value="in_progress">In Progress</SelectItem>
                       <SelectItem value="done">Done</SelectItem>
                       <SelectItem value="cancelled">Cancelled</SelectItem>
+                      <SelectItem value="archived">Archived</SelectItem>
                     </SelectContent>
                   </Select>
                   <Button

@@ -3,6 +3,7 @@ from fastapi import HTTPException, status
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+from googleapiclient.http import MediaIoBaseUpload
 
 
 class GoogleDocsService:
@@ -142,6 +143,62 @@ class GoogleDocsService:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=f"Failed to list templates: {e.reason}",
+            )
+
+    async def upload_template(
+        self,
+        templates_folder_id: str,
+        file_bytes: bytes,
+        filename: str,
+        mime_type: str,
+    ) -> dict:
+        """
+        Upload a firm template into the org templates folder.
+
+        The file is imported as a Google Docs document so it can be copied and
+        substituted by create_from_template later.
+        """
+        import io
+
+        template_name = filename.rsplit(".", 1)[0] if "." in filename else filename
+        media = MediaIoBaseUpload(
+            io.BytesIO(file_bytes),
+            mimetype=mime_type,
+            resumable=len(file_bytes) > 5 * 1024 * 1024,
+        )
+
+        try:
+            return (
+                self.drive.files()
+                .create(
+                    body={
+                        "name": template_name,
+                        "mimeType": "application/vnd.google-apps.document",
+                        "parents": [templates_folder_id],
+                    },
+                    media_body=media,
+                    fields="id,name,webViewLink,modifiedTime",
+                )
+                .execute()
+            )
+        except HttpError as e:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Failed to upload template: {e.reason}",
+            )
+
+    async def delete_template(self, template_file_id: str) -> None:
+        """Move a firm template to Drive trash."""
+        try:
+            self.drive.files().update(
+                fileId=template_file_id,
+                body={"trashed": True},
+                fields="id",
+            ).execute()
+        except HttpError as e:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Failed to delete template: {e.reason}",
             )
 
     async def get_or_create_templates_folder(self, org_name: str) -> str:

@@ -41,6 +41,13 @@ class GenerateFromTemplateRequest(BaseModel):
     extra_substitutions: dict[str, str] = {}
 
 
+class TemplateFileResponse(BaseModel):
+    file_id: str
+    name: str
+    web_view_link: str
+    modified_time: str | None = None
+
+
 # ─── Document responses ───────────────────────────────────────────────────────
 
 

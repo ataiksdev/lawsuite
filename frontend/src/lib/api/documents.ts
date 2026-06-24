@@ -125,6 +125,14 @@ export async function listTemplates(matterId: string) {
   return apiClient.get<TemplateFileResponse[]>(`/matters/${matterId}/templates`);
 }
 
+export async function listFirmTemplates() {
+  return apiClient.get<TemplateFileResponse[]>('/documents/templates');
+}
+
+export async function deleteFirmTemplate(templateFileId: string) {
+  return apiClient.delete<void>(`/documents/templates/${templateFileId}`);
+}
+
 export async function generateDocumentFromTemplate(
   matterId: string,
   payload: GenerateFromTemplatePayload
@@ -205,6 +213,59 @@ export async function uploadDocumentToDrive(
     xhr.addEventListener('abort', () => reject(new Error('Upload cancelled')));
 
     xhr.open('POST', `${BASE_URL}/matters/${matterId}/documents/upload`);
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    xhr.send(formData);
+  });
+}
+
+export async function uploadFirmTemplate(
+  file: File,
+  options: {
+    templateName?: string;
+    onProgress?: (pct: number) => void;
+  } = {}
+): Promise<TemplateFileResponse> {
+  const { templateName = '', onProgress } = options;
+
+  const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  const token = localStorage.getItem('lawsuite_access_token');
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('template_name', templateName || file.name);
+
+  return new Promise<TemplateFileResponse>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+
+    if (onProgress) {
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) {
+          onProgress(Math.round((e.loaded / e.total) * 100));
+        }
+      });
+    }
+
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          resolve(JSON.parse(xhr.responseText) as TemplateFileResponse);
+        } catch {
+          reject(new Error('Invalid response from server'));
+        }
+      } else {
+        try {
+          const err = JSON.parse(xhr.responseText) as { detail?: string };
+          reject(new Error(err.detail || `Upload failed with status ${xhr.status}`));
+        } catch {
+          reject(new Error(`Upload failed with status ${xhr.status}`));
+        }
+      }
+    });
+
+    xhr.addEventListener('error', () => reject(new Error('Network error during upload')));
+    xhr.addEventListener('abort', () => reject(new Error('Upload cancelled')));
+
+    xhr.open('POST', `${BASE_URL}/documents/templates/upload`);
     if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
     xhr.send(formData);
   });

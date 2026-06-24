@@ -10,26 +10,40 @@
 
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ExternalLink,
   FileText,
   Filter,
+  FolderOpen,
   Loader2,
   RefreshCw,
   Search,
+  Trash2,
+  Upload,
   X,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { navigate } from '@/lib/router';
 import { extractErrorMessage } from '@/lib/error-utils';
 import { listMatters } from '@/lib/api/matters';
-import { listDocuments, type BackendDocument, type BackendDocumentStatus, type BackendDocumentType } from '@/lib/api/documents';
+import {
+  deleteFirmTemplate,
+  listDocuments,
+  listFirmTemplates,
+  uploadFirmTemplate,
+  type BackendDocument,
+  type BackendDocumentStatus,
+  type BackendDocumentType,
+  type TemplateFileResponse,
+} from '@/lib/api/documents';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -38,6 +52,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -138,6 +153,192 @@ function DocumentRow({ doc }: { doc: EnrichedDocument }) {
           <ExternalLink className="h-3.5 w-3.5" />
         </a>
       )}
+    </div>
+  );
+}
+
+function TemplateRow({
+  template,
+  deletingId,
+  onDelete,
+}: {
+  template: TemplateFileResponse;
+  deletingId: string | null;
+  onDelete: (template: TemplateFileResponse) => void;
+}) {
+  return (
+    <div className="flex items-center gap-3 rounded-lg border border-slate-100 px-4 py-3 transition-colors hover:border-slate-200 hover:bg-slate-50/50 dark:border-slate-800 dark:hover:border-slate-700 dark:hover:bg-slate-900/50">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-950/30">
+        <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">{template.name}</p>
+        {template.modified_time && (
+          <p className="mt-0.5 text-xs text-slate-400">Modified {formatDate(template.modified_time)}</p>
+        )}
+      </div>
+      {template.web_view_link && (
+        <a
+          href={template.web_view_link}
+          target="_blank"
+          rel="noreferrer"
+          className="rounded p-1 text-slate-400 transition-colors hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-950/30"
+          title="Open in Google Drive"
+        >
+          <ExternalLink className="h-3.5 w-3.5" />
+        </a>
+      )}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-7 w-7 text-slate-300 hover:text-red-500"
+        disabled={deletingId === template.file_id}
+        onClick={() => onDelete(template)}
+      >
+        {deletingId === template.file_id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+      </Button>
+    </div>
+  );
+}
+
+function TemplatesManager() {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [templates, setTemplates] = useState<TemplateFileResponse[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadPct, setUploadPct] = useState(0);
+  const [templateName, setTemplateName] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const loadTemplates = useCallback(async (silent = false) => {
+    if (!silent) setIsLoading(true);
+    else setIsRefreshing(true);
+    setError(null);
+    try {
+      setTemplates(await listFirmTemplates());
+    } catch (err) {
+      setError(extractErrorMessage(err, 'Could not load templates.'));
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => { void loadTemplates(); }, [loadTemplates]);
+
+  const handleUpload = async (file?: File | null) => {
+    if (!file) return;
+    setIsUploading(true);
+    setUploadPct(0);
+    try {
+      const created = await uploadFirmTemplate(file, {
+        templateName: templateName.trim() || file.name,
+        onProgress: setUploadPct,
+      });
+      setTemplates((cur) => [created, ...cur.filter((t) => t.file_id !== created.file_id)]);
+      setTemplateName('');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      toast.success('Template uploaded.');
+    } catch (err) {
+      toast.error(extractErrorMessage(err, 'Could not upload template.'));
+    } finally {
+      setIsUploading(false);
+      setUploadPct(0);
+    }
+  };
+
+  const handleDelete = async (template: TemplateFileResponse) => {
+    if (!window.confirm(`Delete "${template.name}" from firm templates?`)) return;
+    setDeletingId(template.file_id);
+    try {
+      await deleteFirmTemplate(template.file_id);
+      setTemplates((cur) => cur.filter((t) => t.file_id !== template.file_id));
+      toast.success('Template deleted.');
+    } catch (err) {
+      toast.error(extractErrorMessage(err, 'Could not delete template.'));
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-[minmax(260px,340px)_1fr]">
+      <Card className="border-slate-200/80 dark:border-slate-700/80">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm">Upload Template</CardTitle>
+          <CardDescription>Firm-wide Google Docs templates</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="template-name">Template Name</Label>
+            <Input
+              id="template-name"
+              value={templateName}
+              onChange={(e) => setTemplateName(e.target.value)}
+              placeholder="e.g. Engagement Letter"
+              disabled={isUploading}
+            />
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            accept=".doc,.docx,.rtf,.txt,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,application/rtf"
+            onChange={(e) => void handleUpload(e.target.files?.[0])}
+          />
+          <Button
+            className="w-full bg-emerald-600 text-white hover:bg-emerald-700"
+            disabled={isUploading}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+            {isUploading ? `Uploading ${uploadPct}%` : 'Choose File'}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card className="border-slate-200/80 dark:border-slate-700/80">
+        <CardHeader className="flex flex-row items-center justify-between gap-3 pb-3">
+          <div>
+            <CardTitle className="text-sm">Templates</CardTitle>
+            <CardDescription>{templates.length} template{templates.length !== 1 ? 's' : ''}</CardDescription>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => void loadTemplates(true)} disabled={isRefreshing}>
+            <RefreshCw className={cn('mr-2 h-4 w-4', isRefreshing && 'animate-spin')} />
+            Refresh
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="space-y-2">
+              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-14 w-full rounded-lg" />)}
+            </div>
+          ) : error ? (
+            <div className="flex flex-col items-center gap-3 py-10 text-center">
+              <p className="text-sm text-slate-500">{error}</p>
+              <Button variant="outline" size="sm" onClick={() => void loadTemplates()}>Try again</Button>
+            </div>
+          ) : templates.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-2 py-14 text-center">
+              <FolderOpen className="h-10 w-10 text-slate-200 dark:text-slate-700" />
+              <p className="text-sm font-medium text-slate-600 dark:text-slate-400">No templates yet</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {templates.map((template) => (
+                <TemplateRow
+                  key={template.file_id}
+                  template={template}
+                  deletingId={deletingId}
+                  onDelete={handleDelete}
+                />
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -256,6 +457,14 @@ export function DocumentsPage() {
           Refresh
         </Button>
       </div>
+
+      <Tabs defaultValue="documents" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="documents">Documents</TabsTrigger>
+          <TabsTrigger value="templates">Templates</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="documents" className="space-y-6">
 
       {/* Stats */}
       {!isLoading && docs.length > 0 && (
@@ -399,6 +608,12 @@ export function DocumentsPage() {
           </div>
         )}
       </Card>
+        </TabsContent>
+
+        <TabsContent value="templates">
+          <TemplatesManager />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

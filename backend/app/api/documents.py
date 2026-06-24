@@ -20,12 +20,14 @@ from app.schemas.document import (
     DocumentVersionUpload,
     DriveFileResponse,
     GenerateFromTemplateRequest,
+    TemplateFileResponse,
 )
 from app.services.document_service import DocumentService
 from app.services.google_docs_service import GoogleDocsService
 from app.services.google_drive_service import GoogleDriveService
 
 router = APIRouter()
+templates_router = APIRouter()
 
 
 @router.get("/{matter_id}/documents", response_model=list[DocumentResponse])
@@ -408,3 +410,95 @@ async def list_templates(
         }
         for t in templates
     ]
+
+
+async def _get_templates_folder_id(db: DB, org_id: uuid.UUID, google_creds: GoogleCreds) -> str:
+    org_result = await db.execute(select(Organisation).where(Organisation.id == org_id))
+    org = org_result.scalar_one()
+
+    docs_service = GoogleDocsService(google_creds)
+    return await docs_service.get_or_create_templates_folder(org.name)
+
+
+@templates_router.get("/templates", response_model=list[TemplateFileResponse])
+async def list_firm_templates(
+    current_user: AuthUser,
+    google_creds: GoogleCreds,
+    db: DB,
+):
+    """List firm-wide document templates from the org templates folder."""
+    folder_id = await _get_templates_folder_id(db, current_user.org_id, google_creds)
+    docs_service = GoogleDocsService(google_creds)
+    templates = await docs_service.list_templates(folder_id)
+    return [
+        TemplateFileResponse(
+            file_id=t["id"],
+            name=t["name"],
+            web_view_link=t.get("webViewLink", ""),
+            modified_time=t.get("modifiedTime"),
+        )
+        for t in templates
+    ]
+
+
+@templates_router.post(
+    "/templates/upload",
+    response_model=TemplateFileResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_firm_template(
+    current_user: AuthUser,
+    google_creds: GoogleCreds,
+    db: DB,
+    file: UploadFile = File(...),
+    template_name: str = Form(""),
+):
+    """Upload a firm-wide template and import it as a Google Docs document."""
+    MAX_SIZE_BYTES = 50 * 1024 * 1024
+
+    file_bytes = await file.read()
+    if len(file_bytes) > MAX_SIZE_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File exceeds maximum size of 50 MB (got {len(file_bytes) / 1024 / 1024:.1f} MB).",
+        )
+    if not file_bytes:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+
+    mime = file.content_type or ""
+    if not mime or mime == "application/octet-stream":
+        guessed, _ = mimetypes.guess_type(file.filename or "")
+        mime = guessed or "application/octet-stream"
+
+    final_name = (template_name.strip() or file.filename or "Template").strip()
+    folder_id = await _get_templates_folder_id(db, current_user.org_id, google_creds)
+    docs_service = GoogleDocsService(google_creds)
+    template = await docs_service.upload_template(
+        templates_folder_id=folder_id,
+        file_bytes=file_bytes,
+        filename=final_name,
+        mime_type=mime,
+    )
+
+    return TemplateFileResponse(
+        file_id=template["id"],
+        name=template["name"],
+        web_view_link=template.get("webViewLink", ""),
+        modified_time=template.get("modifiedTime"),
+    )
+
+
+@templates_router.delete("/templates/{template_file_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_firm_template(
+    template_file_id: str,
+    current_user: AuthUser,
+    google_creds: GoogleCreds,
+    db: DB,
+):
+    """Delete a firm-wide template from the org templates folder."""
+    folder_id = await _get_templates_folder_id(db, current_user.org_id, google_creds)
+    docs_service = GoogleDocsService(google_creds)
+    templates = await docs_service.list_templates(folder_id)
+    if not any(t["id"] == template_file_id for t in templates):
+        raise HTTPException(status_code=404, detail="Template not found")
+    await docs_service.delete_template(template_file_id)

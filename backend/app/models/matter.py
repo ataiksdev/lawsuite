@@ -25,6 +25,15 @@ class MatterType(str, enum.Enum):
     compliance = "compliance"
     drafting = "drafting"
     transactional = "transactional"
+    corporate = "corporate"
+    property = "property"
+    intellectual_property = "intellectual_property"
+    labour = "labour"
+    adr = "adr"
+    probate = "probate"
+    entertainment = "entertainment"
+    sports = "sports"
+    audit = "audit"
 
 
 class Matter(Base):

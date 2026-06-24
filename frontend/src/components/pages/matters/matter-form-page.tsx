@@ -83,6 +83,15 @@ const MATTER_TYPE_OPTIONS = [
   { value: MatterType.COMPLIANCE, label: 'Compliance' },
   { value: MatterType.DRAFTING, label: 'Drafting' },
   { value: MatterType.TRANSACTIONAL, label: 'Transactional' },
+  { value: MatterType.CORPORATE, label: 'Corporate' },
+  { value: MatterType.PROPERTY, label: 'Property' },
+  { value: MatterType.INTELLECTUAL_PROPERTY, label: 'Intellectual Property' },
+  { value: MatterType.LABOUR, label: 'Labour' },
+  { value: MatterType.ADR, label: 'ADR' },
+  { value: MatterType.PROBATE, label: 'Probate' },
+  { value: MatterType.ENTERTAINMENT, label: 'Entertainment' },
+  { value: MatterType.SPORTS, label: 'Sports' },
+  { value: MatterType.AUDIT, label: 'Audit' },
 ];
 
 export function MatterFormPage() {

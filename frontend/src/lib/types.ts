@@ -24,6 +24,15 @@ export enum MatterType {
   COMPLIANCE = 'compliance',
   DRAFTING = 'drafting',
   TRANSACTIONAL = 'transactional',
+  CORPORATE = 'corporate',
+  PROPERTY = 'property',
+  INTELLECTUAL_PROPERTY = 'intellectual_property',
+  LABOUR = 'labour',
+  ADR = 'adr',
+  PROBATE = 'probate',
+  ENTERTAINMENT = 'entertainment',
+  SPORTS = 'sports',
+  AUDIT = 'audit',
 }
 
 export enum MatterStatus {

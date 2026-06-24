@@ -98,12 +98,31 @@ function matterTypeBadgeClass(type: BackendMatterType): string {
       'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-300 dark:border-blue-800',
     transactional:
       'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-800',
+    corporate:
+      'bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-950/30 dark:text-cyan-300 dark:border-cyan-800',
+    property:
+      'bg-lime-50 text-lime-700 border-lime-200 dark:bg-lime-950/30 dark:text-lime-300 dark:border-lime-800',
+    intellectual_property:
+      'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/30 dark:text-indigo-300 dark:border-indigo-800',
+    labour:
+      'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-800',
+    adr:
+      'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/30 dark:text-sky-300 dark:border-sky-800',
+    probate:
+      'bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/30 dark:text-violet-300 dark:border-violet-800',
+    entertainment:
+      'bg-pink-50 text-pink-700 border-pink-200 dark:bg-pink-950/30 dark:text-pink-300 dark:border-pink-800',
+    sports:
+      'bg-green-50 text-green-700 border-green-200 dark:bg-green-950/30 dark:text-green-300 dark:border-green-800',
+    audit:
+      'bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-900/50 dark:text-slate-300 dark:border-slate-700',
   };
   return map[type];
 }
 
 function matterTypeLabel(type: BackendMatterType): string {
-  return type.charAt(0).toUpperCase() + type.slice(1);
+  if (type === 'adr') return 'ADR';
+  return type.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
@@ -123,6 +142,15 @@ const TYPE_FILTER_OPTIONS: { value: TypeFilter; label: string }[] = [
   { value: MatterType.COMPLIANCE, label: 'Compliance' },
   { value: MatterType.DRAFTING, label: 'Drafting' },
   { value: MatterType.TRANSACTIONAL, label: 'Transactional' },
+  { value: MatterType.CORPORATE, label: 'Corporate' },
+  { value: MatterType.PROPERTY, label: 'Property' },
+  { value: MatterType.INTELLECTUAL_PROPERTY, label: 'Intellectual Property' },
+  { value: MatterType.LABOUR, label: 'Labour' },
+  { value: MatterType.ADR, label: 'ADR' },
+  { value: MatterType.PROBATE, label: 'Probate' },
+  { value: MatterType.ENTERTAINMENT, label: 'Entertainment' },
+  { value: MatterType.SPORTS, label: 'Sports' },
+  { value: MatterType.AUDIT, label: 'Audit' },
 ];
 
 export function MatterListPage() {

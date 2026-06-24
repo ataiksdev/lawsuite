@@ -13,7 +13,16 @@ export type BackendMatterType =
   | 'litigation'
   | 'compliance'
   | 'drafting'
-  | 'transactional';
+  | 'transactional'
+  | 'corporate'
+  | 'property'
+  | 'intellectual_property'
+  | 'labour'
+  | 'adr'
+  | 'probate'
+  | 'entertainment'
+  | 'sports'
+  | 'audit';
 
 export interface BackendMatterClient {
   id: string;

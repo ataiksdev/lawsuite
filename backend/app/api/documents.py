@@ -7,7 +7,8 @@ import fastapi
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from sqlalchemy import select
 
-from app.core.deps import DB, AuthUser, GoogleCreds
+from app.core.deps import ScopedDB, AuthUser, MemberUser, AdminUser, GoogleCreds
+from app.core.upload_validation import validate_upload
 from app.models.client import Client
 from app.models.matter import Matter
 from app.models.matter_document import DocumentType
@@ -31,7 +32,7 @@ templates_router = APIRouter()
 
 
 @router.get("/{matter_id}/documents", response_model=list[DocumentResponse])
-async def list_documents(matter_id: uuid.UUID, current_user: AuthUser, db: DB):
+async def list_documents(matter_id: uuid.UUID, current_user: AuthUser, db: ScopedDB):
     """
     List all documents linked to a matter.
     Includes full version history per document.
@@ -49,8 +50,8 @@ async def list_documents(matter_id: uuid.UUID, current_user: AuthUser, db: DB):
 async def link_document(
     matter_id: uuid.UUID,
     payload: DocumentLink,
-    current_user: AuthUser,
-    db: DB,
+    current_user: MemberUser,
+    db: ScopedDB,
 ):
     """
     Link an existing Google Drive file to this matter.
@@ -76,8 +77,8 @@ async def add_document_version(
     matter_id: uuid.UUID,
     doc_id: uuid.UUID,
     payload: DocumentVersionUpload,
-    current_user: AuthUser,
-    db: DB,
+    current_user: MemberUser,
+    db: ScopedDB,
 ):
     """
     Upload a new version of a document (e.g. replace unsigned with signed).
@@ -103,7 +104,7 @@ async def get_document_versions(
     matter_id: uuid.UUID,
     doc_id: uuid.UUID,
     current_user: AuthUser,
-    db: DB,
+    db: ScopedDB,
 ):
     """
     Full version history for a document, newest first.
@@ -123,8 +124,8 @@ async def update_document_status(
     matter_id: uuid.UUID,
     doc_id: uuid.UUID,
     payload: DocumentStatusUpdate,
-    current_user: AuthUser,
-    db: DB,
+    current_user: MemberUser,
+    db: ScopedDB,
 ):
     """Manually update a document's status (draft, pending_signature, signed, superseded)."""
     service = DocumentService(db)
@@ -142,8 +143,8 @@ async def update_document_status(
 async def delete_document(
     matter_id: uuid.UUID,
     doc_id: uuid.UUID,
-    current_user: AuthUser,
-    db: DB,
+    current_user: MemberUser,
+    db: ScopedDB,
 ):
     """
     Soft-delete a document. The document and its versions are
@@ -164,7 +165,7 @@ async def list_drive_files(
     matter_id: uuid.UUID,
     current_user: AuthUser,
     google_creds: GoogleCreds,
-    db: DB,
+    db: ScopedDB,
 ):
     """
     List files directly from the matter's Google Drive folder.
@@ -212,9 +213,9 @@ async def list_drive_files(
 )
 async def upload_document(
     matter_id: uuid.UUID,
-    current_user: AuthUser,
+    current_user: MemberUser,
     google_creds: GoogleCreds,
-    db: DB,
+    db: ScopedDB,
     file: UploadFile = File(...),
     doc_type: str = Form("other"),
     label: str = Form(""),
@@ -256,6 +257,7 @@ async def upload_document(
         )
     if not file_bytes:
         raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+    validate_upload(file.filename or "", file_bytes)
 
     # Resolve MIME type — trust Content-Type header, fall back to guessing from filename
     mime = file.content_type or ""
@@ -311,9 +313,9 @@ async def upload_document(
 async def generate_from_template(
     matter_id: uuid.UUID,
     payload: "GenerateFromTemplateRequest",
-    current_user: AuthUser,
+    current_user: MemberUser,
     google_creds: GoogleCreds,
-    db: DB,
+    db: ScopedDB,
 ):
     """
     Generate a new document from a Google Docs template.
@@ -388,7 +390,7 @@ async def list_templates(
     matter_id: uuid.UUID,
     current_user: AuthUser,
     google_creds: GoogleCreds,
-    db: DB,
+    db: ScopedDB,
 ):
     """
     List available document templates from the org's Drive templates folder.
@@ -412,7 +414,7 @@ async def list_templates(
     ]
 
 
-async def _get_templates_folder_id(db: DB, org_id: uuid.UUID, google_creds: GoogleCreds) -> str:
+async def _get_templates_folder_id(db: ScopedDB, org_id: uuid.UUID, google_creds: GoogleCreds) -> str:
     org_result = await db.execute(select(Organisation).where(Organisation.id == org_id))
     org = org_result.scalar_one()
 
@@ -424,7 +426,7 @@ async def _get_templates_folder_id(db: DB, org_id: uuid.UUID, google_creds: Goog
 async def list_firm_templates(
     current_user: AuthUser,
     google_creds: GoogleCreds,
-    db: DB,
+    db: ScopedDB,
 ):
     """List firm-wide document templates from the org templates folder."""
     folder_id = await _get_templates_folder_id(db, current_user.org_id, google_creds)
@@ -447,9 +449,9 @@ async def list_firm_templates(
     status_code=status.HTTP_201_CREATED,
 )
 async def upload_firm_template(
-    current_user: AuthUser,
+    current_user: AdminUser,
     google_creds: GoogleCreds,
-    db: DB,
+    db: ScopedDB,
     file: UploadFile = File(...),
     template_name: str = Form(""),
 ):
@@ -464,6 +466,7 @@ async def upload_firm_template(
         )
     if not file_bytes:
         raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+    validate_upload(file.filename or "", file_bytes)
 
     mime = file.content_type or ""
     if not mime or mime == "application/octet-stream":
@@ -491,9 +494,9 @@ async def upload_firm_template(
 @templates_router.delete("/templates/{template_file_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_firm_template(
     template_file_id: str,
-    current_user: AuthUser,
+    current_user: AdminUser,
     google_creds: GoogleCreds,
-    db: DB,
+    db: ScopedDB,
 ):
     """Delete a firm-wide template from the org templates folder."""
     folder_id = await _get_templates_folder_id(db, current_user.org_id, google_creds)

@@ -17,8 +17,16 @@ def mock_resend():
     with patch("resend.Emails.send") as mock_send:
         yield mock_send
 
-# Separate test database
-TEST_DATABASE_URL = settings.database_url.replace("/legalops", "/legalops_test")
+# Separate test database. Built from database_url_sync (the admin/owner role
+# Alembic uses) rather than database_url (the app's least-privilege runtime
+# role) because this fixture does a full drop_all/create_all per test --
+# schema DDL that the restricted app role deliberately can't do under RLS.
+from sqlalchemy.engine import make_url  # noqa: E402
+
+_admin_url = make_url(settings.database_url_sync).set(drivername="postgresql+asyncpg")
+TEST_DATABASE_URL = _admin_url.set(
+    database=f"{_admin_url.database}_test"
+).render_as_string(hide_password=False)
 
 
 @pytest_asyncio.fixture

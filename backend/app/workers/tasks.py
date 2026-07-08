@@ -32,12 +32,12 @@ def process_drive_change(self, file_id: str, org_id: str) -> None:
 
 
 async def _process_drive_change(file_id: str, org_id: str, task) -> None:
-    from app.core.database import AsyncSessionLocal
+    from app.core.database import worker_session
     from app.services.document_service import DocumentService
     from app.services.google_auth_service import GoogleAuthService
     from app.services.google_drive_activity_service import GoogleDriveActivityService
 
-    async with AsyncSessionLocal() as db:
+    async with worker_session() as db:
         try:
             org_uuid = uuid.UUID(org_id)
 
@@ -89,13 +89,13 @@ def create_drive_folder(self, matter_id: str, org_id: str) -> None:
 async def _create_drive_folder(matter_id: str, org_id: str, task) -> None:
     from sqlalchemy import select
 
-    from app.core.database import AsyncSessionLocal
+    from app.core.database import worker_session
     from app.models.client import Client
     from app.models.matter import Matter
     from app.services.google_auth_service import GoogleAuthService
     from app.services.google_drive_service import GoogleDriveService
 
-    async with AsyncSessionLocal() as db:
+    async with worker_session() as db:
         try:
             matter_uuid = uuid.UUID(matter_id)
             org_uuid = uuid.UUID(org_id)
@@ -151,14 +151,14 @@ async def _renew_expiring_channels() -> None:
 
     from sqlalchemy import select
 
-    from app.core.database import AsyncSessionLocal
+    from app.core.database import worker_session
     from app.models.organisation import Organisation
     from app.services.google_auth_service import GoogleAuthService
     from app.services.google_drive_service import GoogleDriveService
 
     renewal_threshold = datetime.now(timezone.utc) + timedelta(hours=24)
 
-    async with AsyncSessionLocal() as db:
+    async with worker_session() as db:
         result = await db.execute(
             select(Organisation).where(
                 Organisation.drive_webhook_channel_id.isnot(None),

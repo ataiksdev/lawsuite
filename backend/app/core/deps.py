@@ -5,6 +5,7 @@ from typing import Annotated, Optional
 from fastapi import Depends, HTTPException, Query, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from google.oauth2.credentials import Credentials
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -85,6 +86,39 @@ def require_admin(current_user: CurrentUser = Depends(get_current_user)) -> Curr
     return current_user
 
 
+def require_member(current_user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
+    """
+    Gate for any endpoint that creates/edits/deletes data. Viewers get
+    read-only access -- listing/reading (AuthUser) is unaffected.
+    """
+    if not current_user.is_member:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Viewers have read-only access. Ask an admin to change your role to make changes.",
+        )
+    return current_user
+
+
+async def get_scoped_db(
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> AsyncSession:
+    """
+    Tenant-scoped session for routes that operate on a single org's data
+    (matters, clients, tasks, documents). Narrows the RLS context set by
+    get_db from "bypass" to "this org only" -- a service query that forgets
+    an organisation_id filter now returns nothing instead of another
+    tenant's rows. Do NOT use this for platform-admin, webhook, or
+    cross-org routes.
+    """
+    await db.execute(text("SELECT set_config('app.bypass_rls', 'off', false)"))
+    await db.execute(
+        text("SELECT set_config('app.current_org_id', :org_id, false)"),
+        {"org_id": str(current_user.org_id)},
+    )
+    return db
+
+
 async def get_google_credentials(
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -105,5 +139,7 @@ async def get_google_credentials(
 
 AuthUser = Annotated[CurrentUser, Depends(get_current_user)]
 AdminUser = Annotated[CurrentUser, Depends(require_admin)]
+MemberUser = Annotated[CurrentUser, Depends(require_member)]
 DB = Annotated[AsyncSession, Depends(get_db)]
+ScopedDB = Annotated[AsyncSession, Depends(get_scoped_db)]
 GoogleCreds = Annotated[Credentials, Depends(get_google_credentials)]

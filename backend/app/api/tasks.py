@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.core.deps import DB, AuthUser
+from app.core.deps import ScopedDB, AuthUser, MemberUser
 from app.models.task import TaskStatus
 from app.models.task_comment import TaskComment
 from app.models.matter_document import MatterDocument
@@ -36,7 +36,7 @@ router = APIRouter()
 async def list_tasks(
     matter_id: uuid.UUID,
     current_user: AuthUser,
-    db: DB,
+    db: ScopedDB,
     status: TaskStatus | None = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
@@ -67,8 +67,8 @@ async def list_tasks(
 async def create_task(
     matter_id: uuid.UUID,
     payload: TaskCreate,
-    current_user: AuthUser,
-    db: DB,
+    current_user: MemberUser,
+    db: ScopedDB,
 ):
     """Create a task on a matter. Logs a task_created activity entry."""
     service = TaskService(db)
@@ -86,8 +86,8 @@ async def update_task(
     matter_id: uuid.UUID,
     task_id: uuid.UUID,
     payload: TaskUpdate,
-    current_user: AuthUser,
-    db: DB,
+    current_user: MemberUser,
+    db: ScopedDB,
 ):
     """
     Update a task. Marking status as 'done' sets completed_at automatically
@@ -111,8 +111,8 @@ async def update_task(
 async def delete_task(
     matter_id: uuid.UUID,
     task_id: uuid.UUID,
-    current_user: AuthUser,
-    db: DB,
+    current_user: MemberUser,
+    db: ScopedDB,
 ):
     """Soft-delete a task."""
     service = TaskService(db)
@@ -130,7 +130,7 @@ async def delete_task(
 @router.get("/overdue", response_model=dict)
 async def get_overdue_tasks(
     current_user: AuthUser,
-    db: DB,
+    db: ScopedDB,
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
 ):
@@ -164,7 +164,7 @@ async def list_comments(
     matter_id: uuid.UUID,
     task_id: uuid.UUID,
     current_user: AuthUser,
-    db: DB,
+    db: ScopedDB,
 ):
     """List all comments on a task, oldest first."""
     service = TaskService(db)
@@ -185,8 +185,8 @@ async def add_comment(
     matter_id: uuid.UUID,
     task_id: uuid.UUID,
     payload: TaskCommentCreate,
-    current_user: AuthUser,
-    db: DB,
+    current_user: MemberUser,
+    db: ScopedDB,
 ):
     """Add a comment to a task. Logs a task_commented activity entry."""
     service = TaskService(db)
@@ -208,8 +208,8 @@ async def delete_comment(
     matter_id: uuid.UUID,
     task_id: uuid.UUID,
     comment_id: uuid.UUID,
-    current_user: AuthUser,
-    db: DB,
+    current_user: MemberUser,
+    db: ScopedDB,
 ):
     """
     Delete a comment. Authors can delete their own; admins can delete any.
@@ -253,7 +253,7 @@ async def list_watchers(
     matter_id: uuid.UUID,
     task_id: uuid.UUID,
     current_user: AuthUser,
-    db: DB,
+    db: ScopedDB,
 ):
     """List all watchers for a task."""
     service = TaskService(db)
@@ -274,8 +274,8 @@ async def add_watcher(
     matter_id: uuid.UUID,
     task_id: uuid.UUID,
     payload: TaskWatcherAdd,
-    current_user: AuthUser,
-    db: DB,
+    current_user: MemberUser,
+    db: ScopedDB,
 ):
     """
     Add a user as a watcher on this task.
@@ -301,8 +301,8 @@ async def remove_watcher(
     matter_id: uuid.UUID,
     task_id: uuid.UUID,
     user_id: uuid.UUID,
-    current_user: AuthUser,
-    db: DB,
+    current_user: MemberUser,
+    db: ScopedDB,
 ):
     """
     Remove a watcher. Users can remove themselves; admins can remove anyone.
@@ -328,7 +328,7 @@ async def list_document_links(
     matter_id: uuid.UUID,
     task_id: uuid.UUID,
     current_user: AuthUser,
-    db: DB,
+    db: ScopedDB,
 ):
     """List all documents linked to a task."""
     result = await db.execute(
@@ -355,8 +355,8 @@ async def add_document_link(
     matter_id: uuid.UUID,
     task_id: uuid.UUID,
     payload: TaskDocumentLinkAdd,
-    current_user: AuthUser,
-    db: DB,
+    current_user: MemberUser,
+    db: ScopedDB,
 ):
     """Link an existing matter document to a task."""
     # Verify the document belongs to this matter and org (eager-load versions for response)
@@ -402,8 +402,8 @@ async def remove_document_link(
     matter_id: uuid.UUID,
     task_id: uuid.UUID,
     document_id: uuid.UUID,
-    current_user: AuthUser,
-    db: DB,
+    current_user: MemberUser,
+    db: ScopedDB,
 ):
     """Unlink a document from a task."""
     result = await db.execute(

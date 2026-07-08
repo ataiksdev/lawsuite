@@ -22,6 +22,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
 from app.core.config import settings
@@ -36,7 +37,15 @@ from app.models.activity_log import ActivityLog
 import app.models  # noqa — register all models
 
 
-engine = create_async_engine(settings.database_url, echo=False)
+# Uses the admin/owner role (database_url_sync, same as Alembic) rather than
+# the app's least-privilege runtime role (database_url) -- this script does
+# schema DDL (create_all) and seeds data across multiple orgs in one run,
+# neither of which the restricted role is granted to do under RLS.
+_ADMIN_ASYNC_URL = make_url(settings.database_url_sync).set(
+    drivername="postgresql+asyncpg"
+).render_as_string(hide_password=False)
+
+engine = create_async_engine(_ADMIN_ASYNC_URL, echo=False)
 SessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 
 

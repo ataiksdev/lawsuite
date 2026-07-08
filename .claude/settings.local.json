@@ -12,7 +12,8 @@
       "Bash(.venv/Scripts/python.exe -m pytest tests/ -q)",
       "Bash(.venv/Scripts/python.exe -m pytest tests/test_rls_enforcement.py -v)",
       "Bash(.venv/Scripts/python.exe -m pytest tests/test_rls_enforcement.py::test_no_context_sees_nothing -q)",
-      "Bash(.venv/Scripts/python.exe -m pytest tests/test_role_permissions.py -v)"
+      "Bash(.venv/Scripts/python.exe -m pytest tests/test_role_permissions.py -v)",
+      "Bash(.venv/Scripts/python.exe -m pytest tests/test_upload_validation.py -v)"
     ]
   }
 }

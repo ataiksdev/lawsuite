@@ -4,7 +4,7 @@ import uuid
 
 from fastapi import APIRouter, Query, status
 
-from app.core.deps import DB, AuthUser
+from app.core.deps import ScopedDB, AuthUser, MemberUser
 from app.schemas.client import ClientCreate, ClientResponse, ClientUpdate
 from app.services.client_service import ClientService
 
@@ -14,7 +14,7 @@ router = APIRouter()
 @router.get("/", response_model=dict)
 async def list_clients(
     current_user: AuthUser,
-    db: DB,
+    db: ScopedDB,
     search: str | None = Query(None, description="Search by name"),
     include_inactive: bool = Query(False),
     page: int = Query(1, ge=1),
@@ -41,8 +41,8 @@ async def list_clients(
 @router.post("/", response_model=ClientResponse, status_code=status.HTTP_201_CREATED)
 async def create_client(
     payload: ClientCreate,
-    current_user: AuthUser,
-    db: DB,
+    current_user: MemberUser,
+    db: ScopedDB,
 ):
     """Create a new client."""
     service = ClientService(db)
@@ -51,7 +51,7 @@ async def create_client(
 
 
 @router.get("/{client_id}", response_model=ClientResponse)
-async def get_client(client_id: uuid.UUID, current_user: AuthUser, db: DB):
+async def get_client(client_id: uuid.UUID, current_user: AuthUser, db: ScopedDB):
     """Get a single client by ID."""
     service = ClientService(db)
     client = await service.get_client(client_id, current_user.org_id)
@@ -62,8 +62,8 @@ async def get_client(client_id: uuid.UUID, current_user: AuthUser, db: DB):
 async def update_client(
     client_id: uuid.UUID,
     payload: ClientUpdate,
-    current_user: AuthUser,
-    db: DB,
+    current_user: MemberUser,
+    db: ScopedDB,
 ):
     """Update a client's details."""
     service = ClientService(db)
@@ -72,7 +72,7 @@ async def update_client(
 
 
 @router.delete("/{client_id}", response_model=ClientResponse)
-async def archive_client(client_id: uuid.UUID, current_user: AuthUser, db: DB):
+async def archive_client(client_id: uuid.UUID, current_user: MemberUser, db: ScopedDB):
     """
     Archive a client (soft delete). The client's matters are preserved.
     Use PATCH to reactivate.

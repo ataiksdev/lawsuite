@@ -3,7 +3,16 @@
     "allow": [
       "Bash(python -c \"from pypaystack2 import AsyncPaystackClient; print\\('OK'\\)\")",
       "Bash(node -e ' *)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(.venv/Scripts/python.exe -c ' *)",
+      "Bash(.venv/Scripts/python.exe -m app.models.rls)",
+      "Bash(.venv/Scripts/python.exe -m pytest tests/ -k \"client or matter or task or document\" -q)",
+      "Bash(.venv/Scripts/python.exe -m pytest tests/test_clients.py::test_create_client -q)",
+      "Bash(.venv/Scripts/python.exe -m pytest tests/test_clients.py tests/test_matters.py tests/test_tasks.py tests/test_documents.py -q)",
+      "Bash(.venv/Scripts/python.exe -m pytest tests/ -q)",
+      "Bash(.venv/Scripts/python.exe -m pytest tests/test_rls_enforcement.py -v)",
+      "Bash(.venv/Scripts/python.exe -m pytest tests/test_rls_enforcement.py::test_no_context_sees_nothing -q)",
+      "Bash(.venv/Scripts/python.exe -m pytest tests/test_role_permissions.py -v)"
     ]
   }
 }

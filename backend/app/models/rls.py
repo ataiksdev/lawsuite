@@ -9,63 +9,103 @@ Usage:
 
 RLS enforces that every query against a tenant table is automatically
 filtered to the current organisation, even if app code forgets to filter.
-The app sets the session variable via the database URL or a middleware step.
+Two session GUCs drive the policies, set per-request by
+app.core.deps.get_scoped_db / app.core.database.get_db:
+
+  - app.current_org_id  -- the tenant id the current session is scoped to
+  - app.bypass_rls      -- 'on' for paths that legitimately need cross-org
+                           access (platform admin, webhooks, background
+                           workers) instead of relying on connection role
+                           privileges, since those all share one DB role.
+
+This ONLY takes effect if the connecting role is not a superuser and not
+the table owner (both bypass RLS unconditionally) -- see
+scripts/setup_local_rls_role.sql for provisioning a dedicated app role.
 
 NOTE: For development simplicity, RLS is defined here as raw SQL
 that can be run manually or as part of a post-migration script.
-In production (Supabase), you can also set these in the Supabase dashboard.
+In production (Supabase), run the equivalent SQL against your project
+(see scripts/setup_local_rls_role.sql for the template).
 """
 
-RLS_STATEMENTS = """
--- Enable RLS on all tenant-scoped tables
-ALTER TABLE clients ENABLE ROW LEVEL SECURITY;
-ALTER TABLE matters ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
-ALTER TABLE matter_documents ENABLE ROW LEVEL SECURITY;
-ALTER TABLE matter_document_versions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE matter_emails ENABLE ROW LEVEL SECURITY;
-ALTER TABLE activity_logs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE organisation_members ENABLE ROW LEVEL SECURITY;
+TENANT_TABLES = [
+    "clients",
+    "matters",
+    "tasks",
+    "matter_documents",
+    "matter_document_versions",
+    "matter_emails",
+    "activity_logs",
+    "organisation_members",
+]
 
--- Policies: each row is visible only to the matching organisation
+_BYPASS = "current_setting('app.bypass_rls', true) = 'on'"
+_ORG_MATCH = "organisation_id::text = current_setting('app.current_org_id', true)"
+
+RLS_STATEMENTS = f"""
+-- Enable + force RLS on all tenant-scoped tables (FORCE also applies it
+-- to the table owner, in case the app role is ever granted ownership).
+ALTER TABLE clients ENABLE ROW LEVEL SECURITY;
+ALTER TABLE clients FORCE ROW LEVEL SECURITY;
+ALTER TABLE matters ENABLE ROW LEVEL SECURITY;
+ALTER TABLE matters FORCE ROW LEVEL SECURITY;
+ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tasks FORCE ROW LEVEL SECURITY;
+ALTER TABLE matter_documents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE matter_documents FORCE ROW LEVEL SECURITY;
+ALTER TABLE matter_document_versions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE matter_document_versions FORCE ROW LEVEL SECURITY;
+ALTER TABLE matter_emails ENABLE ROW LEVEL SECURITY;
+ALTER TABLE matter_emails FORCE ROW LEVEL SECURITY;
+ALTER TABLE activity_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE activity_logs FORCE ROW LEVEL SECURITY;
+ALTER TABLE organisation_members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE organisation_members FORCE ROW LEVEL SECURITY;
+
+-- Policies: each row is visible only to the matching organisation,
+-- unless the session has explicitly opted into app.bypass_rls = 'on'
+-- (platform admin / webhooks / celery workers -- see database.py).
 -- We use DROP POLICY IF EXISTS to make this script idempotent.
 
 DROP POLICY IF EXISTS tenant_isolation ON clients;
 CREATE POLICY tenant_isolation ON clients
-    USING (organisation_id::text = current_setting('app.current_org_id', true));
+    USING ({_BYPASS} OR {_ORG_MATCH});
 
 DROP POLICY IF EXISTS tenant_isolation ON matters;
 CREATE POLICY tenant_isolation ON matters
-    USING (organisation_id::text = current_setting('app.current_org_id', true));
+    USING ({_BYPASS} OR {_ORG_MATCH});
 
 DROP POLICY IF EXISTS tenant_isolation ON tasks;
 CREATE POLICY tenant_isolation ON tasks
-    USING (organisation_id::text = current_setting('app.current_org_id', true));
+    USING ({_BYPASS} OR {_ORG_MATCH});
 
 DROP POLICY IF EXISTS tenant_isolation ON matter_documents;
 CREATE POLICY tenant_isolation ON matter_documents
-    USING (organisation_id::text = current_setting('app.current_org_id', true));
+    USING ({_BYPASS} OR {_ORG_MATCH});
 
 -- Special policy for document versions: check parent document's organisation
 DROP POLICY IF EXISTS tenant_isolation ON matter_document_versions;
 CREATE POLICY tenant_isolation ON matter_document_versions
-    USING (EXISTS (
-        SELECT 1 FROM matter_documents 
-        WHERE matter_documents.id = matter_document_versions.document_id 
-        AND matter_documents.organisation_id::text = current_setting('app.current_org_id', true)
-    ));
+    USING (
+        {_BYPASS}
+        OR EXISTS (
+            SELECT 1 FROM matter_documents
+            WHERE matter_documents.id = matter_document_versions.document_id
+            AND matter_documents.organisation_id::text = current_setting('app.current_org_id', true)
+        )
+    );
 
 DROP POLICY IF EXISTS tenant_isolation ON matter_emails;
 CREATE POLICY tenant_isolation ON matter_emails
-    USING (organisation_id::text = current_setting('app.current_org_id', true));
+    USING ({_BYPASS} OR {_ORG_MATCH});
 
 DROP POLICY IF EXISTS tenant_isolation ON activity_logs;
 CREATE POLICY tenant_isolation ON activity_logs
-    USING (organisation_id::text = current_setting('app.current_org_id', true));
+    USING ({_BYPASS} OR {_ORG_MATCH});
 
 DROP POLICY IF EXISTS tenant_isolation ON organisation_members;
 CREATE POLICY tenant_isolation ON organisation_members
-    USING (organisation_id::text = current_setting('app.current_org_id', true));
+    USING ({_BYPASS} OR {_ORG_MATCH});
 """
 
 if __name__ == "__main__":

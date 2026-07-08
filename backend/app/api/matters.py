@@ -5,7 +5,7 @@ import uuid
 from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import select
 
-from app.core.deps import DB, AuthUser, GoogleCreds
+from app.core.deps import ScopedDB, AuthUser, MemberUser, GoogleCreds
 from app.models.matter import MatterStatus
 from app.models.matter_document import MatterEmail
 from app.schemas.matter import (
@@ -29,7 +29,7 @@ router = APIRouter()
 @router.get("/", response_model=MatterListResponse)
 async def list_matters(
     current_user: AuthUser,
-    db: DB,
+    db: ScopedDB,
     status: MatterStatus | None = Query(None),
     client_id: uuid.UUID | None = Query(None),
     assigned_to: uuid.UUID | None = Query(None),
@@ -61,7 +61,7 @@ async def list_matters(
 
 
 @router.post("/", response_model=MatterResponse, status_code=status.HTTP_201_CREATED)
-async def create_matter(payload: MatterCreate, current_user: AuthUser, db: DB):
+async def create_matter(payload: MatterCreate, current_user: MemberUser, db: ScopedDB):
     """
     Create a new matter. Automatically generates a reference number (MAT-YYYY-XXXX).
     Status starts at 'intake'.
@@ -76,7 +76,7 @@ async def create_matter(payload: MatterCreate, current_user: AuthUser, db: DB):
 
 
 @router.get("/{matter_id}", response_model=MatterResponse)
-async def get_matter(matter_id: uuid.UUID, current_user: AuthUser, db: DB):
+async def get_matter(matter_id: uuid.UUID, current_user: AuthUser, db: ScopedDB):
     """Get a single matter with its client details."""
     service = MatterService(db)
     matter = await service.get_matter(matter_id, current_user.org_id)
@@ -87,8 +87,8 @@ async def get_matter(matter_id: uuid.UUID, current_user: AuthUser, db: DB):
 async def update_matter(
     matter_id: uuid.UUID,
     payload: MatterUpdate,
-    current_user: AuthUser,
-    db: DB,
+    current_user: MemberUser,
+    db: ScopedDB,
 ):
     """Update matter fields. Logs a matter_updated activity entry."""
     service = MatterService(db)
@@ -105,8 +105,8 @@ async def update_matter(
 async def change_status(
     matter_id: uuid.UUID,
     payload: StatusUpdate,
-    current_user: AuthUser,
-    db: DB,
+    current_user: MemberUser,
+    db: ScopedDB,
 ):
     """
     Move a matter to a new stage.
@@ -123,7 +123,7 @@ async def change_status(
 
 
 @router.delete("/{matter_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_matter(matter_id: uuid.UUID, current_user: AuthUser, db: DB):
+async def delete_matter(matter_id: uuid.UUID, current_user: MemberUser, db: ScopedDB):
     """
     Permanently delete a matter. Matter must be archived first.
     This also deletes all tasks, documents, and activity logs.
@@ -140,7 +140,7 @@ async def delete_matter(matter_id: uuid.UUID, current_user: AuthUser, db: DB):
 async def get_activity(
     matter_id: uuid.UUID,
     current_user: AuthUser,
-    db: DB,
+    db: ScopedDB,
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
 ):
@@ -179,9 +179,9 @@ async def get_activity(
 async def link_drive_folder(
     matter_id: uuid.UUID,
     payload: LinkDriveFolderRequest,
-    current_user: AuthUser,
+    current_user: MemberUser,
     google_creds: GoogleCreds,
-    db: DB,
+    db: ScopedDB,
 ):
     """
     Link a Google Drive folder to a matter and optionally auto-import
@@ -224,9 +224,9 @@ async def link_drive_folder(
 )
 async def sync_drive_folder(
     matter_id: uuid.UUID,
-    current_user: AuthUser,
+    current_user: MemberUser,
     google_creds: GoogleCreds,
-    db: DB,
+    db: ScopedDB,
 ):
     """
     Re-scan the matter's linked Drive folder and import any new files
@@ -252,9 +252,9 @@ async def sync_drive_folder(
 )
 async def create_drive_folder(
     matter_id: uuid.UUID,
-    current_user: AuthUser,
+    current_user: MemberUser,
     google_creds: GoogleCreds,
-    db: DB,
+    db: ScopedDB,
 ):
     """
     Create a new Google Drive folder for this matter and link it instantly.
@@ -281,9 +281,9 @@ async def create_drive_folder(
 async def link_email_thread(
     matter_id: uuid.UUID,
     payload: "EmailLinkRequest",
-    current_user: AuthUser,
+    current_user: MemberUser,
     google_creds: "GoogleCreds",
-    db: DB,
+    db: ScopedDB,
 ):
     """
     Link a Gmail thread to a matter.
@@ -344,7 +344,7 @@ async def link_email_thread(
 
 
 @router.get("/{matter_id}/emails", response_model=list[dict])
-async def list_linked_emails(matter_id: uuid.UUID, current_user: AuthUser, db: DB):
+async def list_linked_emails(matter_id: uuid.UUID, current_user: AuthUser, db: ScopedDB):
     """List all Gmail threads linked to a matter."""
     matter_service = MatterService(db)
     await matter_service.get_matter(matter_id, current_user.org_id)
@@ -375,8 +375,8 @@ async def list_linked_emails(matter_id: uuid.UUID, current_user: AuthUser, db: D
 async def unlink_email_thread(
     matter_id: uuid.UUID,
     email_id: uuid.UUID,
-    current_user: AuthUser,
-    db: DB,
+    current_user: MemberUser,
+    db: ScopedDB,
 ):
     """Unlink a Gmail thread from a matter."""
     result = await db.execute(
@@ -399,7 +399,7 @@ async def list_recent_inbox(
     matter_id: uuid.UUID,
     current_user: AuthUser,
     google_creds: "GoogleCreds",
-    db: DB,
+    db: ScopedDB,
     search: str | None = None,
 ):
     """

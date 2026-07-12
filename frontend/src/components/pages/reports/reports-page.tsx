@@ -242,6 +242,7 @@ function GenerateForm({
         </div>
 
         <Button
+          data-tour="generate-report-btn"
           className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
           onClick={() => void handleGenerate()}
           disabled={isGenerating}

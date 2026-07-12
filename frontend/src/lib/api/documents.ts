@@ -1,4 +1,5 @@
-import apiClient from '../api-client';
+import apiClient, { isDemoModeActive } from '../api-client';
+import { mockUploadDocument, mockUploadTemplate } from '../mock-api';
 
 export type BackendDocumentType =
   | 'engagement_letter'
@@ -172,6 +173,11 @@ export async function uploadDocumentToDrive(
 ): Promise<BackendDocument> {
   const { docType = 'other', label = '', documentName = '', onProgress } = options;
 
+  if (isDemoModeActive()) {
+    onProgress?.(100);
+    return mockUploadDocument(matterId, file, docType, label, documentName) as unknown as BackendDocument;
+  }
+
   const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
   const token = localStorage.getItem('lawsuite_access_token');
 
@@ -226,6 +232,11 @@ export async function uploadFirmTemplate(
   } = {}
 ): Promise<TemplateFileResponse> {
   const { templateName = '', onProgress } = options;
+
+  if (isDemoModeActive()) {
+    onProgress?.(100);
+    return mockUploadTemplate(file, templateName);
+  }
 
   const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
   const token = localStorage.getItem('lawsuite_access_token');

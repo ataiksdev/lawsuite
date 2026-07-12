@@ -169,6 +169,8 @@ export function LoginPage() {
     try {
       await new Promise((resolve) => setTimeout(resolve, 600));
 
+      localStorage.setItem('lawsuite_demo_mode', 'true');
+
       const mockUser = mockUsers[0];
       useAuthStore.setState({
         user: mockUser,

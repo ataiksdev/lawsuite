@@ -204,7 +204,7 @@ const PRIORITY_STYLE: Record<BackendTaskPriority, string> = {
   high:   'border-red-200 bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400',
 };
 
-// â"€â"€ Helpers â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmtDate(v?: string | null) {
   if (!v) return 'No due date';
@@ -244,7 +244,7 @@ function estimateTimeInColumn(task: BackendTask): string {
   return `${Math.floor(d / 7)}w`;
 }
 
-// â"€â"€ Draggable Task Card â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// ── Draggable Task Card ────────────────────────────────────────────────────
 
 function TaskCard({
   task, memberNameById, isBusy, onEdit, onDelete, onStatusChange, onClick, cardBorderCls,
@@ -344,7 +344,7 @@ function TaskCard({
   );
 }
 
-// â"€â"€ Droppable Column â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// ── Droppable Column ───────────────────────────────────────────────────────
 
 function KanbanColumn({
   col, tasks, memberNameById, busyTaskId, onEdit, onDelete, onStatusChange, onCardClick, onAdd,
@@ -405,7 +405,7 @@ function KanbanColumn({
   );
 }
 
-// â"€â"€ Task Detail Sheet (Comments + Watchers) â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// ── Task Detail Sheet (Comments + Watchers) ────────────────────────────────
 
 function TaskDetailSheet({
   task, memberNameById, members, onClose, onEdit, onStatusChange, onWatchersChange,
@@ -681,7 +681,7 @@ function TaskDetailSheet({
                 className="text-emerald-600 hover:underline dark:text-emerald-400 text-sm"
                 onClick={() => { navigate(`/matters/${task.matter_id}`); onClose(); }}
               >
-                {task.matter_reference_no} â€" {task.matter_title}
+                {task.matter_reference_no} — {task.matter_title}
               </button>
             </SheetDescription>
           </SheetHeader>
@@ -751,11 +751,11 @@ function TaskDetailSheet({
               </TabsTrigger>
             </TabsList>
 
-            {/* â"€â"€ Details tab â"€â"€ */}
+            {/* ── Details tab ── */}
             <TabsContent value="details" className="mt-0 p-6 space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 {[
-                  { label: 'Client', value: task.client_name ?? 'â€"' },
+                  { label: 'Client', value: task.client_name ?? '—' },
                   { label: 'Assigned To', value: assigneeName },
                   { label: 'Due Date', value: fmtDate(task.due_date), red: overdue },
                   { label: 'Created', value: fmtDate(task.created_at) },
@@ -779,7 +779,7 @@ function TaskDetailSheet({
                     <span>{c.title}</span>
                     {c.id === task.status
                       ? <Badge className={cn('border text-[10px]', c.badgeCls)}>{estimateTimeInColumn(task)}</Badge>
-                      : <span>â€"</span>}
+                      : <span>—</span>}
                   </div>
                 ))}
                 <p className="mt-2 text-[10px] text-slate-400">Estimated from last status change</p>
@@ -793,12 +793,12 @@ function TaskDetailSheet({
               )}
             </TabsContent>
 
-            {/* â"€â"€ Comments tab â"€â"€ */}
+            {/* ── Comments tab ── */}
             <TabsContent value="comments" className="mt-0 flex flex-col h-[calc(100vh-240px)]">
               <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
                 {loadingComments ? (
                   <div className="flex items-center gap-2 text-sm text-slate-400 py-4">
-                    <Loader2 className="h-4 w-4 animate-spin" /> Loading commentsâ€¦
+                    <Loader2 className="h-4 w-4 animate-spin" /> Loading comments…
                   </div>
                 ) : comments.length === 0 ? (
                   <div className="text-center py-8 text-sm text-slate-400">
@@ -887,7 +887,7 @@ function TaskDetailSheet({
                 <Textarea
                   value={commentBody}
                   onChange={(e) => setCommentBody(e.target.value)}
-                  placeholder="Add a commentâ€¦"
+                  placeholder="Add a comment…"
                   rows={2}
                   className="text-sm resize-none"
                   onKeyDown={(e) => {
@@ -1056,7 +1056,7 @@ function TaskDetailSheet({
             <TabsContent value="watchers" className="mt-0 p-6 space-y-4">
               {loadingWatchers ? (
                 <div className="flex items-center gap-2 text-sm text-slate-400">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Loadingâ€¦
+                  <Loader2 className="h-4 w-4 animate-spin" /> Loading…
                 </div>
               ) : watchers.length === 0 ? (
                 <div className="text-center py-6 text-sm text-slate-400">
@@ -1087,7 +1087,7 @@ function TaskDetailSheet({
                 <Label className="text-xs text-slate-500 mb-1.5 block">Add team member as watcher</Label>
                 <Select onValueChange={(v) => void handleAddWatcher(v)}>
                   <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="Select memberâ€¦" />
+                    <SelectValue placeholder="Select member…" />
                   </SelectTrigger>
                   <SelectContent>
                     {members
@@ -1110,7 +1110,7 @@ function TaskDetailSheet({
   );
 }
 
-// â"€â"€ Task Form Dialog â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// ── Task Form Dialog ───────────────────────────────────────────────────────
 
 function TaskFormDialog({
   open, onOpenChange, members, matters, initialState, saving, onSubmit,
@@ -1199,7 +1199,7 @@ function TaskFormDialog({
   );
 }
 
-// â"€â"€ Stat Card â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// ── Stat Card ───────────────────────────────────────────────────────────────
 
 function StatCard({ label, value, accent }: { label: string; value: number; accent?: string }) {
   return (
@@ -1212,7 +1212,7 @@ function StatCard({ label, value, accent }: { label: string; value: number; acce
   );
 }
 
-// â"€â"€ Main KanbanPage â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+// ── Main KanbanPage ─────────────────────────────────────────────────────────
 
 export function KanbanPage() {
   const { user } = useAuthStore();
@@ -1315,7 +1315,7 @@ export function KanbanPage() {
   const hasFilters = kanban.search || kanban.matterFilter !== 'all' || kanban.assigneeFilter !== 'all' || kanban.myTasksOnly;
   const activeTask = activeId ? tasks.find((t) => t.id === activeId) : null;
 
-  // â"€â"€ Drag handlers â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+  // ── Drag handlers ──────────────────────────────────────────────────────────
 
   const handleDragStart = ({ active }: DragStartEvent) => setActiveId(String(active.id));
 
@@ -1344,7 +1344,7 @@ export function KanbanPage() {
     }
   };
 
-  // â"€â"€ Task CRUD â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+  // ── Task CRUD ───────────────────────────────────────────────────────────────
 
   const openCreate = (status: BackendTaskStatus = 'todo') => {
     setTaskDialogState({ ...emptyForm(matters[0]?.id ?? ''), status });
@@ -1428,14 +1428,14 @@ export function KanbanPage() {
     }
   };
 
-  // â"€â"€ Render â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+  // ── Render ──────────────────────────────────────────────────────────────────
 
   if (isLoading) {
     return (
       <Card className="border-slate-200/80">
         <CardContent className="flex items-center gap-3 py-10">
           <Loader2 className="h-5 w-5 animate-spin text-emerald-600" />
-          <span className="text-sm text-slate-500">Loading tasksâ€¦</span>
+          <span className="text-sm text-slate-500">Loading tasks…</span>
         </CardContent>
       </Card>
     );
@@ -1459,14 +1459,14 @@ export function KanbanPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">Tasks</h1>
           <p className="text-sm text-slate-500 mt-0.5">
-            {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''} Â· {new Set(filteredTasks.map((t) => t.matter_id)).size} matters
+            {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''} · {new Set(filteredTasks.map((t) => t.matter_id)).size} matters
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <Button size="sm" variant="outline" onClick={() => void loadBoard(true)} disabled={isRefreshing}>
             <RefreshCw className={cn('h-4 w-4 mr-2', isRefreshing && 'animate-spin')} /> Refresh
           </Button>
-          <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => openCreate()}>
+          <Button data-tour="new-task-btn" size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => openCreate()}>
             <Plus className="h-4 w-4 mr-2" /> New Task
           </Button>
         </div>
@@ -1491,7 +1491,7 @@ export function KanbanPage() {
         </Button>
         <div className="relative min-w-[160px] flex-1 max-w-xs">
           <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-          <Input value={kanban.search} onChange={(e) => setKanbanFilters({ search: e.target.value })} placeholder="Search tasksâ€¦" className="pl-8 h-8 text-xs" />
+          <Input value={kanban.search} onChange={(e) => setKanbanFilters({ search: e.target.value })} placeholder="Search tasks…" className="pl-8 h-8 text-xs" />
         </div>
         <Select value={kanban.matterFilter} onValueChange={(v) => setKanbanFilters({ matterFilter: v })}>
           <SelectTrigger className="h-8 text-xs w-44">
@@ -1500,7 +1500,7 @@ export function KanbanPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Matters</SelectItem>
-            {matters.map((m) => <SelectItem key={m.id} value={m.id}>{m.reference_no} â€" {m.title}</SelectItem>)}
+            {matters.map((m) => <SelectItem key={m.id} value={m.id}>{m.reference_no} — {m.title}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={kanban.assigneeFilter} onValueChange={(v) => setKanbanFilters({ assigneeFilter: v, myTasksOnly: false })}>
@@ -1521,7 +1521,7 @@ export function KanbanPage() {
         )}
       </div>
 
-      {/* Board â€" min-w on each column ensures it scrolls before collapsing */}
+      {/* Board — min-w on each column ensures it scrolls before collapsing */}
       <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div className="flex gap-4 overflow-x-auto pb-4 min-w-0">
           {columns.map((col) => (

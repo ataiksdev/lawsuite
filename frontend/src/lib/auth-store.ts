@@ -179,6 +179,7 @@ export const useAuthStore = create<AuthState>()(
           }
 
           apiClient.setTokens(data.access_token, data.refresh_token);
+          if (typeof window !== 'undefined') localStorage.removeItem('lawsuite_demo_mode');
 
           const [user, organisation] = await Promise.all([
             apiClient.get<BackendAuthUser>('/auth/me'),
@@ -349,6 +350,7 @@ export const useAuthStore = create<AuthState>()(
 
       logout: () => {
         apiClient.clearTokens();
+        if (typeof window !== 'undefined') localStorage.removeItem('lawsuite_demo_mode');
         set({
           user: null,
           organisation: null,

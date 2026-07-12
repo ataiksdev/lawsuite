@@ -477,7 +477,7 @@ export function CalendarPage() {
 
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
-              <Button size="sm" className="bg-emerald-600 text-white hover:bg-emerald-700">
+              <Button data-tour="new-event-btn" size="sm" className="bg-emerald-600 text-white hover:bg-emerald-700">
                 <Plus className="h-4 w-4" />
                 New Event
               </Button>

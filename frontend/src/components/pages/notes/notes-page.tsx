@@ -588,6 +588,7 @@ export function NotesPage() {
         </div>
         {!isCreating && (
           <Button
+            data-tour="new-note-btn"
             onClick={() => { setIsCreating(true); setSelectedNote(null); }}
             className="bg-emerald-600 hover:bg-emerald-700 text-white"
           >

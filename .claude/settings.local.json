@@ -13,7 +13,10 @@
       "Bash(.venv/Scripts/python.exe -m pytest tests/test_rls_enforcement.py -v)",
       "Bash(.venv/Scripts/python.exe -m pytest tests/test_rls_enforcement.py::test_no_context_sees_nothing -q)",
       "Bash(.venv/Scripts/python.exe -m pytest tests/test_role_permissions.py -v)",
-      "Bash(.venv/Scripts/python.exe -m pytest tests/test_upload_validation.py -v)"
+      "Bash(.venv/Scripts/python.exe -m pytest tests/test_upload_validation.py -v)",
+      "Bash(git -C /c/Users/Ataik/Documents/Code/lawsuite log --oneline -5)",
+      "Bash(git -C /c/Users/Ataik/Documents/Code/lawsuite status --short)",
+      "Bash(.venv/Scripts/python.exe -m pytest tests/test_document_permissions.py -v)"
     ]
   }
 }

@@ -1,6 +1,9 @@
 # backend/tests/test_upload_validation.py
+from unittest.mock import MagicMock
+
 import pytest
 from fastapi import HTTPException
+from httpx import AsyncClient
 
 from app.core.upload_validation import validate_upload
 
@@ -64,3 +67,66 @@ def test_rejects_binary_disguised_as_txt():
 def test_rejects_no_extension():
     with pytest.raises(HTTPException):
         validate_upload("noextension", PDF_BYTES)
+
+
+# ─── HTTP-level: confirm the routes actually call validate_upload ────────────
+# (the tests above only prove the pure function works; these prove the
+# upload_document / upload_firm_template routes still invoke it)
+
+REGISTER = {
+    "org_name": "Upload Wiring Firm",
+    "full_name": "Ijeoma Nwachukwu",
+    "email": "ijeoma@uploadwiring.ng",
+    "password": "TestPass123",
+}
+
+
+def _mock_google_creds():
+    from app.core.deps import get_google_credentials
+    from app.main import app
+
+    app.dependency_overrides[get_google_credentials] = lambda: MagicMock()
+
+
+async def _setup(client: AsyncClient) -> tuple[str, str]:
+    reg = await client.post("/auth/register", json=REGISTER)
+    body = reg.json()
+    token = body["tokens"]["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+    cl = await client.post("/clients/", json={"name": "Upload Wiring Client"}, headers=headers)
+    m = await client.post(
+        "/matters/",
+        json={"title": "Upload Wiring Matter", "matter_type": "drafting", "client_id": cl.json()["id"]},
+        headers=headers,
+    )
+    return token, m.json()["id"]
+
+
+@pytest.mark.asyncio
+async def test_upload_document_endpoint_rejects_spoofed_file(client: AsyncClient):
+    token, matter_id = await _setup(client)
+    _mock_google_creds()
+    headers = {"Authorization": f"Bearer {token}"}
+
+    resp = await client.post(
+        f"/matters/{matter_id}/documents/upload",
+        headers=headers,
+        files={"file": ("totally-a-brief.pdf", EXE_BYTES, "application/pdf")},
+        data={"doc_type": "other"},
+    )
+    assert resp.status_code == 415
+
+
+@pytest.mark.asyncio
+async def test_upload_firm_template_endpoint_rejects_spoofed_file(client: AsyncClient):
+    token, _ = await _setup(client)
+    _mock_google_creds()
+    headers = {"Authorization": f"Bearer {token}"}
+
+    resp = await client.post(
+        "/documents/templates/upload",
+        headers=headers,
+        files={"file": ("template.docx", EXE_BYTES, "application/octet-stream")},
+        data={"template_name": "Spoofed Template"},
+    )
+    assert resp.status_code == 415

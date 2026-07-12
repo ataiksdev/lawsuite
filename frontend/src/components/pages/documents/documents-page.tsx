@@ -459,7 +459,7 @@ export function DocumentsPage() {
       </div>
 
       <Tabs defaultValue="documents" className="space-y-4">
-        <TabsList>
+        <TabsList data-tour="documents-tabs">
           <TabsTrigger value="documents">Documents</TabsTrigger>
           <TabsTrigger value="templates">Templates</TabsTrigger>
         </TabsList>

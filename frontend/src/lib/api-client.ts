@@ -4,9 +4,16 @@
 // ============================================================================
 
 import type { ApiError } from './types';
+import { resolveMockRequest } from './mock-api';
 
 const ACCESS_TOKEN_KEY = 'lawsuite_access_token';
 const REFRESH_TOKEN_KEY = 'lawsuite_refresh_token';
+export const DEMO_MODE_KEY = 'lawsuite_demo_mode';
+
+export function isDemoModeActive(): boolean {
+  if (typeof window === 'undefined') return false;
+  return localStorage.getItem(DEMO_MODE_KEY) === 'true';
+}
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -194,6 +201,18 @@ class ApiClient {
     // Run request interceptors
     for (const interceptor of this.requestInterceptors) {
       config = await interceptor(config);
+    }
+
+    // Demo Mode — answer from in-memory mock state instead of calling the real backend
+    if (isDemoModeActive()) {
+      const mock = resolveMockRequest(config.method, config.path, config.params as Record<string, unknown>, config.body);
+      if (mock.handled) {
+        await new Promise((resolve) => setTimeout(resolve, 200 + Math.random() * 150));
+        if ('error' in mock) {
+          throw await this.runErrorInterceptors(new ApiClientError(mock.error.status, mock.error.detail));
+        }
+        return this.runResponseInterceptors(mock.data) as T;
+      }
     }
 
     // Build URL with query params

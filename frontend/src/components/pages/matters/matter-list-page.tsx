@@ -310,6 +310,7 @@ export function MatterListPage() {
           </p>
         </div>
         <Button
+          data-tour="new-matter-btn"
           onClick={() => navigate('/matters/new')}
           className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
         >

@@ -31,9 +31,11 @@ import {
   Check,
   Building2,
   Loader2,
+  HelpCircle,
 } from 'lucide-react';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { toast } from 'sonner';
 
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/lib/auth-store';
@@ -75,6 +77,8 @@ import { markNotificationRead, markAllNotificationsRead, type BackendNotificatio
 import { GlobalSearch } from '@/components/shared/global-search';
 
 import { mockOrganisation } from '@/lib/mock-data';
+import { useOnboardingStore } from '@/lib/onboarding-store';
+import { GuidedTour } from '@/components/onboarding/guided-tour';
 
 // ============================================================================
 // Sidebar collapsed state — persisted in localStorage
@@ -550,6 +554,7 @@ function HeaderBar({ onMenuClick }: { onMenuClick: () => void }) {
   const currentRoute = useCurrentRoute();
   const { user } = useAuthStore();
   const { notifications, unreadCount, markRead, markAllRead } = useNotificationStore();
+  const { startTour } = useOnboardingStore();
   const breadcrumbs = getBreadcrumbSegments(currentRoute);
   const userInitials = user ? `${user.first_name[0] ?? ''}${user.last_name[0] ?? ''}` : 'LO';
 
@@ -605,6 +610,22 @@ function HeaderBar({ onMenuClick }: { onMenuClick: () => void }) {
       >
         <Search className="h-4 w-4" />
       </Button>
+
+      {/* Guided tour */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Take a guided tour"
+            className="h-8 w-8 text-slate-500 hover:text-emerald-600"
+            onClick={startTour}
+          >
+            <HelpCircle className="h-4 w-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Take a guided tour</TooltipContent>
+      </Tooltip>
 
       {/* Theme Toggle */}
       <ThemeToggle />
@@ -746,10 +767,26 @@ interface AppShellProps {
 export function AppShell({ children }: AppShellProps) {
   const { collapsed, setCollapsed } = useSidebarStore();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { hasSeenPrompt, markPromptSeen, startTour } = useOnboardingStore();
 
   // Start the SSE notification stream as soon as the shell mounts
   // (meaning the user is authenticated — AppShell is only rendered when authed)
   useNotificationsSSE();
+
+  // Offer the guided tour once per browser, after things have settled in.
+  useEffect(() => {
+    if (hasSeenPrompt) return;
+    const timer = setTimeout(() => {
+      toast('New here? Take a 2-minute tour', {
+        description: 'See how clients, matters, and everything else fit together.',
+        action: { label: 'Start Tour', onClick: startTour },
+        duration: 12000,
+      });
+      markPromptSeen();
+    }, 1500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // On header hamburger click: on mobile open overlay, on desktop toggle collapse
   const handleMenuClick = useCallback(() => {
@@ -805,6 +842,8 @@ export function AppShell({ children }: AppShellProps) {
           </div>
         </main>
       </div>
+
+      <GuidedTour />
     </div>
   );
 }

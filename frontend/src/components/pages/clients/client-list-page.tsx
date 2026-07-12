@@ -190,6 +190,7 @@ export function ClientListPage() {
           </p>
         </div>
         <Button
+          data-tour="new-client-btn"
           onClick={() => navigate('/clients/new')}
           className="bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
         >

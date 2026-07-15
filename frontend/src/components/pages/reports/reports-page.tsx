@@ -32,6 +32,8 @@ import {
   type ReportRecord,
   type ReportPeriodType,
 } from '@/lib/api/reports';
+import { listClients, type BackendClient } from '@/lib/api/clients';
+import { listMatters, type BackendMatter } from '@/lib/api/matters';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -104,6 +106,30 @@ function GenerateForm({
   const [sendEmail, setSendEmail] = useState(false);
   const [recipientEmail, setRecipientEmail] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  
+  const [clients, setClients] = useState<BackendClient[]>([]);
+  const [matters, setMatters] = useState<BackendMatter[]>([]);
+  const [selectedClient, setSelectedClient] = useState<string>('');
+  const [selectedMatter, setSelectedMatter] = useState<string>('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+
+  useEffect(() => {
+    async function loadFilters() {
+      try {
+        const [cRes, mRes] = await Promise.all([
+          listClients({ page_size: 1000 }),
+          listMatters({ page_size: 1000 })
+        ]);
+        setClients(cRes.items);
+        setMatters(mRes.items);
+      } catch (e) {}
+    }
+    loadFilters();
+  }, []);
+
+  const filteredMatters = selectedClient 
+    ? matters.filter(m => m.client_id === selectedClient)
+    : matters;
 
   const handleGenerate = async () => {
     if (periodType === 'custom' && (!dateFrom || !dateTo)) {
@@ -118,6 +144,9 @@ function GenerateForm({
         send_email: sendEmail,
         ...(periodType === 'custom' && { date_from: dateFrom, date_to: dateTo }),
         ...(sendEmail && recipientEmail && { recipient_email: recipientEmail }),
+        ...(selectedClient && { client_id: selectedClient }),
+        ...(selectedMatter && { matter_id: selectedMatter }),
+        ...(selectedCategory && { matter_type: selectedCategory }),
       };
       const result = await generateReport(payload);
       toast.success('Report generated!', {
@@ -199,6 +228,47 @@ function GenerateForm({
             </div>
           </div>
         )}
+
+        {/* Filters */}
+        <div className="space-y-3">
+          <Label className="text-sm font-medium">Filters (Optional)</Label>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <select
+              value={selectedClient}
+              onChange={(e) => setSelectedClient(e.target.value)}
+              className="flex h-9 w-full rounded-md border border-slate-200 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors dark:border-slate-800"
+            >
+              <option value="">All Clients</option>
+              {clients.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+            
+            <select
+              value={selectedMatter}
+              onChange={(e) => setSelectedMatter(e.target.value)}
+              className="flex h-9 w-full rounded-md border border-slate-200 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors dark:border-slate-800"
+            >
+              <option value="">All Matters</option>
+              {filteredMatters.map(m => (
+                <option key={m.id} value={m.id}>{m.reference_no} - {m.title}</option>
+              ))}
+            </select>
+
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="flex h-9 w-full rounded-md border border-slate-200 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors dark:border-slate-800"
+            >
+              <option value="">All Categories</option>
+              {['advisory', 'litigation', 'compliance', 'drafting', 'transactional', 'corporate', 'property', 'intellectual_property', 'labour', 'adr', 'probate', 'entertainment', 'sports', 'audit'].map(cat => (
+                <option key={cat} value={cat}>
+                  {cat.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
 
         {/* Options */}
         <div className="space-y-3 rounded-lg border border-slate-100 dark:border-slate-800 p-3">
@@ -316,6 +386,11 @@ function ReportHistoryList({
                   <p className="text-xs text-slate-400 mt-0.5">
                     <Calendar className="h-3 w-3 inline mr-1" />
                     {formatDate(report.generated_at)}
+                    {(report.client_id || report.matter_id || report.matter_type) && (
+                      <span className="ml-2 inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                        • Filtered
+                      </span>
+                    )}
                   </p>
                 </div>
                 <div className="flex gap-2">

@@ -356,7 +356,57 @@ async def test_download_report_invalid_format(client: AsyncClient):
     # Download it with invalid format
     resp = await client.get(
         f"/reports/{report_id}/download?format=pdf",
-        headers=headers,
-    )
     assert resp.status_code == 400
     assert "Unsupported format" in resp.text
+
+
+@pytest.mark.asyncio
+async def test_generate_report_with_filters(client: AsyncClient):
+    token = await setup_with_data(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Setup created one client and one matter for it.
+    # Let's create a second client and matter to ensure filtering works.
+    cl2 = await client.post("/clients/", json={"name": "Another Client"}, headers=headers)
+    client_id_2 = cl2.json()["id"]
+
+    m2 = await client.post(
+        "/matters/",
+        json={
+            "title": "Unrelated Matter",
+            "matter_type": "advisory",
+            "client_id": client_id_2,
+        },
+        headers=headers,
+    )
+    matter_id_2 = m2.json()["id"]
+
+    await client.patch(
+        f"/matters/{matter_id_2}/status",
+        json={"status": "open"},
+        headers=headers,
+    )
+
+    # Generate report filtered to the new client
+    resp = await client.post(
+        "/reports/generate",
+        json={
+            "period_type": "custom",
+            "date_from": str(date.today() - timedelta(days=7)),
+            "date_to": str(date.today()),
+            "export_to_drive": False,
+            "client_id": client_id_2,
+        },
+        headers=headers,
+    )
+
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["report"]["client_id"] == client_id_2
+
+    # The data should only contain "Another Client"
+    data = body["data"]
+    assert len(data["clients"]) == 1
+    assert data["clients"][0]["client_id"] == client_id_2
+    assert data["matters_active"] == 1
+    assert data["clients"][0]["matters"][0]["matter_id"] == matter_id_2

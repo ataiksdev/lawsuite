@@ -12,6 +12,9 @@ class ReportGenerateRequest(BaseModel):
     period_type: Literal["weekly", "monthly", "custom"] = "monthly"
     date_from: date | None = None  # required when period_type="custom"
     date_to: date | None = None  # required when period_type="custom"
+    client_id: uuid.UUID | None = None
+    matter_id: uuid.UUID | None = None
+    matter_type: str | None = None
     group_by_client: bool = True
     include_event_types: list[str] = []  # empty = all event types
     export_to_drive: bool = True
@@ -76,6 +79,9 @@ class ReportResponse(BaseModel):
     period_label: str
     date_from: date
     date_to: date
+    client_id: uuid.UUID | None = None
+    matter_id: uuid.UUID | None = None
+    matter_type: str | None = None
     drive_file_id: str | None
     drive_url: str | None
     generated_at: datetime

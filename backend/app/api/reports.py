@@ -140,6 +140,9 @@ async def download_report(
         org_id=current_user.org_id,
         date_from=report.date_from,
         date_to=report.date_to,
+        client_id=report.client_id,
+        matter_id=report.matter_id,
+        matter_type=report.matter_type,
     )
     data.period_label = report.period_label
     

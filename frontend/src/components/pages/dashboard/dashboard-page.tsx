@@ -5,14 +5,13 @@
 
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import {
   Briefcase,
   CheckSquare,
   AlertTriangle,
   Users,
   TrendingUp,
-  Clock,
   ArrowRight,
   Loader2,
   RefreshCw,
@@ -124,8 +123,6 @@ function StatCard({
   label: string;
   value: number | string;
   sub?: string;
-  icon?: React.ElementType;
-  iconClass?: string;
   onClick?: () => void;
   loading?: boolean;
 }) {
@@ -284,10 +281,10 @@ export function DashboardPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
+          <h1 className="text-[26px] font-semibold tracking-tight text-foreground">
             {greeting()}, Barrister {user?.first_name || 'there'}
           </h1>
-          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+          <p className="mt-0.5 text-sm text-muted-foreground">
             {organisation?.name} · {new Date().toLocaleDateString('en-NG', { weekday: 'long', day: 'numeric', month: 'long' })}
           </p>
         </div>
@@ -314,45 +311,36 @@ export function DashboardPage() {
         <StatCard
           label="Open Matters"
           value={stats?.openMatters ?? 0}
-          icon={Briefcase}
-          iconClass="bg-emerald-50 dark:bg-emerald-950/30"
           loading={isLoading}
           onClick={() => navigate('/matters')}
         />
         <StatCard
           label="Total Matters"
           value={stats?.totalMatters ?? 0}
-          icon={TrendingUp}
           loading={isLoading}
           onClick={() => navigate('/matters')}
         />
         <StatCard
           label="Overdue Tasks"
           value={stats?.overdueTasks ?? 0}
-          icon={AlertTriangle}
-          iconClass={stats?.overdueTasks ? 'bg-red-50 dark:bg-red-950/30' : 'bg-slate-50 dark:bg-slate-800'}
           loading={isLoading}
           onClick={() => navigate('/tasks')}
         />
         <StatCard
           label="Pending Tasks"
           value={stats?.pendingTasks ?? 0}
-          icon={CheckSquare}
           loading={isLoading}
           onClick={() => navigate('/tasks')}
         />
         <StatCard
           label="Team Members"
           value={stats?.totalMembers ?? 0}
-          icon={Users}
           loading={isLoading}
           onClick={() => navigate('/admin/team')}
         />
         <StatCard
           label="Clients"
           value={stats?.totalClients ?? 0}
-          icon={Users}
-          iconClass="bg-blue-50 dark:bg-blue-950/30"
           loading={isLoading}
           onClick={() => navigate('/clients')}
         />
@@ -364,7 +352,7 @@ export function DashboardPage() {
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-red-500" />
+                <AlertTriangle className="h-4 w-4 text-primary" />
                 <CardTitle className="text-base font-semibold">Overdue Tasks</CardTitle>
               </div>
               <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => navigate('/tasks')}>
@@ -393,13 +381,12 @@ export function DashboardPage() {
                   return (
                     <div
                       key={task.id}
-                      className="flex items-start gap-3 rounded-lg border border-slate-100 dark:border-slate-800 p-3 cursor-pointer hover:border-slate-200 dark:hover:border-slate-700 transition-colors"
+                      className="flex items-start gap-3 rounded-md border border-border p-2.5 cursor-pointer hover:border-primary/40 transition-colors"
                       onClick={() => navigate(`/matters/${task.matter_id}`)}
                     >
-                      <Clock className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{task.title}</p>
-                        <p className="text-xs text-slate-500 truncate">
+                        <p className="text-sm font-semibold text-foreground truncate">{task.title}</p>
+                        <p className="text-[12.5px] text-muted-foreground truncate">
                           {task.matter_reference_no} · {task.matter_title}
                         </p>
                       </div>
@@ -407,7 +394,7 @@ export function DashboardPage() {
                         <Badge className={cn('border text-[10px] font-semibold px-1.5 py-0', getPriorityColor(task.priority))}>
                           {task.priority}
                         </Badge>
-                        <span className="text-[10px] text-red-500 font-medium whitespace-nowrap">
+                        <span className="text-xs text-emerald-700 dark:text-primary font-medium whitespace-nowrap">
                           {daysOverdue}d late
                         </span>
                       </div>
@@ -432,7 +419,7 @@ export function DashboardPage() {
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-slate-500" />
+                <TrendingUp className="h-4 w-4 text-primary" />
                 <CardTitle className="text-base font-semibold">Recent Activity</CardTitle>
               </div>
             </div>
@@ -493,10 +480,7 @@ export function DashboardPage() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-3">
-            <Button
-              onClick={() => navigate('/matters/new')}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white"
-            >
+            <Button onClick={() => navigate('/matters/new')}>
               <Briefcase className="h-4 w-4 mr-2" />
               New Matter
             </Button>

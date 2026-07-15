@@ -6,7 +6,11 @@
       "Bash(powershell -Command \"Test-Path 'C:\\\\Users\\\\Ataik\\\\Downloads\\\\Design system for Lawsuite.zip'\")",
       "Bash(mkdir -p \"/c/Users/Ataik/AppData/Local/Temp/claude/c--Users-Ataik-Documents-Code-lawsuite/3e7662f6-ffd0-4603-8a33-826133dfed69/scratchpad/design-system\")",
       "Read(//c/Users/Ataik/AppData/Local/Temp/claude/c--Users-Ataik-Documents-Code-lawsuite/3e7662f6-ffd0-4603-8a33-826133dfed69/scratchpad/**)",
-      "Bash(unzip -o \"/c/Users/Ataik/Downloads/Design system for Lawsuite.zip\" -d .)"
+      "Bash(unzip -o \"/c/Users/Ataik/Downloads/Design system for Lawsuite.zip\" -d .)",
+      "Bash(npm run *)",
+      "Bash(git status *)",
+      "Bash(tail -40 /tmp/dev.log)",
+      "Read(//tmp/**)"
     ]
   }
 }

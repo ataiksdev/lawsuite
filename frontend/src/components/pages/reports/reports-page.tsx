@@ -10,6 +10,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   BarChart3,
   Calendar,
+  Check,
+  ChevronsUpDown,
   Clock,
   Download,
   ExternalLink,
@@ -41,6 +43,128 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+
+// ============================================================================
+// Searchable select (combobox)
+// ============================================================================
+
+interface ComboOption {
+  value: string;
+  label: string;
+}
+
+function SearchableSelect({
+  value,
+  onChange,
+  options,
+  onSearch,
+  placeholder,
+  emptyLabel,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  options: ComboOption[];
+  onSearch?: (query: string) => Promise<ComboOption[]>;
+  placeholder: string;
+  emptyLabel: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<ComboOption[] | null>(null);
+  const [searching, setSearching] = useState(false);
+
+  useEffect(() => {
+    if (!onSearch) return;
+    if (!query) {
+      setSearchResults(null);
+      return;
+    }
+    let cancelled = false;
+    setSearching(true);
+    const timer = setTimeout(() => {
+      onSearch(query)
+        .then((results) => {
+          if (!cancelled) setSearchResults(results);
+        })
+        .finally(() => {
+          if (!cancelled) setSearching(false);
+        });
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [query, onSearch]);
+
+  const displayedOptions = onSearch ? (searchResults ?? options) : options;
+  const selected = options.find((o) => o.value === value) ?? searchResults?.find((o) => o.value === value);
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) setQuery('');
+      }}
+    >
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          role="combobox"
+          aria-expanded={open}
+          className="flex h-9 w-full items-center justify-between rounded-md border border-slate-200 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors dark:border-slate-800"
+        >
+          <span className={cn('truncate text-left', !selected && 'text-slate-500 dark:text-slate-400')}>
+            {selected ? selected.label : emptyLabel}
+          </span>
+          <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+        <Command shouldFilter={!onSearch}>
+          <CommandInput placeholder={placeholder} value={query} onValueChange={setQuery} className="h-9" />
+          <CommandList>
+            <CommandEmpty>{searching ? 'Searching…' : 'No results found.'}</CommandEmpty>
+            <CommandGroup>
+              <CommandItem
+                value={emptyLabel}
+                onSelect={() => {
+                  onChange('');
+                  setOpen(false);
+                }}
+              >
+                <Check className={cn('h-4 w-4', value === '' ? 'opacity-100' : 'opacity-0')} />
+                {emptyLabel}
+              </CommandItem>
+              {displayedOptions.map((opt) => (
+                <CommandItem
+                  key={opt.value}
+                  value={onSearch ? opt.value : opt.label}
+                  onSelect={() => {
+                    onChange(opt.value);
+                    setOpen(false);
+                  }}
+                >
+                  <Check className={cn('h-4 w-4', value === opt.value ? 'opacity-100' : 'opacity-0')} />
+                  {opt.label}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 // ============================================================================
 // Feature gate
@@ -117,8 +241,8 @@ function GenerateForm({
     async function loadFilters() {
       try {
         const [cRes, mRes] = await Promise.all([
-          listClients({ page_size: 1000 }),
-          listMatters({ page_size: 1000 })
+          listClients({ page_size: 100 }),
+          listMatters({ page_size: 100 })
         ]);
         setClients(cRes.items);
         setMatters(mRes.items);
@@ -127,9 +251,33 @@ function GenerateForm({
     loadFilters();
   }, []);
 
-  const filteredMatters = selectedClient 
+  const filteredMatters = selectedClient
     ? matters.filter(m => m.client_id === selectedClient)
     : matters;
+
+  const clientOptions: ComboOption[] = clients.map((c) => ({ value: c.id, label: c.name }));
+  const matterOptions: ComboOption[] = filteredMatters.map((m) => ({
+    value: m.id,
+    label: `${m.reference_no} - ${m.title}`,
+  }));
+  const categoryOptions: ComboOption[] = [
+    'advisory', 'litigation', 'compliance', 'drafting', 'transactional', 'corporate',
+    'property', 'intellectual_property', 'labour', 'adr', 'probate', 'entertainment', 'sports', 'audit',
+  ].map((cat) => ({ value: cat, label: cat.replace('_', ' ').replace(/\b\w/g, (l) => l.toUpperCase()) }));
+
+  const searchClients = useCallback(async (query: string) => {
+    const res = await listClients({ search: query, page_size: 50 });
+    return res.items.map((c) => ({ value: c.id, label: c.name }));
+  }, []);
+
+  const searchMatters = useCallback(async (query: string) => {
+    const res = await listMatters({
+      search: query,
+      page_size: 50,
+      ...(selectedClient && { client_id: selectedClient }),
+    });
+    return res.items.map((m) => ({ value: m.id, label: `${m.reference_no} - ${m.title}` }));
+  }, [selectedClient]);
 
   const handleGenerate = async () => {
     if (periodType === 'custom' && (!dateFrom || !dateTo)) {
@@ -233,40 +381,34 @@ function GenerateForm({
         <div className="space-y-3">
           <Label className="text-sm font-medium">Filters (Optional)</Label>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <select
+            <SearchableSelect
               value={selectedClient}
-              onChange={(e) => setSelectedClient(e.target.value)}
-              className="flex h-9 w-full rounded-md border border-slate-200 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors dark:border-slate-800"
-            >
-              <option value="">All Clients</option>
-              {clients.map(c => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-            
-            <select
-              value={selectedMatter}
-              onChange={(e) => setSelectedMatter(e.target.value)}
-              className="flex h-9 w-full rounded-md border border-slate-200 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors dark:border-slate-800"
-            >
-              <option value="">All Matters</option>
-              {filteredMatters.map(m => (
-                <option key={m.id} value={m.id}>{m.reference_no} - {m.title}</option>
-              ))}
-            </select>
+              onChange={(v) => {
+                setSelectedClient(v);
+                setSelectedMatter('');
+              }}
+              options={clientOptions}
+              onSearch={searchClients}
+              placeholder="Search clients..."
+              emptyLabel="All Clients"
+            />
 
-            <select
+            <SearchableSelect
+              value={selectedMatter}
+              onChange={setSelectedMatter}
+              options={matterOptions}
+              onSearch={searchMatters}
+              placeholder="Search matters..."
+              emptyLabel="All Matters"
+            />
+
+            <SearchableSelect
               value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="flex h-9 w-full rounded-md border border-slate-200 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors dark:border-slate-800"
-            >
-              <option value="">All Categories</option>
-              {['advisory', 'litigation', 'compliance', 'drafting', 'transactional', 'corporate', 'property', 'intellectual_property', 'labour', 'adr', 'probate', 'entertainment', 'sports', 'audit'].map(cat => (
-                <option key={cat} value={cat}>
-                  {cat.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                </option>
-              ))}
-            </select>
+              onChange={setSelectedCategory}
+              options={categoryOptions}
+              placeholder="Search categories..."
+              emptyLabel="All Categories"
+            />
           </div>
         </div>
 

@@ -79,6 +79,9 @@ class ReportService:
         org_id: uuid.UUID,
         date_from: date,
         date_to: date,
+        client_id: uuid.UUID | None = None,
+        matter_id: uuid.UUID | None = None,
+        matter_type: str | None = None,
     ) -> ReportData:
         """
         Query the activity_log and related tables to build the full
@@ -92,33 +95,46 @@ class ReportService:
         org_result = await self.db.execute(select(Organisation).where(Organisation.id == org_id))
         org = org_result.scalar_one()
 
-        # ── All activity in period ─────────────────────────────────────────
-        activity_result = await self.db.execute(
-            select(ActivityLog)
-            .where(
-                ActivityLog.organisation_id == org_id,
-                ActivityLog.created_at >= dt_from,
-                ActivityLog.created_at <= dt_to,
-            )
-            .order_by(ActivityLog.created_at)
+        # ── All matters active in period ───────────────────────────────────
+        # A matter is "active" if it was open at any point during the period
+        matters_query = select(Matter).where(
+            Matter.organisation_id == org_id,
+            Matter.status != MatterStatus.archived,
         )
-        all_logs = activity_result.scalars().all()
+
+        if client_id:
+            matters_query = matters_query.where(Matter.client_id == client_id)
+        if matter_id:
+            matters_query = matters_query.where(Matter.id == matter_id)
+        if matter_type:
+            matters_query = matters_query.where(Matter.matter_type == matter_type)
+
+        matters_result = await self.db.execute(matters_query)
+        all_matters = matters_result.scalars().all()
+        
+        # ── All activity in period ─────────────────────────────────────────
+        if all_matters:
+            matter_ids = [m.id for m in all_matters]
+            activity_result = await self.db.execute(
+                select(ActivityLog)
+                .where(
+                    ActivityLog.organisation_id == org_id,
+                    ActivityLog.matter_id.in_(matter_ids),
+                    ActivityLog.created_at >= dt_from,
+                    ActivityLog.created_at <= dt_to,
+                )
+                .order_by(ActivityLog.created_at)
+            )
+            all_logs = activity_result.scalars().all()
+        else:
+            all_logs = []
+            
         total_events = len(all_logs)
 
         # Index logs by matter_id for efficient per-matter grouping
         logs_by_matter: dict[uuid.UUID, list[ActivityLog]] = {}
         for log in all_logs:
             logs_by_matter.setdefault(log.matter_id, []).append(log)
-
-        # ── All matters active in period ───────────────────────────────────
-        # A matter is "active" if it was open at any point during the period
-        matters_result = await self.db.execute(
-            select(Matter).where(
-                Matter.organisation_id == org_id,
-                Matter.status != MatterStatus.archived,
-            )
-        )
-        all_matters = matters_result.scalars().all()
 
         # Count opened/closed during period
         matters_opened = sum(
@@ -303,6 +319,9 @@ class ReportService:
         period_label: str,
         date_from: date,
         date_to: date,
+        client_id: uuid.UUID | None,
+        matter_id: uuid.UUID | None,
+        matter_type: str | None,
         drive_file_id: str | None,
         drive_url: str | None,
     ) -> Report:
@@ -313,6 +332,9 @@ class ReportService:
             period_label=period_label,
             date_from=date_from,
             date_to=date_to,
+            client_id=client_id,
+            matter_id=matter_id,
+            matter_type=matter_type,
             drive_file_id=drive_file_id,
             drive_url=drive_url,
         )
@@ -361,7 +383,14 @@ class ReportService:
         """
         date_from, date_to, period_label = _resolve_period(req)
 
-        data = await self.aggregate(org_id, date_from, date_to)
+        data = await self.aggregate(
+            org_id=org_id, 
+            date_from=date_from, 
+            date_to=date_to,
+            client_id=req.client_id,
+            matter_id=req.matter_id,
+            matter_type=req.matter_type,
+        )
         data.period_label = period_label
 
         drive_file_id = None
@@ -393,6 +422,9 @@ class ReportService:
             period_label=period_label,
             date_from=date_from,
             date_to=date_to,
+            client_id=req.client_id,
+            matter_id=req.matter_id,
+            matter_type=req.matter_type,
             drive_file_id=drive_file_id,
             drive_url=drive_url,
         )

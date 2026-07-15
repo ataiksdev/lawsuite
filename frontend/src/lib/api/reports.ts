@@ -6,6 +6,9 @@ export interface ReportGeneratePayload {
   period_type: ReportPeriodType;
   date_from?: string;
   date_to?: string;
+  client_id?: string;
+  matter_id?: string;
+  matter_type?: string;
   group_by_client?: boolean;
   include_event_types?: string[];
   export_to_drive?: boolean;
@@ -64,6 +67,9 @@ export interface ReportRecord {
   period_label: string;
   date_from: string;
   date_to: string;
+  client_id?: string | null;
+  matter_id?: string | null;
+  matter_type?: string | null;
   drive_file_id?: string | null;
   drive_url?: string | null;
   generated_at: string;

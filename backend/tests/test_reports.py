@@ -356,8 +356,11 @@ async def test_download_report_invalid_format(client: AsyncClient):
     # Download it with invalid format
     resp = await client.get(
         f"/reports/{report_id}/download?format=pdf",
+        headers=headers,
+    )
     assert resp.status_code == 400
     assert "Unsupported format" in resp.text
+
 
 
 @pytest.mark.asyncio

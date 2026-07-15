@@ -100,6 +100,16 @@ function formatEventType(type: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+function getEventColor(type: string): string {
+  if (type.startsWith('matter')) return 'bg-emerald-500';
+  if (type.startsWith('task')) return 'bg-blue-500';
+  if (type.startsWith('document')) return 'bg-purple-500';
+  if (type.startsWith('email') || type.startsWith('note')) return 'bg-amber-500';
+  if (type.startsWith('status')) return 'bg-rose-500';
+  return 'bg-slate-400';
+}
+
+
 // ============================================================================
 // Stat Card
 // ============================================================================

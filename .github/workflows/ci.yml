@@ -43,7 +43,7 @@ jobs:
       DATABASE_URL_SYNC: postgresql+psycopg2://postgres:postgres@localhost:5432/legalops_test
       REDIS_URL: redis://localhost:6379/0
       JWT_SECRET: ci-test-secret-do-not-use-in-production
-      ENCRYPTION_KEY: ${{ secrets.CI_ENCRYPTION_KEY }}
+      ENCRYPTION_KEY: AeWevdMuWKZUGIZwXdGsXGjGQRS2iMqN4lz_PdRIdYw=
       APP_ENV: test
 
     steps:

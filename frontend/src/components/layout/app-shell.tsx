@@ -264,13 +264,13 @@ function NavItemButton({
     <Button
       variant="ghost"
       className={cn(
-        'h-9 rounded-lg transition-all font-medium',
+        'h-[30px] rounded-sm border-l-2 border-transparent transition-all font-normal',
         collapsed
           ? 'w-9 justify-center px-0'
-          : 'w-full justify-start gap-3 px-3',
+          : 'w-full justify-start gap-3 px-2.5',
         isActive
-          ? 'bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 hover:text-white'
-          : 'text-slate-600 dark:text-slate-400 hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'
+          ? 'border-l-primary bg-accent text-emerald-700 dark:text-primary hover:bg-accent hover:text-emerald-700 dark:hover:text-primary'
+          : 'text-muted-foreground hover:text-foreground hover:bg-foreground/5'
       )}
       onClick={onClick}
     >
@@ -408,25 +408,20 @@ function SidebarContent({
   return (
     <TooltipProvider delayDuration={0}>
       <div className="flex h-full flex-col">
-        {/* Logo + collapse toggle */}
+        {/* Brand block + collapse toggle */}
         <div
           className={cn(
-            'flex min-h-16 items-start border-b border-emerald-100 dark:border-emerald-900/30 py-3',
-            collapsed ? 'justify-center px-2' : 'gap-3 px-4'
+            'flex items-start border-b border-border py-3',
+            collapsed ? 'justify-center px-2' : 'gap-2 px-4'
           )}
         >
           {!collapsed && (
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-600 text-white shrink-0">
-              <Scale className="h-5 w-5" />
-            </div>
-          )}
-          {!collapsed && (
             <div className="flex flex-col min-w-0 flex-1 gap-1">
               <div>
-                <span className="text-sm font-bold text-emerald-900 dark:text-emerald-100 tracking-tight truncate block">
+                <span className="text-xl font-semibold text-foreground tracking-tight truncate block">
                   Lawmate
                 </span>
-                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium truncate block">
+                <span className="text-xs text-muted-foreground truncate block mt-0.5">
                   {organisation?.name || mockOrganisation.name}
                 </span>
               </div>
@@ -439,7 +434,7 @@ function SidebarContent({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 shrink-0 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                className="h-7 w-7 shrink-0 text-muted-foreground hover:text-primary hover:bg-accent"
                 onClick={toggle}
               >
                 {collapsed
@@ -559,7 +554,7 @@ function HeaderBar({ onMenuClick }: { onMenuClick: () => void }) {
   const userInitials = user ? `${user.first_name[0] ?? ''}${user.last_name[0] ?? ''}` : 'LO';
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-white/80 dark:bg-slate-950/80 backdrop-blur-md px-4">
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-background px-4">
       {/* Hamburger — visible at all sizes for collapsed sidebar */}
       <Button
         variant="ghost"
@@ -640,7 +635,7 @@ function HeaderBar({ onMenuClick }: { onMenuClick: () => void }) {
           >
             <Bell className="h-4 w-4" />
             {unreadCount > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-red-500 text-[9px] font-bold text-white flex items-center justify-center">
+            <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-primary text-[9px] font-bold text-primary-foreground flex items-center justify-center">
             {unreadCount > 9 ? '9+' : unreadCount}
             </span>
             )}
@@ -713,10 +708,10 @@ function HeaderBar({ onMenuClick }: { onMenuClick: () => void }) {
               </AvatarFallback>
             </Avatar>
             <div className="hidden md:flex flex-col items-start max-w-[120px]">
-              <span className="text-xs font-medium text-slate-900 dark:text-slate-100 leading-none truncate w-full">
+              <span className="text-[13px] font-semibold text-foreground leading-none truncate w-full">
                 {user ? `${user.first_name} ${user.last_name}` : 'User'}
               </span>
-              <span className="text-[10px] text-slate-500 leading-none mt-0.5">
+              <span className="text-[11.5px] text-muted-foreground leading-none mt-0.5">
                 {user?.role === UserRole.ADMIN ? 'Admin' : 'Member'}
               </span>
             </div>
@@ -798,13 +793,13 @@ export function AppShell({ children }: AppShellProps) {
   }, [collapsed, setCollapsed]);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
+    <div className="flex h-screen overflow-hidden bg-background">
       {/* ── Desktop sidebar — always rendered, width transitions ── */}
       <aside
         className={cn(
-          'hidden md:flex flex-col border-r border-emerald-100 dark:border-emerald-900/20',
-          'bg-white dark:bg-slate-950 shrink-0 transition-all duration-200 ease-in-out overflow-hidden',
-          collapsed ? 'w-14' : 'w-64'
+          'hidden md:flex flex-col border-r border-sidebar-border',
+          'bg-sidebar shrink-0 transition-all duration-200 ease-in-out overflow-hidden',
+          collapsed ? 'w-14' : 'w-56'
         )}
       >
         <SidebarContent collapsed={collapsed} />
@@ -821,7 +816,7 @@ export function AppShell({ children }: AppShellProps) {
           <aside
             className={cn(
               'fixed left-0 top-0 z-50 h-full w-72 flex flex-col',
-              'border-r border-emerald-100 dark:border-emerald-900/20 bg-white dark:bg-slate-950',
+              'border-r border-sidebar-border bg-sidebar',
               'shadow-xl md:hidden',
               'animate-in slide-in-from-left duration-200'
             )}

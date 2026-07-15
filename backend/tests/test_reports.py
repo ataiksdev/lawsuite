@@ -307,3 +307,56 @@ async def test_report_isolation(client: AsyncClient):
         headers={"Authorization": f"Bearer {token_b}"},
     )
     assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_download_report_html(client: AsyncClient):
+    token = await setup_with_data(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Generate a report
+    gen = await client.post(
+        "/reports/generate",
+        json={
+            "period_type": "monthly",
+            "export_to_drive": False,
+        },
+        headers=headers,
+    )
+    report_id = gen.json()["report"]["id"]
+
+    # Download it as HTML
+    resp = await client.get(
+        f"/reports/{report_id}/download?format=html",
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/html")
+    assert "<!DOCTYPE html>" in resp.text
+    assert "Activity Report" in resp.text
+    assert "Report Test Firm" in resp.text
+
+
+@pytest.mark.asyncio
+async def test_download_report_invalid_format(client: AsyncClient):
+    token = await setup_with_data(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Generate a report
+    gen = await client.post(
+        "/reports/generate",
+        json={
+            "period_type": "monthly",
+            "export_to_drive": False,
+        },
+        headers=headers,
+    )
+    report_id = gen.json()["report"]["id"]
+
+    # Download it with invalid format
+    resp = await client.get(
+        f"/reports/{report_id}/download?format=pdf",
+        headers=headers,
+    )
+    assert resp.status_code == 400
+    assert "Unsupported format" in resp.text

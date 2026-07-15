@@ -75,8 +75,7 @@ interface OverdueTaskEntry {
 
 function getPriorityColor(priority: string) {
   switch (priority) {
-    case 'high': return 'bg-red-100 text-red-700 border-red-200';
-    case 'medium': return 'bg-amber-100 text-amber-700 border-amber-200';
+    case 'high': return 'bg-emerald-100 text-emerald-800 border-emerald-200';
     default: return 'bg-slate-100 text-slate-600 border-slate-200';
   }
 }
@@ -101,17 +100,6 @@ function formatEventType(type: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function getEventColor(type: string): string {
-  if (type.includes('created') || type.includes('opened')) return 'bg-emerald-500';
-  if (type.includes('closed')) return 'bg-slate-400';
-  if (type.includes('document')) return 'bg-blue-500';
-  if (type.includes('task') || type.includes('completed')) return 'bg-purple-500';
-  if (type.includes('email')) return 'bg-amber-500';
-  if (type.includes('note')) return 'bg-violet-500';
-  if (type.includes('calendar') || type.includes('upcoming')) return 'bg-orange-500';
-  return 'bg-emerald-400';
-}
-
 // ============================================================================
 // Stat Card
 // ============================================================================
@@ -120,15 +108,13 @@ function StatCard({
   label,
   value,
   sub,
-  icon: Icon,
-  iconClass,
   onClick,
   loading,
 }: {
   label: string;
   value: number | string;
   sub?: string;
-  icon: React.ElementType;
+  icon?: React.ElementType;
   iconClass?: string;
   onClick?: () => void;
   loading?: boolean;
@@ -136,26 +122,21 @@ function StatCard({
   return (
     <Card
       className={cn(
-        'border-slate-200/80 dark:border-slate-700/80 transition-all',
-        onClick && 'cursor-pointer hover:border-emerald-300 hover:shadow-md dark:hover:border-emerald-700'
+        'transition-all',
+        onClick && 'cursor-pointer hover:border-primary/40'
       )}
       onClick={onClick}
     >
-      <CardContent className="flex items-center gap-3 p-4 sm:gap-4 sm:p-5">
-        <div className={cn('flex h-9 w-9 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl', iconClass || 'bg-emerald-50 dark:bg-emerald-950/30')}>
-          <Icon className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600 dark:text-emerald-400" />
-        </div>
-        <div className="min-w-0">
-          {loading ? (
-            <Skeleton className="h-6 w-12 mb-1 sm:h-7 sm:w-16" />
-          ) : (
-            <p className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-50 tabular-nums">{value}</p>
-          )}
-          <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{label}</p>
-          {sub && !loading && (
-            <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate mt-0.5">{sub}</p>
-          )}
-        </div>
+      <CardContent className="p-4">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-primary truncate">{label}</p>
+        {loading ? (
+          <Skeleton className="h-7 w-16 mt-1.5" />
+        ) : (
+          <p className="text-[26px] leading-tight font-semibold text-foreground tabular-nums mt-0.5">{value}</p>
+        )}
+        {sub && !loading && (
+          <p className="text-[11px] text-muted-foreground truncate mt-1">{sub}</p>
+        )}
       </CardContent>
     </Card>
   );

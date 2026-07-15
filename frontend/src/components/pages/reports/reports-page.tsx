@@ -27,6 +27,7 @@ import { navigate } from '@/lib/router';
 import {
   generateReport,
   listReports,
+  downloadReportHtml,
   type ReportGeneratePayload,
   type ReportRecord,
   type ReportPeriodType,
@@ -317,17 +318,41 @@ function ReportHistoryList({
                     {formatDate(report.generated_at)}
                   </p>
                 </div>
-                {report.drive_url && (
-                  <a
-                    href={report.drive_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-1 shrink-0 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300 transition-colors"
+                <div className="flex gap-2">
+                  <button
+                    onClick={async () => {
+                      try {
+                        const html = await downloadReportHtml(report.id);
+                        const win = window.open('', '_blank');
+                        if (win) {
+                          win.document.open();
+                          win.document.write(html);
+                          win.document.close();
+                          win.onload = () => {
+                            win.print();
+                          };
+                        }
+                      } catch (e) {
+                        toast.error('Failed to download PDF report');
+                      }
+                    }}
+                    className="flex items-center gap-1 shrink-0 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 transition-colors"
                   >
-                    <ExternalLink className="h-3 w-3" />
-                    Open
-                  </a>
-                )}
+                    <Download className="h-3 w-3" />
+                    Print PDF
+                  </button>
+                  {report.drive_url && (
+                    <a
+                      href={report.drive_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-1 shrink-0 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300 transition-colors"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      Open
+                    </a>
+                  )}
+                </div>
               </div>
             ))}
           </div>

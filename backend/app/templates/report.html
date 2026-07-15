@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+/* Broadsheet — design-system tokens and component classes. This file is the source of truth for the system's look; retune it here and see readme.md. */
+@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,600;1,400&display=swap');
+
+:root {
+  --color-bg: #f3f2f2;
+  --color-surface: #eae9e9;
+  --color-text: #201e1d;
+  --color-accent: #0088b0;
+  --color-accent-2: #d6006c;
+  --color-divider: color-mix(in srgb, #201e1d 16%, transparent);
+
+  --color-neutral-100: #f8f4f4;
+  --color-neutral-200: #eae7e7;
+  --color-neutral-300: #d7d3d3;
+  --color-neutral-400: #bab6b6;
+  --color-neutral-500: #9b9797;
+  --color-neutral-600: #7d7979;
+  --color-neutral-700: #605d5d;
+  --color-neutral-800: #444141;
+  --color-neutral-900: #2d2b2b;
+
+  --color-accent-100: #e9f8ff;
+  --color-accent-200: #cbeeff;
+  --color-accent-300: #99e0ff;
+  --color-accent-400: #62c5ee;
+  --color-accent-500: #38a6cf;
+  --color-accent-600: #1186ac;
+  --color-accent-700: #006786;
+  --color-accent-800: #004961;
+  --color-accent-900: #0a303e;
+
+  --color-accent-2-100: #fff1f4;
+  --color-accent-2-200: #ffdee6;
+  --color-accent-2-300: #ffc0d0;
+  --color-accent-2-400: #ff90b1;
+  --color-accent-2-500: #ff458e;
+  --color-accent-2-600: #d82071;
+  --color-accent-2-700: #aa0b56;
+  --color-accent-2-800: #790e3d;
+  --color-accent-2-900: #4b1528;
+
+  --color-process-yellow: #edbb00;
+
+  --font-heading: "Source Serif 4", system-ui, sans-serif;
+  --font-heading-weight: 600;
+  --font-body: "Source Serif 4", system-ui, sans-serif;
+
+  --space-1: 5.0px;
+  --space-2: 10.0px;
+  --space-3: 15.0px;
+  --space-4: 20.0px;
+  --space-6: 30.0px;
+  --space-8: 40.0px;
+
+  --radius-sm: 1px;
+  --radius-md: 2px;
+  --radius-lg: 4px;
+
+  --shadow-sm: 0 1px 2px color-mix(in srgb, #2d2b2b 14%, transparent);
+  --shadow-md: 0 3px 10px color-mix(in srgb, #2d2b2b 16%, transparent);
+  --shadow-lg: 0 12px 32px color-mix(in srgb, #2d2b2b 22%, transparent);
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  margin: 0; font-size: 15px; line-height: 1.55; font-weight: 400;
+}
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  line-height: 1.12; letter-spacing: -0.015em; margin: 0 0 var(--space-2);
+}
+h1 { font-size: 42px; }
+h2 { font-size: 32px; }
+h3 { font-size: 25px; }
+h4 { font-size: 20px; }
+h5 { font-size: 16px; }
+h6 { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; }
+p { margin: 0 0 var(--space-3); }
+
+.tag {
+  display: inline-flex; align-items: center; font-size: 11px;
+  letter-spacing: 0.02em; padding: 3px 10px;
+  border-radius: calc(var(--radius-md) * 0.75);
+}
+.tag-accent { background: var(--color-accent-100); color: var(--color-accent-800); }
+.tag-accent-2 { background: var(--color-accent-2-100); color: var(--color-accent-2-800); }
+.tag-neutral { background: var(--color-neutral-100); color: var(--color-neutral-800); }
+.tag-outline { border: 1px solid var(--color-accent); color: var(--color-accent); }
+
+/* Report-specific local overrides from report-broadsheet.html */
+:root {
+  --color-text:#151312;
+  --color-divider:color-mix(in srgb,#151312 28%,transparent);
+  --space-1:4px; --space-2:8px; --space-3:12px;
+  --space-4:16px; --space-6:22px; --space-8:30px;
+  --color-accent:#8a5c1e;
+  --color-accent-100:#f9efdd;
+  --color-accent-200:#efdcb8;
+  --color-accent-300:#ddc08a;
+  --color-accent-400:#c09a58;
+  --color-accent-500:#9e7835;
+  --color-accent-600:#7d5c1f;
+  --color-accent-700:#5f4512;
+  --color-accent-800:#44300b;
+  --color-accent-900:#2c1f08;
+}
+body { font-size:13px; color:var(--color-text); background:#e6e4e2; }
+.page { width: 794px; min-height: 1123px; margin: 24px auto; background: var(--color-bg); box-shadow: var(--shadow-md); padding: 56px 60px 48px; box-sizing: border-box; display: flex; flex-direction: column; }
+.masthead { border-bottom: 3px solid var(--color-text); padding-bottom: var(--space-3); margin-bottom: 2px; display: flex; justify-content: space-between; align-items: flex-end; }
+.masthead .firm { font-family: var(--font-heading); font-weight: var(--font-heading-weight); font-size: 24px; line-height: 1.1; margin: 0; }
+.masthead .brandmark { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-accent-700); }
+.dateline { border-bottom: 1px solid var(--color-text); padding: 5px 0; display: flex; justify-content: space-between; font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: color-mix(in srgb, var(--color-text) 80%, transparent); margin-bottom: var(--space-6); }
+h1.report-title { font-size: 34px; margin-bottom: var(--space-1); }
+.report-sub { font-size: 14px; color: color-mix(in srgb, var(--color-text) 78%, transparent); margin-bottom: var(--space-4); }
+.summary-band { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--color-divider); border-bottom: 1px solid var(--color-divider); padding: var(--space-3) 0; margin-bottom: var(--space-6); }
+.summary-band > div + div { border-left: 1px solid var(--color-divider); padding-left: var(--space-3); }
+.sum-num { font-family: var(--font-heading); font-weight: var(--font-heading-weight); font-size: 28px; font-feature-settings: "tnum"; line-height: 1; }
+.sum-label { font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: color-mix(in srgb, var(--color-text) 72%, transparent); margin-top: 4px; }
+.client-sec { margin-bottom: var(--space-6); }
+.client-head { display: flex; align-items: baseline; justify-content: space-between; border-bottom: 2px solid var(--color-accent); padding-bottom: 4px; margin-bottom: var(--space-2); }
+.client-head h3 { font-size: 18px; margin: 0; }
+.client-head span { font-size: 11.5px; color: color-mix(in srgb, var(--color-text) 72%, transparent); }
+
+.table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.table th { font-size: 10px; padding: 6px var(--space-2); text-align: left; letter-spacing: 0.08em; text-transform: uppercase; color: color-mix(in srgb, var(--color-text) 60%, transparent); border-bottom: 1px solid var(--color-divider); }
+.table td { padding: 7px var(--space-2); border-bottom: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent); }
+.table tbody tr:hover { background: color-mix(in srgb, var(--color-text) 4%, transparent); }
+.table .num { text-align: right; font-feature-settings: "tnum"; }
+.table th.num { text-align: right; }
+.tag { font-size: 10px; padding: 2px 8px; }
+.note-block { background: var(--color-accent-100); color: var(--color-accent-800); padding: var(--space-3); font-size: 12px; border-radius: var(--radius-md); margin-bottom: var(--space-6); }
+.report-foot { margin-top: auto; border-top: 1px solid var(--color-text); padding-top: var(--space-2); display: flex; justify-content: space-between; font-size: 10.5px; color: color-mix(in srgb, var(--color-text) 70%, transparent); }
+
+/* Print optimization */
+@media print {
+  body { background: white; margin: 0; padding: 0; }
+  .page { box-shadow: none; margin: 0; padding: 0; width: 100%; min-height: auto; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="masthead">
+    <div>
+      <div class="brandmark">Lawmate &middot; Activity Report</div>
+      <h2 class="firm">{{ data.org_name }}</h2>
+    </div>
+    <div style="text-align:right;font-size:11.5px;line-height:1.5">
+      Generated by Lawmate
+    </div>
+  </div>
+  <div class="dateline">
+    <span>Activity Report</span>
+    <span>Period: {{ data.period_label }}</span>
+    <span>Generated: {{ data.generated_at.strftime('%d %b %Y, %H:%M') }}</span>
+  </div>
+
+  <h1 class="report-title">Activity Report</h1>
+  <p class="report-sub">All matter, task and document activity across the organisation, grouped by client.</p>
+
+  <div class="summary-band">
+    <div><div class="sum-num">{{ data.total_events }}</div><div class="sum-label">Total events</div></div>
+    <div><div class="sum-num">{{ data.matters_active }}</div><div class="sum-label">Matters active</div></div>
+    <div><div class="sum-num">{{ data.matters_opened }}</div><div class="sum-label">Matters opened</div></div>
+    <div><div class="sum-num">{{ data.matters_closed }}</div><div class="sum-label">Matters closed</div></div>
+  </div>
+
+  {% for client in data.clients %}
+  <div class="client-sec">
+    <div class="client-head">
+      <h3>{{ client.client_name }}</h3>
+      <span>{{ client.matter_count }} matters &middot; {{ client.matters | map(attribute='event_count') | sum }} events this period</span>
+    </div>
+    <table class="table">
+      <thead>
+        <tr><th>Ref</th><th>Matter</th><th>Status</th><th class="num">Events</th><th class="num">Tasks done</th><th class="num">Overdue</th><th class="num">Docs added</th></tr>
+      </thead>
+      <tbody>
+        {% for matter in client.matters %}
+        <tr>
+          <td>{{ matter.reference_no }}</td>
+          <td>{{ matter.matter_title }}</td>
+          <td>
+            {% if matter.status == 'open' %}
+              <span class="tag tag-accent">Open</span>
+            {% elif matter.status == 'pending' %}
+              <span class="tag tag-accent-2">Pending</span>
+            {% else %}
+              <span class="tag tag-neutral">{{ matter.status | title }}</span>
+            {% endif %}
+          </td>
+          <td class="num">{{ matter.event_count }}</td>
+          <td class="num">{{ matter.tasks.completed }} / {{ matter.tasks.total }}</td>
+          <td class="num">{{ matter.tasks.overdue }}</td>
+          <td class="num">{{ matter.documents.added }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endfor %}
+
+  {% if not data.clients %}
+  <div class="note-block">
+    No activity recorded for this period.
+  </div>
+  {% endif %}
+
+  <div class="report-foot">
+    <span>Privileged &amp; confidential &mdash; prepared for internal use of {{ data.org_name }}</span>
+    <span>Generated by Lawmate &middot; Page 1 of 1</span>
+  </div>
+</div>
+</body>
+</html>

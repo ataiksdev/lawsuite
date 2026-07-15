@@ -2,7 +2,8 @@
 import math
 import uuid
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Query, status, HTTPException
+from fastapi.responses import HTMLResponse
 
 from app.core.deps import DB, AuthUser
 from app.schemas.report import ReportGenerateRequest, ReportResponse
@@ -105,3 +106,49 @@ async def get_report(report_id: uuid.UUID, current_user: AuthUser, db: DB):
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
     return ReportResponse.model_validate(report)
+
+
+@router.get("/{report_id}/download")
+async def download_report(
+    report_id: uuid.UUID,
+    current_user: AuthUser,
+    db: DB,
+    format: str = Query("html", description="Format to download: html"),
+):
+    """
+    Download a previously generated report.
+    Currently supports HTML format which can be printed to PDF by the client.
+    """
+    from sqlalchemy import select
+    from app.models.report import Report
+    from app.services.report_service import ReportService
+
+    # 1. Fetch the report record to get the date range
+    result = await db.execute(
+        select(Report).where(
+            Report.id == report_id,
+            Report.organisation_id == current_user.org_id,
+        )
+    )
+    report = result.scalar_one_or_none()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    # 2. Re-aggregate the data for that period
+    service = ReportService(db)
+    data = await service.aggregate(
+        org_id=current_user.org_id,
+        date_from=report.date_from,
+        date_to=report.date_to,
+    )
+    data.period_label = report.period_label
+    
+    # We use the original generated_at timestamp to match the record
+    data.generated_at = report.generated_at
+
+    # 3. Generate HTML
+    if format.lower() == "html":
+        html_content = service.generate_html(data)
+        return HTMLResponse(content=html_content)
+    
+    raise HTTPException(status_code=400, detail="Unsupported format. Only 'html' is supported.")

@@ -15,7 +15,6 @@
 #   VERCEL_TOKEN            — from vercel.com → Settings → Tokens
 #   VERCEL_ORG_ID           — from vercel.com → Settings → General
 #   VERCEL_PROJECT_ID       — from .vercel/project.json after first `vercel link`
-#   CI_ENCRYPTION_KEY       — Fernet key used in tests (same as ENCRYPTION_KEY)
 # =============================================================================
 
 name: Deploy
@@ -61,7 +60,7 @@ jobs:
       DATABASE_URL_SYNC: postgresql://postgres:postgres@localhost:5432/legalops_test
       REDIS_URL:         redis://localhost:6379/0
       JWT_SECRET:        ci-test-secret-not-for-production
-      ENCRYPTION_KEY:    ${{ secrets.CI_ENCRYPTION_KEY }}
+      ENCRYPTION_KEY:    AeWevdMuWKZUGIZwXdGsXGjGQRS2iMqN4lz_PdRIdYw=
       APP_ENV:           test
 
     steps:

@@ -74,6 +74,7 @@ jobs:
           DATABASE_URL_SYNC: postgresql+psycopg2://postgres:postgres@localhost:5432/legalops_test
           REDIS_URL: redis://localhost:6379/0
           JWT_SECRET: ci-test-secret
+          ENCRYPTION_KEY: AeWevdMuWKZUGIZwXdGsXGjGQRS2iMqN4lz_PdRIdYw=
           APP_ENV: test
 
       # Build and Start Frontend

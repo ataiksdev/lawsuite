@@ -6,7 +6,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-inter);
+  --font-sans: var(--font-serif);
   --font-mono: var(--font-geist-mono);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -37,48 +37,48 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  /* Reduced by 2px vs defaults */
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 6px);
-  --radius-3xl: calc(var(--radius) + 10px);
+  /* Broadsheet — nearly square, print-like radii */
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 4px;
+  --radius-xl: 6px;
+  --radius-2xl: 8px;
+  --radius-3xl: 12px;
 }
 
 /* ============================================================================
-   Remap Emerald → Deep Brown Brand Palette
+   Remap Emerald → Broadsheet gold-brown accent ramp
    Overrides all emerald-* Tailwind classes throughout the app
    ============================================================================ */
 
 @theme {
-  --color-emerald-50:  oklch(0.972 0.010 52);
-  --color-emerald-100: oklch(0.940 0.022 50);
-  --color-emerald-200: oklch(0.878 0.045 47);
-  --color-emerald-300: oklch(0.778 0.078 45);
-  --color-emerald-400: oklch(0.655 0.100 43);
-  --color-emerald-500: oklch(0.530 0.112 42);
-  --color-emerald-600: oklch(0.438 0.112 41);
-  --color-emerald-700: oklch(0.372 0.108 40);
-  --color-emerald-800: oklch(0.302 0.090 39);
-  --color-emerald-900: oklch(0.240 0.072 38);
-  --color-emerald-950: oklch(0.172 0.048 37);
+  --color-emerald-50:  #fdf8f0;
+  --color-emerald-100: #f9efdd;
+  --color-emerald-200: #efdcb8;
+  --color-emerald-300: #ddc08a;
+  --color-emerald-400: #c09a58;
+  --color-emerald-500: #8a5c1e;
+  --color-emerald-600: #7d5c1f;
+  --color-emerald-700: #5f4512;
+  --color-emerald-800: #44300b;
+  --color-emerald-900: #2c1f08;
+  --color-emerald-950: #1c1405;
 
   /* ============================================================================
-     Remap Slate → Warm Neutral Palette (removes the blue-dark tint in dark mode)
-     Based on the HTML's ink (#0D0D0D) / paper (#F5F0E8) tonal range
+     Remap Slate → Broadsheet ink/paper neutral ramp
+     Interpolated between paper (#f3f2f2) and ink (#151312)
      ============================================================================ */
-  --color-slate-50:  oklch(0.968 0.010 78);
-  --color-slate-100: oklch(0.930 0.012 76);
-  --color-slate-200: oklch(0.840 0.012 75);
-  --color-slate-300: oklch(0.730 0.012 72);
-  --color-slate-400: oklch(0.580 0.012 70);
-  --color-slate-500: oklch(0.472 0.013 70);
-  --color-slate-600: oklch(0.380 0.012 68);
-  --color-slate-700: oklch(0.295 0.012 66);
-  --color-slate-800: oklch(0.220 0.014 65);
-  --color-slate-900: oklch(0.155 0.014 64);
-  --color-slate-950: oklch(0.105 0.006 63);
+  --color-slate-50:  #f7f6f6;
+  --color-slate-100: #ececeb;
+  --color-slate-200: #dbd9d8;
+  --color-slate-300: #c2bfbd;
+  --color-slate-400: #a19d9a;
+  --color-slate-500: #7d7975;
+  --color-slate-600: #5e5a56;
+  --color-slate-700: #47433f;
+  --color-slate-800: #322e2b;
+  --color-slate-900: #211e1b;
+  --color-slate-950: #151312;
 }
 
 /* ============================================================================
@@ -86,46 +86,45 @@
    ============================================================================ */
 
 :root {
-  --radius: 0.375rem;
-  /* Warm cream paper background */
-  --background: oklch(0.963 0.012 78);
-  --foreground: oklch(0.105 0.004 65);
-  /* Warm white cards */
-  --card: oklch(0.992 0.006 80);
-  --card-foreground: oklch(0.105 0.004 65);
-  --popover: oklch(0.992 0.006 80);
-  --popover-foreground: oklch(0.105 0.004 65);
-  /* Deep brown primary */
-  --primary: oklch(0.372 0.108 40);
-  --primary-foreground: oklch(0.985 0.006 75);
-  /* Warm secondary tones */
-  --secondary: oklch(0.920 0.015 78);
-  --secondary-foreground: oklch(0.205 0.010 65);
-  --muted: oklch(0.920 0.015 78);
-  --muted-foreground: oklch(0.472 0.013 72);
-  /* Accent — very light warm tint */
-  --accent: oklch(0.942 0.020 78);
-  --accent-foreground: oklch(0.302 0.090 39);
+  --radius: 4px;
+  /* Broadsheet — paper ground / near-black ink */
+  --background: #f3f2f2;
+  --foreground: #151312;
+  /* Surface tone cards sit on (dimmer than the page ground, print-like) */
+  --card: #eae9e9;
+  --card-foreground: #151312;
+  --popover: #eae9e9;
+  --popover-foreground: #151312;
+  /* Deep gold-brown accent */
+  --primary: #8a5c1e;
+  --primary-foreground: #f3f2f2;
+  --secondary: #e3e1e0;
+  --secondary-foreground: #151312;
+  --muted: #e3e1e0;
+  --muted-foreground: color-mix(in srgb, #151312 76%, transparent);
+  /* Accent — tinted fills / hovers (accent-100 / accent-800) */
+  --accent: #f9efdd;
+  --accent-foreground: #44300b;
   --destructive: oklch(0.577 0.245 27.325);
-  /* Warm borders */
-  --border: oklch(0.840 0.012 78);
-  --input: oklch(0.840 0.012 78);
-  --ring: oklch(0.372 0.108 40);
+  /* Dividers — ink-mix hairlines */
+  --border: color-mix(in srgb, #151312 28%, transparent);
+  --input: color-mix(in srgb, #151312 28%, transparent);
+  --ring: #8a5c1e;
   /* Charts — brown-family */
-  --chart-1: oklch(0.372 0.108 40);
-  --chart-2: oklch(0.530 0.112 42);
+  --chart-1: #8a5c1e;
+  --chart-2: #c09a58;
   --chart-3: oklch(0.380 0.140 250);
   --chart-4: oklch(0.620 0.115 80);
   --chart-5: oklch(0.540 0.105 300);
-  /* Sidebar */
-  --sidebar: oklch(0.992 0.006 80);
-  --sidebar-foreground: oklch(0.105 0.004 65);
-  --sidebar-primary: oklch(0.372 0.108 40);
-  --sidebar-primary-foreground: oklch(0.985 0.006 75);
-  --sidebar-accent: oklch(0.942 0.020 78);
-  --sidebar-accent-foreground: oklch(0.302 0.090 39);
-  --sidebar-border: oklch(0.840 0.012 78);
-  --sidebar-ring: oklch(0.372 0.108 40);
+  /* Sidebar — sits on the page ground, not the card surface */
+  --sidebar: #f3f2f2;
+  --sidebar-foreground: #151312;
+  --sidebar-primary: #8a5c1e;
+  --sidebar-primary-foreground: #f3f2f2;
+  --sidebar-accent: #f9efdd;
+  --sidebar-accent-foreground: #44300b;
+  --sidebar-border: color-mix(in srgb, #151312 28%, transparent);
+  --sidebar-ring: #8a5c1e;
 }
 
 /* ============================================================================
@@ -133,43 +132,41 @@
    ============================================================================ */
 
 .dark {
-  /* Warm near-black background (#1A1510) */
-  --background: oklch(0.142 0.016 65);
-  --foreground: oklch(0.963 0.012 78);
-  /* Slightly lighter warm dark for cards (#231E17) */
-  --card: oklch(0.182 0.016 65);
-  --card-foreground: oklch(0.963 0.012 78);
-  --popover: oklch(0.182 0.016 65);
-  --popover-foreground: oklch(0.963 0.012 78);
-  /* Lighter deep brown for dark bg readability */
-  --primary: oklch(0.580 0.110 42);
-  --primary-foreground: oklch(0.142 0.016 65);
-  --secondary: oklch(0.222 0.016 65);
-  --secondary-foreground: oklch(0.963 0.012 78);
-  --muted: oklch(0.222 0.016 65);
-  --muted-foreground: oklch(0.620 0.014 72);
-  /* Very dark brown tint for accent */
-  --accent: oklch(0.248 0.025 42);
-  --accent-foreground: oklch(0.855 0.050 44);
+  /* Broadsheet dark — warm near-black "ground", light paper "ink" */
+  --background: #17140f;
+  --foreground: #f3f2f0;
+  --card: #201c15;
+  --card-foreground: #f3f2f0;
+  --popover: #201c15;
+  --popover-foreground: #f3f2f0;
+  /* Lighter gold for dark-bg contrast */
+  --primary: #c9a06b;
+  --primary-foreground: #17140f;
+  --secondary: #29241b;
+  --secondary-foreground: #f3f2f0;
+  --muted: #29241b;
+  --muted-foreground: color-mix(in srgb, #f3f2f0 70%, transparent);
+  --accent: #3a2c15;
+  --accent-foreground: #e8c98a;
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(0.280 0.015 65);
-  --input: oklch(0.280 0.015 65);
-  --ring: oklch(0.580 0.110 42);
+  --border: color-mix(in srgb, #f3f2f0 24%, transparent);
+  --input: color-mix(in srgb, #f3f2f0 24%, transparent);
+  --ring: #c9a06b;
   /* Charts */
-  --chart-1: oklch(0.580 0.110 42);
-  --chart-2: oklch(0.650 0.100 52);
+  --chart-1: #c9a06b;
+  --chart-2: #ddc08a;
   --chart-3: oklch(0.500 0.120 250);
   --chart-4: oklch(0.680 0.105 80);
   --chart-5: oklch(0.580 0.095 300);
-  /* Sidebar — slightly darker than bg */
-  --sidebar: oklch(0.122 0.014 65);
-  --sidebar-foreground: oklch(0.963 0.012 78);
-  --sidebar-primary: oklch(0.580 0.110 42);
-  --sidebar-primary-foreground: oklch(0.142 0.016 65);
-  --sidebar-accent: oklch(0.248 0.025 42);
-  --sidebar-accent-foreground: oklch(0.855 0.050 44);
-  --sidebar-border: oklch(0.280 0.015 65);
-  --sidebar-ring: oklch(0.580 0.110 42);
+  /* Sidebar — sits on the page ground */
+  --sidebar: #17140f;
+  --sidebar-foreground: #f3f2f0;
+  --sidebar-primary: #c9a06b;
+  --sidebar-primary-foreground: #17140f;
+  --sidebar-accent: #3a2c15;
+  --sidebar-accent-foreground: #e8c98a;
+  --sidebar-border: color-mix(in srgb, #f3f2f0 24%, transparent);
+  --sidebar-ring: #c9a06b;
 }
 
 /* ============================================================================
@@ -183,6 +180,10 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+::selection {
+  background: color-mix(in srgb, #efdcb8 60%, transparent);
 }
 
 /* ============================================================================

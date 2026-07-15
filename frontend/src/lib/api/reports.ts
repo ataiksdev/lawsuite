@@ -94,3 +94,19 @@ export async function listReports(params: { page?: number; page_size?: number } 
 export async function getReport(reportId: string) {
   return apiClient.get<ReportRecord>(`/reports/${reportId}`);
 }
+
+export async function downloadReportHtml(reportId: string): Promise<string> {
+  const token = apiClient.getAccessToken();
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  const url = `${baseUrl}/reports/${reportId}/download?format=html`;
+  
+  const res = await fetch(url, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  
+  if (!res.ok) {
+    throw new Error('Failed to download report HTML');
+  }
+  
+  return res.text();
+}

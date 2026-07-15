@@ -5,6 +5,8 @@ from datetime import date, datetime, timedelta, timezone
 from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from jinja2 import Environment, FileSystemLoader
+import os
 
 from app.models.activity_log import ActivityLog
 from app.models.client import Client
@@ -66,6 +68,9 @@ def _resolve_period(
 class ReportService:
     def __init__(self, db: AsyncSession):
         self.db = db
+        # Initialize Jinja2 environment for HTML reports
+        template_dir = os.path.join(os.path.dirname(__file__), "..", "templates")
+        self.jinja_env = Environment(loader=FileSystemLoader(template_dir))
 
     # ── Core aggregation ──────────────────────────────────────────────────
 
@@ -278,6 +283,15 @@ class ReportService:
             ).execute()
 
         return file_id, drive_url
+
+    # ── HTML export ───────────────────────────────────────────────────────
+
+    def generate_html(self, data: ReportData) -> str:
+        """
+        Renders the report data into an HTML string using the Jinja2 template.
+        """
+        template = self.jinja_env.get_template("report.html")
+        return template.render(data=data)
 
     # ── Persist and retrieve reports ──────────────────────────────────────
 

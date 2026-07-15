@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Source_Serif_4 } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "sonner";
 import { Analytics } from "@vercel/analytics/next";
 
-const inter = Inter({
-  variable: "--font-inter",
+const sourceSerif = Source_Serif_4({
+  variable: "--font-serif",
   subsets: ["latin"],
+  style: ["normal", "italic"],
   display: "swap",
 });
 
@@ -30,7 +31,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.variable} font-sans antialiased bg-background text-foreground`}>
+      <body className={`${sourceSerif.variable} font-sans antialiased bg-background text-foreground`}>
         <ThemeProvider
           attribute="class"
           defaultTheme="light"

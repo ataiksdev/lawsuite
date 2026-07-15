@@ -9,9 +9,8 @@ Architecture:
   - The SSE stream sends a lightweight "ping" event whenever the user
     has new unread notifications; the frontend then fetches the full list.
 """
-import asyncio
+
 import uuid
-from datetime import datetime, timezone
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -149,6 +148,7 @@ class NotificationService:
 
     async def unread_count(self, user_id: uuid.UUID, org_id: uuid.UUID) -> int:
         from sqlalchemy import func
+
         result = await self.db.execute(
             select(func.count()).where(
                 Notification.user_id == user_id,

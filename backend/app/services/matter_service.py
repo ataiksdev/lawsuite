@@ -18,18 +18,18 @@ from app.services.notification_service import NotificationService
 
 # Valid stage transitions — prevents arbitrary jumps
 ALLOWED_TRANSITIONS: dict[MatterStatus, list[MatterStatus]] = {
-    MatterStatus.intake:    [MatterStatus.open, MatterStatus.archived],
-    MatterStatus.open:      [MatterStatus.pending, MatterStatus.in_review, MatterStatus.closed, MatterStatus.archived],
-    MatterStatus.pending:   [MatterStatus.open, MatterStatus.in_review, MatterStatus.closed, MatterStatus.archived],
+    MatterStatus.intake: [MatterStatus.open, MatterStatus.archived],
+    MatterStatus.open: [MatterStatus.pending, MatterStatus.in_review, MatterStatus.closed, MatterStatus.archived],
+    MatterStatus.pending: [MatterStatus.open, MatterStatus.in_review, MatterStatus.closed, MatterStatus.archived],
     MatterStatus.in_review: [MatterStatus.open, MatterStatus.pending, MatterStatus.closed, MatterStatus.archived],
-    MatterStatus.closed:    [MatterStatus.open, MatterStatus.archived],
-    MatterStatus.archived:  [MatterStatus.open],
+    MatterStatus.closed: [MatterStatus.open, MatterStatus.archived],
+    MatterStatus.archived: [MatterStatus.open],
 }
 
 # Regex for a bare Drive ID — alphanumerics, hyphens, underscores, 10+ chars
-_BARE_ID_RE = re.compile(r'^[A-Za-z0-9_-]{10,}$')
-_FOLDERS_RE  = re.compile(r'/folders/([A-Za-z0-9_-]+)')
-_QUERY_ID_RE = re.compile(r'[?&]id=([A-Za-z0-9_-]+)')
+_BARE_ID_RE = re.compile(r"^[A-Za-z0-9_-]{10,}$")
+_FOLDERS_RE = re.compile(r"/folders/([A-Za-z0-9_-]+)")
+_QUERY_ID_RE = re.compile(r"[?&]id=([A-Za-z0-9_-]+)")
 
 
 async def _generate_reference(db: AsyncSession, org_id: uuid.UUID) -> str:
@@ -345,11 +345,7 @@ class MatterService:
 
         # Verify the folder exists and is accessible
         try:
-            meta = (
-                drive_service.client.files()
-                .get(fileId=folder_id, fields="id,name,mimeType,webViewLink")
-                .execute()
-            )
+            meta = drive_service.client.files().get(fileId=folder_id, fields="id,name,mimeType,webViewLink").execute()
         except HttpError as e:
             raise HTTPException(
                 status_code=404,

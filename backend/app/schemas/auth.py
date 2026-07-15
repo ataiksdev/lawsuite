@@ -101,7 +101,9 @@ class ChangePasswordRequest(BaseModel):
             raise ValueError("Password must contain at least one digit")
         return v
 
+
 # ─── Password reset ──────────────────────────────────────────────────────────
+
 
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
@@ -119,6 +121,7 @@ class ResetPasswordRequest(BaseModel):
         if not any(c.isdigit() for c in v):
             raise ValueError("Password must contain at least one digit")
         return v
+
 
 # ─── Organisation management ─────────────────────────────────────────────────
 

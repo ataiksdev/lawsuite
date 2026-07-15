@@ -1,7 +1,6 @@
 # backend/app/services/task_service.py
 import uuid
 from datetime import date, datetime, timezone
-from typing import Any
 
 from fastapi import HTTPException, status
 from sqlalchemy import func, select
@@ -12,7 +11,7 @@ from app.models.task import Task, TaskStatus
 from app.models.task_comment import TaskComment
 from app.models.task_watcher import TaskWatcher
 from app.models.user import User
-from app.schemas.task import TaskCommentCreate, TaskCreate, TaskUpdate, TaskWatcherAdd
+from app.schemas.task import TaskCommentCreate, TaskCreate, TaskUpdate
 from app.services.activity_service import ActivityService
 from app.services.notification_service import NotificationService
 

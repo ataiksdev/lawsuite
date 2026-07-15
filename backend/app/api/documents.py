@@ -7,7 +7,7 @@ import fastapi
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from sqlalchemy import select
 
-from app.core.deps import ScopedDB, AuthUser, MemberUser, AdminUser, GoogleCreds
+from app.core.deps import AdminUser, AuthUser, GoogleCreds, MemberUser, ScopedDB
 from app.core.upload_validation import validate_upload
 from app.models.client import Client
 from app.models.matter import Matter

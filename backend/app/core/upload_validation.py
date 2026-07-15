@@ -10,6 +10,7 @@ into a legal document store -- it is not a full content/structure validator
 (e.g. it won't catch a booby-trapped macro inside an otherwise-valid .docx)
 and is not a substitute for antivirus scanning.
 """
+
 from fastapi import HTTPException, status
 
 _PDF = (b"%PDF-",)
@@ -58,8 +59,7 @@ def validate_upload(filename: str, file_bytes: bytes) -> None:
         raise HTTPException(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
             detail=(
-                f"Unsupported file type '{ext or 'unknown'}'. "
-                f"Allowed: {', '.join(sorted(ALLOWED_EXTENSIONS))}"
+                f"Unsupported file type '{ext or 'unknown'}'. " f"Allowed: {', '.join(sorted(ALLOWED_EXTENSIONS))}"
             ),
         )
 

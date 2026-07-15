@@ -18,6 +18,7 @@ SSE stream format:
 
 The stream uses long-polling fallback compatible with EventSource.
 """
+
 import asyncio
 import json
 import uuid
@@ -159,9 +160,7 @@ async def notification_stream(current_user: AuthUser, db: DB):
                     # Push notifications that are newer than last_seen_id
                     pushed = False
                     for n in reversed(new_notifs):  # oldest first
-                        if last_seen_id is None or n.created_at > (
-                            await _get_notif_time(session, last_seen_id)
-                        ):
+                        if last_seen_id is None or n.created_at > (await _get_notif_time(session, last_seen_id)):
                             yield await _sse_event("notification", _serialize_notification(n))
                             last_seen_id = n.id
                             pushed = True
@@ -186,12 +185,12 @@ async def notification_stream(current_user: AuthUser, db: DB):
         """Helper: fetch created_at of the last-seen notification."""
         if notif_id is None:
             from datetime import timezone
+
             return datetime.min.replace(tzinfo=timezone.utc)
-        result = await session.execute(
-            select(Notification.created_at).where(Notification.id == notif_id)
-        )
+        result = await session.execute(select(Notification.created_at).where(Notification.id == notif_id))
         row = result.scalar_one_or_none()
         from datetime import timezone
+
         return row or datetime.min.replace(tzinfo=timezone.utc)
 
     return StreamingResponse(
@@ -199,7 +198,7 @@ async def notification_stream(current_user: AuthUser, db: DB):
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",   # prevents Nginx buffering the stream
+            "X-Accel-Buffering": "no",  # prevents Nginx buffering the stream
         },
     )
 
@@ -222,6 +221,7 @@ async def mark_read(
     )
     if not notif:
         from fastapi import HTTPException
+
         raise HTTPException(status_code=404, detail="Notification not found")
     return {"id": str(notif.id), "is_read": notif.is_read}
 
@@ -248,6 +248,7 @@ async def delete_notification(
 ):
     """Delete a notification."""
     from sqlalchemy import delete
+
     await db.execute(
         delete(Notification).where(
             Notification.id == notification_id,

@@ -13,6 +13,7 @@ Routes:
   DELETE /notes/{note_id}               — delete
   POST   /notes/{note_id}/add-comment   — append task comment to note body
 """
+
 import uuid
 
 from fastapi import APIRouter, Query, status
@@ -74,16 +75,15 @@ async def get_note(
     db: DB,
 ):
     """Fetch a single note by ID."""
-    service = NoteService(db)
-    # Re-use internal helper via a list of one
     from sqlalchemy import select
+
     from app.models.note import Note
-    result = await db.execute(
-        select(Note).where(Note.id == note_id, Note.organisation_id == current_user.org_id)
-    )
+
+    result = await db.execute(select(Note).where(Note.id == note_id, Note.organisation_id == current_user.org_id))
     note = result.scalar_one_or_none()
     if not note:
         from fastapi import HTTPException
+
         raise HTTPException(status_code=404, detail="Note not found")
     return NoteResponse.model_validate(note)
 

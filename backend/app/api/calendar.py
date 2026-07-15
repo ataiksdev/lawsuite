@@ -4,6 +4,7 @@ Calendar API — /calendar
 
 Only calendar events. Notes have moved to /notes.
 """
+
 import uuid
 from datetime import datetime
 

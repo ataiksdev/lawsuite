@@ -32,6 +32,7 @@ class MatterUpdate(BaseModel):
 
 class LinkDriveFolderRequest(BaseModel):
     """Link a Google Drive folder to a matter by folder ID or shareable URL."""
+
     folder_id: str | None = Field(None, min_length=1, description="Drive folder ID")
     folder_url: str | None = Field(None, min_length=1, description="Drive folder shareable URL")
     import_existing: bool = Field(True, description="Auto-import files already in the folder as documents")

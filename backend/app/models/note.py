@@ -11,6 +11,7 @@ matter_id is intentionally nullable so notes can exist without a matter.
 The table is still named matter_notes for backward compatibility with the
 existing migration; a future rename migration can change this if desired.
 """
+
 import enum
 import uuid
 from datetime import datetime

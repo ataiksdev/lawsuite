@@ -1,4 +1,6 @@
 # backend/tests/conftest.py
+from unittest.mock import patch
+
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -9,7 +11,7 @@ from app import models as _models  # noqa: F401
 from app.core.config import settings
 from app.core.database import Base, get_db
 from app.main import app as main_app
-from unittest.mock import MagicMock, patch
+
 
 @pytest_asyncio.fixture(autouse=True)
 def mock_resend():

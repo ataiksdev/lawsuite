@@ -4,7 +4,7 @@ import uuid
 
 from fastapi import APIRouter, Query, status
 
-from app.core.deps import ScopedDB, AuthUser, MemberUser
+from app.core.deps import AuthUser, MemberUser, ScopedDB
 from app.schemas.client import ClientCreate, ClientResponse, ClientUpdate
 from app.services.client_service import ClientService
 

@@ -6,10 +6,10 @@ from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.core.deps import ScopedDB, AuthUser, MemberUser
+from app.core.deps import AuthUser, MemberUser, ScopedDB
+from app.models.matter_document import MatterDocument
 from app.models.task import TaskStatus
 from app.models.task_comment import TaskComment
-from app.models.matter_document import MatterDocument
 from app.models.task_document_link import TaskDocumentLink
 from app.schemas.document import DocumentResponse
 from app.schemas.task import (

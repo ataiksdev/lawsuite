@@ -1,12 +1,12 @@
 # backend/app/services/report_service.py
+import os
 import uuid
 from datetime import date, datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
+from jinja2 import Environment, FileSystemLoader
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from jinja2 import Environment, FileSystemLoader
-import os
 
 from app.models.activity_log import ActivityLog
 from app.models.client import Client
@@ -111,7 +111,7 @@ class ReportService:
 
         matters_result = await self.db.execute(matters_query)
         all_matters = matters_result.scalars().all()
-        
+
         # ── All activity in period ─────────────────────────────────────────
         if all_matters:
             matter_ids = [m.id for m in all_matters]
@@ -128,7 +128,7 @@ class ReportService:
             all_logs = activity_result.scalars().all()
         else:
             all_logs = []
-            
+
         total_events = len(all_logs)
 
         # Index logs by matter_id for efficient per-matter grouping
@@ -384,8 +384,8 @@ class ReportService:
         date_from, date_to, period_label = _resolve_period(req)
 
         data = await self.aggregate(
-            org_id=org_id, 
-            date_from=date_from, 
+            org_id=org_id,
+            date_from=date_from,
             date_to=date_to,
             client_id=req.client_id,
             matter_id=req.matter_id,

@@ -26,8 +26,12 @@ class Report(Base):
     date_to: Mapped[date] = mapped_column(Date, nullable=False)
 
     # Filters used to generate the report
-    client_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="SET NULL"), index=True)
-    matter_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("matters.id", ondelete="SET NULL"), index=True)
+    client_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("clients.id", ondelete="SET NULL"), index=True
+    )
+    matter_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("matters.id", ondelete="SET NULL"), index=True
+    )
     matter_type: Mapped[str | None] = mapped_column(String(50))
 
     # Drive export (None if export_to_drive=False)

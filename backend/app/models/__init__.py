@@ -10,11 +10,14 @@ from app.models.matter_document import (
     MatterDocumentVersion,
     MatterEmail,
 )
+
 # Note: matter_note module kept for Alembic compatibility but the canonical
 # model is now app.models.note.Note (same table: matter_notes)
 from app.models.note import Note, NoteType
+
 # Legacy aliases so any existing code using MatterNote / MatterNoteType keeps working
-from app.models.note import Note as MatterNote, NoteType as MatterNoteType
+from app.models.note import Note as MatterNote
+from app.models.note import NoteType as MatterNoteType
 from app.models.notification import Notification
 from app.models.organisation import Organisation
 from app.models.report import Report

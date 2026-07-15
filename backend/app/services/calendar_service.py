@@ -24,9 +24,7 @@ class CalendarService:
     # ── Helpers ───────────────────────────────────────────────────────────
 
     async def _get_matter(self, matter_id: uuid.UUID, org_id: uuid.UUID) -> Matter:
-        result = await self.db.execute(
-            select(Matter).where(Matter.id == matter_id, Matter.organisation_id == org_id)
-        )
+        result = await self.db.execute(select(Matter).where(Matter.id == matter_id, Matter.organisation_id == org_id))
         matter = result.scalar_one_or_none()
         if not matter:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Matter not found")

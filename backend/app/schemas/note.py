@@ -5,6 +5,7 @@ Schemas for the standalone Notes feature.
 matter_id and event_id are both optional — a note can be completely standalone,
 linked to a matter only, linked to an event only, or linked to both.
 """
+
 import uuid
 from datetime import datetime
 
@@ -69,6 +70,7 @@ class NoteResponse(BaseModel):
 
 class AddCommentToNoteRequest(BaseModel):
     """Append a task comment's body into a note. matter_id is derived from the task."""
+
     note_id: uuid.UUID
     task_id: uuid.UUID
     comment_id: uuid.UUID

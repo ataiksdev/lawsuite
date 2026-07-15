@@ -114,8 +114,10 @@ if __name__ == "__main__":
     from app.core.config import settings
 
     # Use sync URL, strip asyncpg/psycopg2 prefix for raw psycopg2 use
-    sync_url = settings.database_url_sync.replace("postgresql+psycopg2://", "postgresql://").replace("postgresql+asyncpg://", "postgresql://")
-    
+    sync_url = settings.database_url_sync.replace("postgresql+psycopg2://", "postgresql://").replace(
+        "postgresql+asyncpg://", "postgresql://"
+    )
+
     try:
         conn = psycopg2.connect(sync_url)
         conn.autocommit = True

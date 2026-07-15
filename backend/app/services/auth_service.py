@@ -20,10 +20,12 @@ from app.models.user import OrganisationMember, User, UserRole
 from app.schemas.auth import (
     AcceptInviteRequest,
     ChangePasswordRequest,
+    ForgotPasswordRequest,
     InviteRequest,
     LoginRequest,
     RefreshRequest,
     RegisterRequest,
+    ResetPasswordRequest,
     TokenResponse,
     UpdateMemberRoleRequest,
     UpdateOrgRequest,
@@ -278,6 +280,7 @@ class AuthService:
         inviter_name = inviter.full_name if inviter else "Your team"
 
         from app.services.email_service import send_invite_email
+
         await send_invite_email(
             to=data.email,
             name=data.full_name.strip(),
@@ -317,6 +320,7 @@ class AuthService:
         invite_url = f"{settings.frontend_url}/#/accept-invite?token={invite_token}"
 
         from app.services.email_service import send_invite_email
+
         await send_invite_email(
             to=user.email,
             name=user.full_name,
@@ -568,9 +572,7 @@ class AuthService:
     # ── Password reset ──────────────────────────────────────────────────────────
 
     async def forgot_password(self, data: ForgotPasswordRequest) -> str:
-        result = await self.db.execute(
-            select(User).where(User.email == data.email.lower(), User.is_active == True)
-        )
+        result = await self.db.execute(select(User).where(User.email == data.email.lower(), User.is_active == True))
         user = result.scalar_one_or_none()
 
         # We return success even if user not found to prevent email enumeration
@@ -586,6 +588,7 @@ class AuthService:
         reset_url = f"{settings.frontend_url}/#/reset-password?token={reset_token}"
 
         from app.services.email_service import send_password_reset_email
+
         await send_password_reset_email(
             to=user.email,
             name=user.full_name,
@@ -594,9 +597,7 @@ class AuthService:
         return reset_url
 
     async def reset_password(self, data: ResetPasswordRequest) -> None:
-        result = await self.db.execute(
-            select(User).where(User.password_reset_token == data.token)
-        )
+        result = await self.db.execute(select(User).where(User.password_reset_token == data.token))
         user = result.scalar_one_or_none()
 
         if not user:

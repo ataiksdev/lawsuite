@@ -29,9 +29,7 @@ class TaskDocumentLink(Base):
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
     )
-    linked_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, nullable=False
-    )
+    linked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
 
     __table_args__ = (PrimaryKeyConstraint("task_id", "document_id"),)
 

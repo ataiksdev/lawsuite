@@ -5,7 +5,7 @@ import uuid
 from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import select
 
-from app.core.deps import ScopedDB, AuthUser, MemberUser, GoogleCreds
+from app.core.deps import AuthUser, GoogleCreds, MemberUser, ScopedDB
 from app.models.matter import MatterStatus
 from app.models.matter_document import MatterEmail
 from app.schemas.matter import (

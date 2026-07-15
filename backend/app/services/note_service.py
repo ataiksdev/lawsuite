@@ -5,10 +5,11 @@ NoteService — standalone notes that optionally link to a matter / calendar eve
 matter_id is optional throughout. When provided it is validated against the
 org but never used as a required lookup key.
 """
+
 import uuid
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.calendar_event import CalendarEvent
@@ -31,9 +32,7 @@ class NoteService:
         return user.full_name if user else "Unknown"
 
     async def _validate_matter(self, matter_id: uuid.UUID, org_id: uuid.UUID) -> Matter:
-        result = await self.db.execute(
-            select(Matter).where(Matter.id == matter_id, Matter.organisation_id == org_id)
-        )
+        result = await self.db.execute(select(Matter).where(Matter.id == matter_id, Matter.organisation_id == org_id))
         matter = result.scalar_one_or_none()
         if not matter:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Matter not found")
@@ -52,9 +51,7 @@ class NoteService:
         return event
 
     async def _get_note(self, note_id: uuid.UUID, org_id: uuid.UUID) -> Note:
-        result = await self.db.execute(
-            select(Note).where(Note.id == note_id, Note.organisation_id == org_id)
-        )
+        result = await self.db.execute(select(Note).where(Note.id == note_id, Note.organisation_id == org_id))
         note = result.scalar_one_or_none()
         if not note:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found")

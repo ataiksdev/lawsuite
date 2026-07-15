@@ -177,6 +177,7 @@ class GoogleDriveService:
                          If omitted the file lands in the user's root.
         """
         import io
+
         from googleapiclient.http import MediaIoBaseUpload
 
         metadata: dict = {"name": filename}

@@ -2,7 +2,7 @@
 import math
 import uuid
 
-from fastapi import APIRouter, Query, status, HTTPException
+from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import HTMLResponse
 
 from app.core.deps import DB, AuthUser
@@ -120,6 +120,7 @@ async def download_report(
     Currently supports HTML format which can be printed to PDF by the client.
     """
     from sqlalchemy import select
+
     from app.models.report import Report
     from app.services.report_service import ReportService
 
@@ -145,7 +146,7 @@ async def download_report(
         matter_type=report.matter_type,
     )
     data.period_label = report.period_label
-    
+
     # We use the original generated_at timestamp to match the record
     data.generated_at = report.generated_at
 
@@ -153,5 +154,5 @@ async def download_report(
     if format.lower() == "html":
         html_content = service.generate_html(data)
         return HTMLResponse(content=html_content)
-    
+
     raise HTTPException(status_code=400, detail="Unsupported format. Only 'html' is supported.")

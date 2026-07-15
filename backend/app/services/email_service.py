@@ -1,6 +1,7 @@
 # backend/app/services/email_service.py
-import resend
 from pathlib import Path
+
+import resend
 
 from app.core.config import settings
 
@@ -22,17 +23,20 @@ def _is_configured() -> bool:
 def _send(*, to: str, subject: str, html: str) -> None:
     """Synchronous Resend send — Resend's Python SDK is sync-only."""
     resend.api_key = settings.resend_api_key
-    resend.Emails.send({
-        "from": f"{settings.emails_from_name} <{settings.emails_from_address}>",
-        "to": [to],
-        "subject": subject,
-        "html": html,
-    })
+    resend.Emails.send(
+        {
+            "from": f"{settings.emails_from_name} <{settings.emails_from_address}>",
+            "to": [to],
+            "subject": subject,
+            "html": html,
+        }
+    )
 
 
 # ---------------------------------------------------------------------------
 # Invite email
 # ---------------------------------------------------------------------------
+
 
 async def send_invite_email(
     *,
@@ -60,6 +64,7 @@ async def send_invite_email(
 # ---------------------------------------------------------------------------
 # Password reset email
 # ---------------------------------------------------------------------------
+
 
 async def send_password_reset_email(
     *,

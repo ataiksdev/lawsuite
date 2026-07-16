@@ -20,6 +20,7 @@ from app.schemas.matter import (
     StatusUpdate,
 )
 from app.services.activity_service import ActivityService
+from app.services.billing_service import BillingService
 from app.services.gmail_service import GmailService
 from app.services.matter_service import MatterService
 
@@ -197,6 +198,8 @@ async def link_drive_folder(
     """
     from app.services.google_drive_service import GoogleDriveService
 
+    await BillingService(db).check_feature_access(current_user.org_id, "drive_integration")
+
     raw = payload.folder_id or payload.folder_url
     if not raw:
         raise HTTPException(
@@ -234,6 +237,8 @@ async def sync_drive_folder(
     """
     from app.services.google_drive_service import GoogleDriveService
 
+    await BillingService(db).check_feature_access(current_user.org_id, "drive_integration")
+
     drive_service = GoogleDriveService(db, google_creds)
     matter_service = MatterService(db)
 
@@ -263,6 +268,8 @@ async def create_drive_folder(
     """
     from app.services.google_drive_service import GoogleDriveService
 
+    await BillingService(db).check_feature_access(current_user.org_id, "drive_integration")
+
     drive_service = GoogleDriveService(db, google_creds)
     matter_service = MatterService(db)
 
@@ -290,6 +297,8 @@ async def link_email_thread(
     Fetches thread subject + snippet from Gmail API and stores the reference.
     Logs an email_linked activity entry.
     """
+
+    await BillingService(db).check_feature_access(current_user.org_id, "drive_integration")
 
     # Verify matter belongs to org
     matter_service = MatterService(db)
@@ -346,6 +355,8 @@ async def link_email_thread(
 @router.get("/{matter_id}/emails", response_model=list[dict])
 async def list_linked_emails(matter_id: uuid.UUID, current_user: AuthUser, db: ScopedDB):
     """List all Gmail threads linked to a matter."""
+    await BillingService(db).check_feature_access(current_user.org_id, "drive_integration")
+
     matter_service = MatterService(db)
     await matter_service.get_matter(matter_id, current_user.org_id)
 
@@ -407,6 +418,8 @@ async def list_recent_inbox(
     Optionally filter by search query (Gmail query syntax).
     Requires Google Workspace to be connected.
     """
+
+    await BillingService(db).check_feature_access(current_user.org_id, "drive_integration")
 
     matter_service = MatterService(db)
     await matter_service.get_matter(matter_id, current_user.org_id)

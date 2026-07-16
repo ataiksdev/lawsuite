@@ -268,6 +268,103 @@ async def test_webhook_charge_success_activates_plan(client: AsyncClient, db_ses
     assert org.plan == "pro"
 
 
+@pytest.mark.asyncio
+async def test_webhook_stale_disable_does_not_undo_plan_switch(client: AsyncClient, db_session):
+    """
+    Upgrading pro -> agency disables the old subscription while creating a new
+    one. If the disable event for the OLD subscription arrives after the
+    create event for the NEW one, it must not downgrade an org that just
+    upgraded — only a disable event matching the org's current subscription
+    code should downgrade it.
+    """
+    import asyncio
+    import hashlib
+    import hmac
+    import json
+    from contextlib import asynccontextmanager
+    from unittest.mock import patch
+
+    from sqlalchemy import select
+
+    from app.core.config import settings
+    from app.models.organisation import Organisation
+
+    reg = await client.post(
+        "/auth/register", json={**REGISTER, "email": "planswitch@billingtest.ng", "org_name": "Plan Switch Org"}
+    )
+    org_id = reg.json()["organisation"]["id"]
+
+    async def send_webhook(event: str, data: dict) -> None:
+        payload = json.dumps({"event": event, "data": data}).encode()
+        sig = hmac.new(settings.paystack_secret_key.encode(), payload, hashlib.sha512).hexdigest()
+
+        @asynccontextmanager
+        async def override_session_local():
+            yield db_session
+
+        with patch("app.api.webhooks.AsyncSessionLocal", side_effect=override_session_local):
+            resp = await client.post(
+                "/webhooks/paystack",
+                content=payload,
+                headers={"Content-Type": "application/json", "x-paystack-signature": sig},
+            )
+        assert resp.status_code == 200
+        await asyncio.sleep(0.1)
+
+    customer_code = "CUS_planswitch_test"
+
+    result = await db_session.execute(select(Organisation).where(Organisation.id == org_id))
+    org = result.scalar_one()
+    org.paystack_customer_code = customer_code
+    await db_session.commit()
+
+    # Subscribes to Pro
+    await send_webhook(
+        "subscription.create",
+        {
+            "customer": {"customer_code": customer_code},
+            "plan": {"plan_code": settings.paystack_pro_plan_code},
+            "subscription_code": "SUB_pro_old",
+        },
+    )
+    result = await db_session.execute(select(Organisation).where(Organisation.id == org_id))
+    assert result.scalar_one().plan == "pro"
+
+    # Upgrades to Agency — Paystack creates a new subscription
+    await send_webhook(
+        "subscription.create",
+        {
+            "customer": {"customer_code": customer_code},
+            "plan": {"plan_code": settings.paystack_agency_plan_code},
+            "subscription_code": "SUB_agency_new",
+        },
+    )
+    result = await db_session.execute(select(Organisation).where(Organisation.id == org_id))
+    assert result.scalar_one().plan == "agency"
+
+    # The old Pro subscription's disable event arrives late — must NOT downgrade
+    await send_webhook(
+        "subscription.disable",
+        {
+            "customer": {"customer_code": customer_code},
+            "subscription_code": "SUB_pro_old",
+        },
+    )
+    result = await db_session.execute(select(Organisation).where(Organisation.id == org_id))
+    assert result.scalar_one().plan == "agency"
+
+    # The CURRENT subscription is genuinely disabled — this one should downgrade
+    await send_webhook(
+        "subscription.disable",
+        {
+            "customer": {"customer_code": customer_code},
+            "subscription_code": "SUB_agency_new",
+        },
+    )
+    result = await db_session.execute(select(Organisation).where(Organisation.id == org_id))
+    assert result.scalar_one().plan == "free"
+
+
 # ─── Plan limit enforcement ───────────────────────────────────────────────────
 
 
@@ -319,6 +416,44 @@ async def test_matter_limit_enforced_on_free_plan(client: AsyncClient, db_sessio
     )
     assert resp.status_code == 402
     assert "upgrade" in resp.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_drive_integration_blocked_after_downgrade(client: AsyncClient, db_session):
+    """
+    Drive/Gmail endpoints must re-check billing on every call, not just at the
+    initial Google connect step — an org that connected while on a paid/trial
+    plan and is later downgraded should lose access, not keep it forever.
+    """
+    from unittest.mock import MagicMock
+
+    from sqlalchemy import select
+
+    from app.core.deps import get_google_credentials
+    from app.main import app
+    from app.models.organisation import Organisation
+
+    reg = await client.post(
+        "/auth/register", json={**REGISTER, "email": "drivegate@billingtest.ng", "org_name": "Drive Gate Org"}
+    )
+    token = reg.json()["tokens"]["access_token"]
+    org_id = reg.json()["organisation"]["id"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Pretend Google is already connected (bypasses the separate "not connected" 400)
+    app.dependency_overrides[get_google_credentials] = lambda: MagicMock()
+    try:
+        # End the trial — org falls back to the free plan, which has drive_integration=False
+        result = await db_session.execute(select(Organisation).where(Organisation.id == org_id))
+        org = result.scalar_one()
+        org.trial_used = True
+        await db_session.commit()
+
+        resp = await client.get("/matters/00000000-0000-0000-0000-000000000000/inbox", headers=headers)
+        assert resp.status_code == 402
+        assert "upgrade" in resp.json()["detail"].lower()
+    finally:
+        app.dependency_overrides.pop(get_google_credentials, None)
 
 
 @pytest.mark.asyncio

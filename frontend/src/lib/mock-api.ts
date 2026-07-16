@@ -746,7 +746,7 @@ export function resolveMockRequest(
     return {
       handled: true,
       data: {
-        plan, effective_plan: plan, plan_name: 'Pro', amount_kobo: 2900000, amount_ngn: 29000,
+        plan, effective_plan: plan, plan_name: 'Pro', amount_kobo: 500000, amount_ngn: 5000,
         trial_active: false, trial_ends_at: null,
         features: { drive_integration: true, reports: true, mfa: true, advanced_tasks: true, api_access: false },
         limits: { max_matters: null, max_seats: mockBillingInfo.member_limit },

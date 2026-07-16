@@ -14,6 +14,11 @@ if settings.is_development:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    if settings.is_production and not settings.paystack_secret_key:
+        raise RuntimeError(
+            "PAYSTACK_SECRET_KEY must be set in production — an empty key "
+            "would make Paystack webhook signature verification forgeable."
+        )
     yield
 
 

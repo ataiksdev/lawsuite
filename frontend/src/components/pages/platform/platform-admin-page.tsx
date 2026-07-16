@@ -813,13 +813,13 @@ export function PlatformAdminPage() {
               <Table>
                 <TableHeader>
                   <TableRow className="border-slate-100 dark:border-slate-800">
-                    <TableHead className="w-[240px]">Organisation</TableHead>
+                    <TableHead>Organisation</TableHead>
                     <TableHead>Plan</TableHead>
-                    <TableHead className="text-center">Members</TableHead>
-                    <TableHead className="text-center">Matters</TableHead>
-                    <TableHead>Trial</TableHead>
-                    <TableHead>Google</TableHead>
-                    <TableHead>Created</TableHead>
+                    <TableHead className="hidden text-center md:table-cell">Members</TableHead>
+                    <TableHead className="hidden text-center md:table-cell">Matters</TableHead>
+                    <TableHead className="hidden lg:table-cell">Trial</TableHead>
+                    <TableHead className="hidden lg:table-cell">Google</TableHead>
+                    <TableHead className="hidden lg:table-cell">Created</TableHead>
                     <TableHead className="w-[60px]" />
                   </TableRow>
                 </TableHeader>
@@ -835,18 +835,21 @@ export function PlatformAdminPage() {
                         <TableCell>
                           <div className="flex items-center gap-2">
                             {statusDot(org.is_active)}
-                            <div>
-                              <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">
                                 {org.name}
                               </p>
-                              <p className="text-xs font-mono text-slate-400">{org.slug}</p>
+                              <p className="truncate text-xs font-mono text-slate-400">{org.slug}</p>
+                              <p className="mt-0.5 text-xs text-slate-400 md:hidden">
+                                {org.member_count} member{org.member_count !== 1 ? 's' : ''} · {org.matter_count} matter{org.matter_count !== 1 ? 's' : ''}
+                              </p>
                             </div>
                           </div>
                         </TableCell>
                         <TableCell>{planBadge(org.plan, org.trial_active)}</TableCell>
-                        <TableCell className="text-center tabular-nums text-sm">{org.member_count}</TableCell>
-                        <TableCell className="text-center tabular-nums text-sm">{org.matter_count}</TableCell>
-                        <TableCell>
+                        <TableCell className="hidden text-center tabular-nums text-sm md:table-cell">{org.member_count}</TableCell>
+                        <TableCell className="hidden text-center tabular-nums text-sm md:table-cell">{org.matter_count}</TableCell>
+                        <TableCell className="hidden lg:table-cell">
                           {org.trial_active && trial !== null ? (
                             <span className={cn('text-xs font-medium', trial <= 3 ? 'text-red-600' : 'text-purple-600')}>
                               {trial}d left
@@ -855,14 +858,14 @@ export function PlatformAdminPage() {
                             <span className="text-xs text-slate-300">—</span>
                           )}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="hidden lg:table-cell">
                           {org.google_connected ? (
                             <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                           ) : (
                             <span className="text-xs text-slate-300">—</span>
                           )}
                         </TableCell>
-                        <TableCell className="text-xs text-slate-500">
+                        <TableCell className="hidden text-xs text-slate-500 lg:table-cell">
                           {formatDate(org.created_at)}
                         </TableCell>
                         <TableCell onClick={(e) => e.stopPropagation()}>

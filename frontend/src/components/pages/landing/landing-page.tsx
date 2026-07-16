@@ -272,7 +272,7 @@ export function LandingPage() {
               className={cn('px-4 py-1.5 text-sm border-l border-border flex items-center gap-1.5 transition-colors', annualBilling ? 'bg-primary text-primary-foreground' : 'hover:bg-accent hover:text-accent-foreground')}
               onClick={() => setAnnualBilling(true)}
             >
-              Annual <span className="text-[10px] opacity-80">Save 20%</span>
+              Annual <span className="text-[10px] opacity-80">2 months free</span>
             </button>
           </div>
 
@@ -306,7 +306,7 @@ export function LandingPage() {
                 </div>
                 <div>
                   <p className="text-[34px] font-semibold tabular-nums text-foreground">
-                    {annualBilling ? '₦40,000' : '₦50,000'} <span className="text-[13px] font-normal text-muted-foreground">/ month</span>
+                    {annualBilling ? '₦4,167' : '₦5,000'} <span className="text-[13px] font-normal text-muted-foreground">/ month</span>
                   </p>
                   <p className="text-sm text-muted-foreground mt-2">Built for growing law firms requiring advanced workflows and secure client portals.</p>
                 </div>
@@ -327,14 +327,13 @@ export function LandingPage() {
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">Agency</p>
                   <p className="text-[34px] font-semibold tabular-nums text-foreground mt-1">
-                    {annualBilling ? '₦120,000' : '₦150,000'} <span className="text-[13px] font-normal text-muted-foreground">/ month</span>
+                    {annualBilling ? '₦16,667' : '₦20,000'} <span className="text-[13px] font-normal text-muted-foreground">/ month</span>
                   </p>
                   <p className="text-sm text-muted-foreground mt-2">For established corporate legal departments and large multi-partner practices.</p>
                 </div>
                 <ul className="flex flex-col gap-2 text-sm flex-1">
                   <CheckItem>Unlimited team members</CheckItem>
                   <CheckItem>Multi-organisation support</CheckItem>
-                  <CheckItem>Custom API integrations</CheckItem>
                   <CheckItem>1TB storage &amp; priority support</CheckItem>
                 </ul>
                 <Button variant="secondary" className="w-full" onClick={() => navigate('/register')}>Start 30-Day Free Trial</Button>

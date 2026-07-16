@@ -18,6 +18,7 @@ class Organisation(Base):
 
     # paystack
     paystack_customer_code: Mapped[str | None] = mapped_column(String(255), unique=True)
+    paystack_subscription_code: Mapped[str | None] = mapped_column(String(255))
     plan: Mapped[str] = mapped_column(String(50), default="free", nullable=False)
 
     # Google Workspace integration

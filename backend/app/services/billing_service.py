@@ -30,7 +30,7 @@ PLAN_FEATURES = {
     "pro": {
         "name": "Pro",
         "plan_code": settings.paystack_pro_plan_code,
-        "amount_kobo": 1_000_000,   # ₦10,000/month
+        "amount_kobo": 500_000,   # ₦5,000/month
         "max_matters": None,         # unlimited
         "max_seats": 5,
         "drive_integration": True,
@@ -42,7 +42,7 @@ PLAN_FEATURES = {
     "agency": {
         "name": "Agency",
         "plan_code": settings.paystack_agency_plan_code,
-        "amount_kobo": 5_000_000,   # ₦50,000/month
+        "amount_kobo": 2_000_000,   # ₦20,000/month
         "max_matters": None,
         "max_seats": None,           # unlimited
         "drive_integration": True,
@@ -393,11 +393,13 @@ class BillingService:
     async def handle_subscription_create(self, event_data: dict) -> None:
         """
         subscription.create — new subscription activated.
-        Stores the subscription code for future management.
+        Stores the subscription code so a later subscription.disable event
+        can be checked against it — see handle_subscription_disable.
         """
         customer = event_data.get("customer", {})
         customer_code = customer.get("customer_code")
         plan_code = event_data.get("plan", {}).get("plan_code")
+        subscription_code = event_data.get("subscription_code")
         if not customer_code:
             return
         org = (await self.db.execute(
@@ -412,6 +414,8 @@ class BillingService:
                 org.plan = plan_name
                 org.trial_used = True
                 break
+        if subscription_code:
+            org.paystack_subscription_code = subscription_code
         await self.db.commit()
 
 
@@ -419,9 +423,17 @@ class BillingService:
         """
         subscription.disable — subscription cancelled or payment failed.
         Downgrades the organisation to free plan.
+
+        Switching plans (e.g. pro -> agency) disables the old subscription
+        while creating a new one, and Paystack doesn't guarantee delivery
+        order between the two webhooks. If we have a stored subscription
+        code for this org and it doesn't match the one being disabled, this
+        event is for a subscription that's already been superseded — skip
+        it rather than downgrading an org that just upgraded.
         """
         customer = event_data.get("customer", {})
         customer_code = customer.get("customer_code")
+        subscription_code = event_data.get("subscription_code")
         if not customer_code:
             return
 
@@ -431,9 +443,19 @@ class BillingService:
             )
         )
         org = result.scalar_one_or_none()
-        if org:
-            org.plan = "free"
-            await self.db.commit()
+        if not org:
+            return
+
+        if (
+            org.paystack_subscription_code
+            and subscription_code
+            and org.paystack_subscription_code != subscription_code
+        ):
+            return  # Stale event for a subscription this org has already replaced
+
+        org.plan = "free"
+        org.paystack_subscription_code = None
+        await self.db.commit()
 
     # ── Plan information ──────────────────────────────────────────────────
 

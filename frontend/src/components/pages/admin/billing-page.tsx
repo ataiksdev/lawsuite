@@ -62,7 +62,7 @@ const plans: PlanConfig[] = [
   {
     key: 'pro',
     name: 'Pro',
-    price: '\u20a629,000',
+    price: '\u20a65,000',
     period: '/month',
     description: 'Advanced features for growing firms.',
     features: ['Up to 5 seats', 'Unlimited matters', 'Google Workspace integration', 'Reports and analytics', 'Priority support'],
@@ -74,7 +74,7 @@ const plans: PlanConfig[] = [
   {
     key: 'agency',
     name: 'Agency',
-    price: '\u20a679,000',
+    price: '\u20a620,000',
     period: '/month',
     description: 'Full power for large firms and agencies.',
     features: ['Unlimited seats', 'Unlimited matters', 'All paid integrations', 'Dedicated support', 'Scale-ready billing'],
@@ -559,7 +559,6 @@ export function BillingPage() {
                     {[
                       subscription.features?.drive_integration ? 'Drive' : null,
                       subscription.features?.reports ? 'Reports' : null,
-                      subscription.features?.api_access ? 'API' : null,
                     ]
                       .filter(Boolean)
                       .join(' · ') || 'Core features only'}

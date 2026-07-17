@@ -70,7 +70,10 @@ async def list_reports(
     List all previously generated reports for the current organisation.
     Newest first. Each record includes the Drive URL if exported.
     """
+    from app.services.billing_service import BillingService
     from app.services.report_service import ReportService
+
+    await BillingService(db).check_feature_access(current_user.org_id, "reports")
 
     service = ReportService(db)
     reports, total = await service.list_reports(
@@ -95,6 +98,9 @@ async def get_report(report_id: uuid.UUID, current_user: AuthUser, db: DB):
     from sqlalchemy import select
 
     from app.models.report import Report
+    from app.services.billing_service import BillingService
+
+    await BillingService(db).check_feature_access(current_user.org_id, "reports")
 
     result = await db.execute(
         select(Report).where(
@@ -121,7 +127,10 @@ async def download_report(
     """
     from sqlalchemy import select
     from app.models.report import Report
+    from app.services.billing_service import BillingService
     from app.services.report_service import ReportService
+
+    await BillingService(db).check_feature_access(current_user.org_id, "reports")
 
     # 1. Fetch the report record to get the date range
     result = await db.execute(

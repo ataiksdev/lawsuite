@@ -413,3 +413,50 @@ async def test_generate_report_with_filters(client: AsyncClient):
     assert data["clients"][0]["client_id"] == client_id_2
     assert data["matters_active"] == 1
     assert data["clients"][0]["matters"][0]["matter_id"] == matter_id_2
+
+
+# ─── Feature access re-checked on read, not just generation ──────────────────
+
+
+@pytest.mark.asyncio
+async def test_report_access_blocked_after_downgrade(client: AsyncClient, db_session):
+    """
+    Reports generated while on a paid/trial plan must stop being readable
+    once the org is downgraded — history, single-report, and download all
+    need to re-check billing, not just generation.
+    """
+    from sqlalchemy import select
+
+    from app.models.organisation import Organisation
+
+    token = await setup_with_data(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    gen = await client.post(
+        "/reports/generate",
+        json={"period_type": "monthly", "export_to_drive": False},
+        headers=headers,
+    )
+    assert gen.status_code == 201
+    report_id = gen.json()["report"]["id"]
+
+    result = await db_session.execute(select(Organisation))
+    org = result.scalar_one()
+    org.trial_used = True
+    await db_session.commit()
+
+    resp = await client.post(
+        "/reports/generate",
+        json={"period_type": "monthly", "export_to_drive": False},
+        headers=headers,
+    )
+    assert resp.status_code == 402
+
+    resp = await client.get("/reports/history", headers=headers)
+    assert resp.status_code == 402
+
+    resp = await client.get(f"/reports/{report_id}", headers=headers)
+    assert resp.status_code == 402
+
+    resp = await client.get(f"/reports/{report_id}/download?format=html", headers=headers)
+    assert resp.status_code == 402

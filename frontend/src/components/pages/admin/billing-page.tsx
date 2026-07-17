@@ -13,7 +13,7 @@ import {
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/lib/auth-store';
-import { ApiClientError } from '@/lib/api-client';
+import { extractErrorMessage, handleApiError } from '@/lib/error-utils';
 import { UserRole } from '@/lib/types';
 import { replaceNavigation } from '@/lib/router';
 import {
@@ -29,6 +29,7 @@ import {
 } from '@/lib/api/billing';
 import { listMembers } from '@/lib/api/members';
 import { listMatters } from '@/lib/api/matters';
+import { invalidateSubscriptionCache } from '@/hooks/use-subscription';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -310,9 +311,7 @@ export function BillingPage() {
       setBillingHistory(historyResponse);
       return subscriptionResponse;
     } catch (err) {
-      const message =
-        err instanceof ApiClientError ? err.detail : 'Unable to load billing information right now.';
-      setError(message);
+      setError(extractErrorMessage(err, 'Unable to load billing information right now.'));
       return null;
     } finally {
       setIsLoading(false);
@@ -362,6 +361,7 @@ export function BillingPage() {
       try {
         const result = await verifyCheckout(callback.reference);
         setSubscription(result.subscription);
+        invalidateSubscriptionCache();
         setCheckoutMessage({
           tone: 'success',
           title: `${result.plan === 'agency' ? 'Agency' : 'Pro'} plan activated`,
@@ -369,8 +369,7 @@ export function BillingPage() {
         });
         toast.success(`Payment confirmed. Your ${result.plan} plan is active.`);
       } catch (err) {
-        const message =
-          err instanceof ApiClientError ? err.detail : 'We could not verify your payment yet.';
+        const message = extractErrorMessage(err, 'We could not verify your payment yet.');
         setCheckoutMessage({
           tone: 'error',
           title: 'Payment verification pending',
@@ -427,6 +426,7 @@ export function BillingPage() {
             try {
               const result = await verifyCheckout(verifiedResponse.reference);
               setSubscription(result.subscription);
+              invalidateSubscriptionCache();
               setCheckoutMessage({
                 tone: 'success',
                 title: `${result.plan === 'agency' ? 'Agency' : 'Pro'} plan activated`,
@@ -435,7 +435,7 @@ export function BillingPage() {
               toast.success(`Payment confirmed. Your ${result.plan} plan is active.`);
             } catch (err) {
               console.error('Verification error:', err);
-              toast.error('Verification failed. We will update your account shortly via webhook.');
+              handleApiError(err, 'Verification failed. We will update your account shortly via webhook.');
             } finally {
               setIsVerifyingCheckout(false);
               setCheckoutPlan(null);
@@ -455,9 +455,7 @@ export function BillingPage() {
       }
     } catch (err) {
       console.error('Paystack Checkout Error:', err);
-      const message =
-        err instanceof ApiClientError ? err.detail : 'Unable to start checkout right now.';
-      toast.error(message);
+      handleApiError(err, 'Unable to start checkout right now.');
       setCheckoutPlan(null);
     }
   };
@@ -466,14 +464,13 @@ export function BillingPage() {
     setIsCancelling(true);
     try {
       await cancelSubscription();
+      invalidateSubscriptionCache();
       toast.success('Subscription cancelled', {
         description: "Your organisation has been moved to the Free plan.",
       });
       await loadBilling();
     } catch (err) {
-      const message =
-        err instanceof ApiClientError ? err.detail : 'Unable to cancel your subscription right now.';
-      toast.error(message);
+      handleApiError(err, 'Unable to cancel your subscription right now.');
     } finally {
       setIsCancelling(false);
     }

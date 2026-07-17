@@ -25,6 +25,19 @@ let _cached: SubscriptionSummary | null = null;
 let _fetchedAt: number | null = null;
 const CACHE_MS = 60_000; // 1-minute cache — avoid hammering /billing/subscription on every page
 
+// Every mounted useSubscription() instance registers its own fetch here, so
+// invalidateSubscriptionCache() can force ALL of them (e.g. the trial banner
+// mounted once at the app-shell layer, plus whatever page is open) to refetch
+// immediately after a checkout or cancellation, instead of each waiting out
+// its own stale local state until the next unrelated remount.
+const _listeners = new Set<() => void>();
+
+export function invalidateSubscriptionCache(): void {
+  _cached = null;
+  _fetchedAt = null;
+  _listeners.forEach((listener) => listener());
+}
+
 export function useSubscription(): UseSubscriptionReturn {
   const [subscription, setSubscription] = useState<SubscriptionSummary | null>(_cached);
   const [isLoading, setIsLoading] = useState(!_cached);
@@ -54,6 +67,13 @@ export function useSubscription(): UseSubscriptionReturn {
 
   useEffect(() => {
     void fetch();
+  }, [fetch]);
+
+  useEffect(() => {
+    _listeners.add(fetch);
+    return () => {
+      _listeners.delete(fetch);
+    };
   }, [fetch]);
 
   return {

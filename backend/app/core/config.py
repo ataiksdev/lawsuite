@@ -62,7 +62,6 @@ class Settings(BaseSettings):
     # paystack
     paystack_secret_key: str = ""
     paystack_public_key: str = ""
-    # paystack_webhook_secret: str = ""
     paystack_free_plan_code: str = ""
     paystack_pro_plan_code: str = ""
     paystack_agency_plan_code: str = ""

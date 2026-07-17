@@ -29,6 +29,8 @@ export interface SubscriptionSummary {
   // Trial window
   trial_active: boolean;
   trial_ends_at: string | null;
+  // Server-computed so the count can't drift from the client's own clock
+  trial_days_remaining: number | null;
   // What the org can actually do right now
   features: PlanFeatures;
   limits: SubscriptionLimits;

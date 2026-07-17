@@ -45,6 +45,26 @@ async def test_get_subscription_default_free(client: AsyncClient, db_session):
     assert body["limits"]["max_seats"] == 1
     assert body["features"]["drive_integration"] is False
     assert body["features"]["reports"] is False
+    assert body["trial_active"] is False
+    assert body["trial_days_remaining"] is None
+
+
+@pytest.mark.asyncio
+async def test_get_subscription_trial_days_remaining_is_server_computed(client: AsyncClient):
+    """
+    trial_days_remaining must come from the server's own clock, not the
+    client's — a freshly registered org is 30 days into its trial window.
+    """
+    token = await get_admin_token(client)
+
+    resp = await client.get(
+        "/billing/subscription",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["trial_active"] is True
+    assert body["trial_days_remaining"] == 30
 
 
 # ─── POST /billing/checkout ───────────────────────────────────────────────────
@@ -149,6 +169,50 @@ async def test_verify_checkout_updates_subscription(client: AsyncClient, db_sess
     org = result.scalar_one()
     assert org.plan == "agency"
     assert org.paystack_customer_code == "CUS_verify123"
+    assert org.trial_used is True
+
+
+@pytest.mark.asyncio
+async def test_verify_checkout_amount_fallback_detects_plan(client: AsyncClient, db_session):
+    """
+    If a transaction has no usable metadata and no recognisable plan_code,
+    verify_transaction should still detect the plan as a last resort by
+    matching the charged amount against PLAN_FEATURES.
+    """
+    from sqlalchemy import select
+
+    from app.models.organisation import Organisation
+
+    token = await get_admin_token(client)
+
+    verify_response = MagicMock()
+    verify_response.status = True
+    verify_response.data = MagicMock(
+        status="success",
+        metadata={},
+        plan=None,
+        amount=500000,  # matches Pro's amount_kobo exactly — the only signal present
+        customer=MagicMock(customer_code="CUS_amountfallback"),
+    )
+
+    with patch("pypaystack2.AsyncPaystackClient") as MockClient:
+        mock_instance = MockClient.return_value
+        mock_instance.transactions.verify = AsyncMock(return_value=verify_response)
+
+        resp = await client.get(
+            "/billing/verify",
+            params={"reference": "ref_amount_fallback"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["plan"] == "pro"
+
+    result = await db_session.execute(select(Organisation))
+    org = result.scalar_one()
+    assert org.plan == "pro"
+    assert org.paystack_customer_code == "CUS_amountfallback"
     assert org.trial_used is True
 
 

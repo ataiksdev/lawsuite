@@ -12,19 +12,13 @@ import { cn } from '@/lib/utils';
 import { useSubscription } from '@/hooks/use-subscription';
 import { navigate } from '@/lib/router';
 
-function getDaysRemaining(endsAt: Date): number {
-  const now = new Date();
-  const diff = endsAt.getTime() - now.getTime();
-  return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
-}
-
 export function TrialBanner() {
-  const { isOnTrial, trialEndsAt, isLoading } = useSubscription();
+  const { isOnTrial, trialDaysRemaining, isLoading } = useSubscription();
   const [dismissed, setDismissed] = useState(false);
 
-  if (isLoading || !isOnTrial || !trialEndsAt || dismissed) return null;
+  if (isLoading || !isOnTrial || trialDaysRemaining === null || dismissed) return null;
 
-  const daysLeft = getDaysRemaining(trialEndsAt);
+  const daysLeft = trialDaysRemaining;
   const isUrgent = daysLeft <= 5;
 
   return (

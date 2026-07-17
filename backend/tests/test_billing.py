@@ -152,43 +152,132 @@ async def test_verify_checkout_updates_subscription(client: AsyncClient, db_sess
     assert org.trial_used is True
 
 
-# ─── GET /billing/portal ─────────────────────────────────────────────────────
+# ─── GET /billing/history ────────────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
-async def test_billing_portal_without_subscription(client: AsyncClient):
+async def test_billing_history_empty_by_default(client: AsyncClient):
     token = await get_admin_token(client)
     resp = await client.get(
-        "/billing/portal",
+        "/billing/history",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+@pytest.mark.asyncio
+async def test_billing_history_populated_from_charge_success(client: AsyncClient, db_session):
+    import asyncio
+    import hashlib
+    import hmac
+    import json
+    from contextlib import asynccontextmanager
+
+    from app.core.config import settings
+
+    reg = await client.post(
+        "/auth/register", json={**REGISTER, "email": "history@billingtest.ng", "org_name": "History Org"}
+    )
+    token = reg.json()["tokens"]["access_token"]
+    org_id = reg.json()["organisation"]["id"]
+
+    payload = json.dumps(
+        {
+            "event": "charge.success",
+            "data": {
+                "reference": "ref_history_test",
+                "amount": 500000,
+                "paid_at": "2026-02-01T09:00:00.000Z",
+                "metadata": {"org_id": org_id, "plan": "pro"},
+            },
+        }
+    ).encode()
+    sig = hmac.new(settings.paystack_secret_key.encode(), payload, hashlib.sha512).hexdigest()
+
+    @asynccontextmanager
+    async def override_session_local():
+        yield db_session
+
+    with patch("app.api.webhooks.AsyncSessionLocal", side_effect=override_session_local):
+        resp = await client.post(
+            "/webhooks/paystack",
+            content=payload,
+            headers={"Content-Type": "application/json", "x-paystack-signature": sig},
+        )
+    assert resp.status_code == 200
+    await asyncio.sleep(0.1)
+
+    resp = await client.get(
+        "/billing/history",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body) == 1
+    assert body[0]["reference"] == "ref_history_test"
+    assert body[0]["plan"] == "pro"
+    assert body[0]["amount_ngn"] == 5000
+
+
+# ─── POST /billing/cancel ────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_cancel_subscription_without_subscription_rejected(client: AsyncClient):
+    token = await get_admin_token(client)
+    resp = await client.post(
+        "/billing/cancel",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code == 400
 
 
 @pytest.mark.asyncio
-async def test_billing_portal_with_subscription(client: AsyncClient, db_session):
+async def test_cancel_subscription_downgrades_to_free(client: AsyncClient, db_session):
     from sqlalchemy import select
 
     from app.models.organisation import Organisation
 
     reg = await client.post(
-        "/auth/register", json={**REGISTER, "email": "portal@billingtest.ng", "org_name": "Portal Org"}
+        "/auth/register", json={**REGISTER, "email": "cancel@billingtest.ng", "org_name": "Cancel Org"}
     )
     token = reg.json()["tokens"]["access_token"]
     org_id = reg.json()["organisation"]["id"]
 
     result = await db_session.execute(select(Organisation).where(Organisation.id == org_id))
     org = result.scalar_one()
-    org.paystack_customer_code = "CUS_testportal"
+    org.plan = "pro"
+    org.paystack_customer_code = "CUS_canceltest"
+    org.paystack_subscription_code = "SUB_canceltest"
+    org.paystack_subscription_email_token = "EMTOK_canceltest"
     await db_session.commit()
 
-    resp = await client.get(
-        "/billing/portal",
-        headers={"Authorization": f"Bearer {token}"},
-    )
+    mock_response = MagicMock()
+    mock_response.status = True
+
+    with patch("pypaystack2.AsyncPaystackClient") as MockClient:
+        mock_instance = MockClient.return_value
+        mock_instance.subscriptions.disable = AsyncMock(return_value=mock_response)
+
+        resp = await client.post(
+            "/billing/cancel",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
     assert resp.status_code == 200
-    assert "portal_url" in resp.json()
-    assert "paystack.com" in resp.json()["portal_url"]
+    body = resp.json()
+    assert body["cancelled"] is True
+    assert body["plan"] == "free"
+    mock_instance.subscriptions.disable.assert_awaited_once_with(
+        code="SUB_canceltest", token="EMTOK_canceltest"
+    )
+
+    result = await db_session.execute(select(Organisation).where(Organisation.id == org_id))
+    org = result.scalar_one()
+    assert org.plan == "free"
+    assert org.paystack_subscription_code is None
+    assert org.paystack_subscription_email_token is None
 
 
 # ─── Paystack webhook ─────────────────────────────────────────────────────────
@@ -226,6 +315,9 @@ async def test_webhook_charge_success_activates_plan(client: AsyncClient, db_ses
         {
             "event": "charge.success",
             "data": {
+                "reference": "ref_charge_success_test",
+                "amount": 500000,
+                "paid_at": "2026-01-15T10:00:00.000Z",
                 "metadata": {"org_id": org_id, "plan": "pro"},
             },
         }
@@ -266,6 +358,27 @@ async def test_webhook_charge_success_activates_plan(client: AsyncClient, db_ses
     result = await db_session.execute(select(Organisation).where(Organisation.id == org_id))
     org = result.scalar_one()
     assert org.plan == "pro"
+
+    # Retried webhook delivery (same reference) must be a no-op, not a
+    # duplicate ledger row or a second "plan upgraded" notification.
+    with patch("app.api.webhooks.AsyncSessionLocal", side_effect=override_session_local):
+        resp = await client.post(
+            "/webhooks/paystack",
+            content=payload,
+            headers={
+                "Content-Type": "application/json",
+                "x-paystack-signature": sig,
+            },
+        )
+    assert resp.status_code == 200
+    await asyncio.sleep(0.1)
+
+    from app.models.billing_transaction import BillingTransaction
+
+    result = await db_session.execute(
+        select(BillingTransaction).where(BillingTransaction.organisation_id == org_id)
+    )
+    assert len(result.scalars().all()) == 1
 
 
 @pytest.mark.asyncio

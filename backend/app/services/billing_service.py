@@ -6,9 +6,11 @@ from datetime import datetime, timezone
 from typing import Any, Literal
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException, status
 
 from app.core.config import settings
+from app.models.billing_transaction import BillingTransaction
 from app.models.organisation import Organisation
 from app.services.notification_service import NotificationService
 
@@ -366,29 +368,62 @@ class BillingService:
     async def handle_charge_success(self, event_data: dict) -> None:
         """
         charge.success — payment completed.
-        Activates the subscription plan on the organisation.
+        Records the transaction in our own ledger (so the app can show
+        subscription history without Paystack) and activates the plan.
+
+        Paystack retries webhook delivery, and retries can race each other,
+        so this relies on the unique constraint on
+        BillingTransaction.paystack_reference: inserting a reference that's
+        already recorded raises IntegrityError, which we treat as "already
+        processed" rather than repeating the plan update and notification.
         """
         metadata = event_data.get("metadata", {})
         org_id_str = metadata.get("org_id")
         plan = metadata.get("plan")
+        reference = event_data.get("reference")
 
-        if not org_id_str or not plan:
+        if not org_id_str or not plan or reference is None:
             return  # Not a LegalOps subscription charge — ignore
         try:
             org_id = uuid.UUID(org_id_str)
         except ValueError:
             return
 
-        org = await self._get_org(org_id)
-        if plan in PLAN_FEATURES:
-            org.plan = plan
-            org.trial_used = True
-            await self.db.commit()
-            await self.notifications.fan_out_to_org_admins(
-                org_id=org_id, actor_id=uuid.UUID(int=0), type="success",
-                title=f"Plan upgraded to {plan.capitalize()}",
-                message="Your organisation's subscription is now active.", link="/admin/billing",
+        if plan not in PLAN_FEATURES:
+            return
+
+        paid_at_raw = event_data.get("paid_at")
+        try:
+            paid_at = (
+                datetime.fromisoformat(paid_at_raw.replace("Z", "+00:00"))
+                if paid_at_raw else datetime.now(timezone.utc)
             )
+        except ValueError:
+            paid_at = datetime.now(timezone.utc)
+
+        self.db.add(BillingTransaction(
+            organisation_id=org_id,
+            paystack_reference=str(reference),
+            plan=plan,
+            amount_kobo=event_data.get("amount") or PLAN_FEATURES[plan]["amount_kobo"],
+            status="success",
+            paid_at=paid_at,
+        ))
+        try:
+            await self.db.commit()
+        except IntegrityError:
+            await self.db.rollback()
+            return  # Already processed this exact charge — retried webhook delivery
+
+        org = await self._get_org(org_id)
+        org.plan = plan
+        org.trial_used = True
+        await self.db.commit()
+        await self.notifications.fan_out_to_org_admins(
+            org_id=org_id, actor_id=uuid.UUID(int=0), type="success",
+            title=f"Plan upgraded to {plan.capitalize()}",
+            message="Your organisation's subscription is now active.", link="/admin/billing",
+        )
 
     async def handle_subscription_create(self, event_data: dict) -> None:
         """
@@ -400,6 +435,7 @@ class BillingService:
         customer_code = customer.get("customer_code")
         plan_code = event_data.get("plan", {}).get("plan_code")
         subscription_code = event_data.get("subscription_code")
+        email_token = event_data.get("email_token")
         if not customer_code:
             return
         org = (await self.db.execute(
@@ -416,6 +452,8 @@ class BillingService:
                 break
         if subscription_code:
             org.paystack_subscription_code = subscription_code
+        if email_token:
+            org.paystack_subscription_email_token = email_token
         await self.db.commit()
 
 
@@ -455,6 +493,7 @@ class BillingService:
 
         org.plan = "free"
         org.paystack_subscription_code = None
+        org.paystack_subscription_email_token = None
         await self.db.commit()
 
     # ── Plan information ──────────────────────────────────────────────────
@@ -494,26 +533,70 @@ class BillingService:
             },
             "paystack_customer_code": org.paystack_customer_code,
             "paystack_public_key": settings.paystack_public_key,
+            "can_cancel": bool(org.paystack_subscription_code and org.paystack_subscription_email_token),
         }
 
-    async def manage_subscription_portal( self, org_id: uuid.UUID) -> dict:
+    async def get_billing_history(self, org_id: uuid.UUID) -> list[dict]:
         """
-        Return the Paystack customer portal URL where the customer
-        can manage or cancel their subscription.
-        Paystack doesn't have a hosted portal like Stripe —
-        we return a deep link to the subscription management page.
+        Return the org's own payment history from our BillingTransaction
+        ledger — no Paystack API call or redirect needed.
         """
+        result = await self.db.execute(
+            select(BillingTransaction)
+            .where(BillingTransaction.organisation_id == org_id)
+            .order_by(BillingTransaction.paid_at.desc())
+        )
+        return [
+            {
+                "id": str(t.id),
+                "reference": t.paystack_reference,
+                "plan": t.plan,
+                "amount_kobo": t.amount_kobo,
+                "amount_ngn": t.amount_kobo / 100,
+                "status": t.status,
+                "paid_at": t.paid_at.isoformat(),
+            }
+            for t in result.scalars().all()
+        ]
+
+    async def cancel_subscription(self, org_id: uuid.UUID) -> dict:
+        """
+        Cancel the org's active Paystack subscription directly via the API
+        and downgrade to Free — the customer never has to leave the app.
+        """
+        from pypaystack2 import AsyncPaystackClient
+
         org = await self._get_org(org_id)
-        if not org.paystack_customer_code:
+        if not org.paystack_subscription_code or not org.paystack_subscription_email_token:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No active Paystack subscription found.",
+                detail="No active subscription to cancel.",
             )
-        # Direct link to Paystack customer dashboard
-        return {
-            "portal_url": "https://paystack.com/account/subscriptions",
-            "message": "Manage your subscription on the Paystack customer portal",
-        }
+
+        client = AsyncPaystackClient(secret_key=settings.paystack_secret_key)
+        response = await client.subscriptions.disable(
+            code=org.paystack_subscription_code,
+            token=org.paystack_subscription_email_token,
+        )
+        if not response.status:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Paystack cancellation failed: {response.message}",
+            )
+
+        org.plan = "free"
+        org.paystack_subscription_code = None
+        org.paystack_subscription_email_token = None
+        await self.db.commit()
+
+        await self.notifications.fan_out_to_org_admins(
+            org_id=org_id, actor_id=uuid.UUID(int=0), type="info",
+            title="Subscription cancelled",
+            message="Your organisation has been moved to the Free plan.", link="/admin/billing",
+        )
+
+        return {"cancelled": True, "plan": org.plan}
+
     # ── Feature flag admin override ───────────────────────────────────────
 
     async def set_feature_flags(

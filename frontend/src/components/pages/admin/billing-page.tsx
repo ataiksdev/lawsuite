@@ -2,13 +2,12 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Ban,
   CheckCircle2,
-  CreditCard,
   Crown,
-  Download,
+  Receipt,
   Star,
   Loader2,
-  ShieldAlert,
   Clock,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -18,10 +17,12 @@ import { ApiClientError } from '@/lib/api-client';
 import { UserRole } from '@/lib/types';
 import { replaceNavigation } from '@/lib/router';
 import {
-  getBillingPortal,
+  cancelSubscription,
+  getBillingHistory,
   getSubscription,
   startCheckout,
   type BillingPlan,
+  type BillingTransaction,
   type PaidBillingPlan,
   type SubscriptionSummary,
   verifyCheckout,
@@ -33,6 +34,17 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 interface PlanConfig {
   key: BillingPlan;
@@ -268,10 +280,11 @@ export function BillingPage() {
   const [subscription, setSubscription] = useState<SubscriptionSummary | null>(null);
   const [memberCount, setMemberCount] = useState(0);
   const [matterCount, setMatterCount] = useState(0);
+  const [billingHistory, setBillingHistory] = useState<BillingTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [checkoutPlan, setCheckoutPlan] = useState<PaidBillingPlan | null>(null);
-  const [openingPortal, setOpeningPortal] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
   const [isVerifyingCheckout, setIsVerifyingCheckout] = useState(false);
   const [checkoutMessage, setCheckoutMessage] = useState<{
     tone: 'success' | 'warning' | 'error';
@@ -284,15 +297,17 @@ export function BillingPage() {
     setError(null);
 
     try {
-      const [subscriptionResponse, membersResponse, mattersResponse] = await Promise.all([
+      const [subscriptionResponse, membersResponse, mattersResponse, historyResponse] = await Promise.all([
         getSubscription(),
         listMembers(),
         listMatters({ page_size: 1 }),
+        getBillingHistory(),
       ]);
 
       setSubscription(subscriptionResponse);
       setMemberCount(membersResponse.length);
       setMatterCount(mattersResponse.total);
+      setBillingHistory(historyResponse);
       return subscriptionResponse;
     } catch (err) {
       const message =
@@ -447,16 +462,20 @@ export function BillingPage() {
     }
   };
 
-  const handleManageSubscription = async () => {
-    setOpeningPortal(true);
+  const handleCancelSubscription = async () => {
+    setIsCancelling(true);
     try {
-      const response = await getBillingPortal();
-      window.location.href = response.portal_url;
+      await cancelSubscription();
+      toast.success('Subscription cancelled', {
+        description: "Your organisation has been moved to the Free plan.",
+      });
+      await loadBilling();
     } catch (err) {
       const message =
-        err instanceof ApiClientError ? err.detail : 'Unable to open the subscription portal.';
+        err instanceof ApiClientError ? err.detail : 'Unable to cancel your subscription right now.';
       toast.error(message);
-      setOpeningPortal(false);
+    } finally {
+      setIsCancelling(false);
     }
   };
 
@@ -616,46 +635,86 @@ export function BillingPage() {
 
           <Card className="border-slate-200/80 dark:border-slate-700/80">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold">Payments & Receipts</CardTitle>
+              <CardTitle className="text-base font-semibold">Billing History</CardTitle>
               <CardDescription className="text-xs">
-                Manage billing activity through your Paystack subscription
+                Every successful payment on this organisation's account
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex items-start gap-3 rounded-lg bg-slate-50 p-4 dark:bg-slate-900">
-                <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                    Your active subscription is billed securely through Paystack.
+              {billingHistory.length === 0 ? (
+                <div className="flex items-start gap-3 rounded-lg bg-slate-50 p-4 dark:bg-slate-900">
+                  <Receipt className="mt-0.5 h-5 w-5 shrink-0 text-slate-400" />
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                    No payments yet. Charges will appear here as soon as a plan is activated.
                   </p>
-                  <ul className="space-y-1 text-sm text-slate-500 dark:text-slate-400">
-                    <li>Open the Paystack portal to update payment methods or manage your subscription.</li>
-                    <li>Receipts and charge history are available from your Paystack billing records.</li>
-                    <li>Any successful plan change will sync back here automatically after payment confirmation.</li>
-                  </ul>
                 </div>
-              </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-100 text-left text-xs text-slate-500 dark:border-slate-800">
+                        <th className="pb-2 font-medium">Date</th>
+                        <th className="pb-2 font-medium">Plan</th>
+                        <th className="pb-2 font-medium">Amount</th>
+                        <th className="pb-2 font-medium">Status</th>
+                        <th className="pb-2 font-medium">Reference</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {billingHistory.map((tx) => (
+                        <tr key={tx.id} className="border-b border-slate-50 last:border-0 dark:border-slate-800/50">
+                          <td className="py-2.5 text-slate-700 dark:text-slate-300">
+                            {new Date(tx.paid_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </td>
+                          <td className="py-2.5 capitalize text-slate-700 dark:text-slate-300">{tx.plan}</td>
+                          <td className="py-2.5 text-slate-900 dark:text-slate-100">
+                            ₦{tx.amount_ngn.toLocaleString('en-NG')}
+                          </td>
+                          <td className="py-2.5">
+                            <Badge className="border-emerald-200 bg-emerald-50 text-xs capitalize text-emerald-700">
+                              {tx.status}
+                            </Badge>
+                          </td>
+                          <td className="py-2.5 font-mono text-xs text-slate-400">{tx.reference}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </CardContent>
           </Card>
 
-          <div className="flex flex-wrap gap-3">
-            <Button
-              variant="outline"
-              onClick={() => void handleManageSubscription()}
-              disabled={openingPortal || !subscription.paystack_customer_code}
-            >
-              <CreditCard className="mr-2 h-4 w-4" />
-              {openingPortal ? 'Opening Portal...' : 'Manage Subscription'}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => void handleManageSubscription()}
-              disabled={openingPortal || !subscription.paystack_customer_code}
-            >
-              <Download className="mr-2 h-4 w-4" />
-              View Receipts in Paystack
-            </Button>
-          </div>
+          {subscription.can_cancel && (
+            <div className="flex flex-wrap gap-3">
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" className="text-red-600 hover:text-red-600" disabled={isCancelling}>
+                    <Ban className="mr-2 h-4 w-4" />
+                    {isCancelling ? 'Cancelling...' : 'Cancel Subscription'}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Cancel your subscription?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This immediately cancels billing with Paystack and moves your organisation to the
+                      Free plan. You&apos;ll lose access to paid features right away.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Keep Subscription</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-red-600 hover:bg-red-700"
+                      onClick={() => void handleCancelSubscription()}
+                    >
+                      Cancel Subscription
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          )}
         </>
       )}
     </div>

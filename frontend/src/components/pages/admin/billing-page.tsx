@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Ban,
   CheckCircle2,
@@ -15,7 +15,6 @@ import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/lib/auth-store';
 import { extractErrorMessage, handleApiError } from '@/lib/error-utils';
 import { UserRole } from '@/lib/types';
-import { replaceNavigation } from '@/lib/router';
 import {
   cancelSubscription,
   getBillingHistory,
@@ -103,28 +102,6 @@ const PLAN_ORDER: Record<BillingPlan, number> = {
   pro: 1,
   agency: 2,
 };
-
-function getBillingCallbackParams() {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-
-  const hash = window.location.hash;
-  if (!hash.includes('?')) {
-    return null;
-  }
-
-  const query = hash.split('?')[1] ?? '';
-  const params = new URLSearchParams(query);
-  const state = params.get('paystack');
-  const reference = params.get('reference') ?? params.get('trxref');
-
-  if (!state && !reference) {
-    return null;
-  }
-
-  return { state, reference };
-}
 
 function UsageMeter({
   label,
@@ -277,7 +254,6 @@ function usePaystackScript() {
 export function BillingPage() {
   const { user, organisation } = useAuthStore();
   const isPaystackLoaded = usePaystackScript();
-  const handledCheckoutRef = useRef<string | null>(null);
   const [subscription, setSubscription] = useState<SubscriptionSummary | null>(null);
   const [memberCount, setMemberCount] = useState(0);
   const [matterCount, setMatterCount] = useState(0);
@@ -320,71 +296,6 @@ export function BillingPage() {
 
   useEffect(() => {
     void loadBilling();
-  }, []);
-
-  useEffect(() => {
-    const callback = getBillingCallbackParams();
-    if (!callback) {
-      return;
-    }
-
-    const marker = `${callback.state ?? 'unknown'}:${callback.reference ?? 'none'}`;
-    if (handledCheckoutRef.current === marker) {
-      return;
-    }
-    handledCheckoutRef.current = marker;
-
-    const handleCallback = async () => {
-      if (callback.state === 'cancelled') {
-        setCheckoutMessage({
-          tone: 'warning',
-          title: 'Checkout cancelled',
-          detail: 'No payment was taken. You can restart checkout whenever you are ready.',
-        });
-        setCheckoutPlan(null);
-        replaceNavigation('/admin/billing');
-        return;
-      }
-
-      if (!callback.reference) {
-        setCheckoutMessage({
-          tone: 'warning',
-          title: 'Awaiting payment confirmation',
-          detail: 'We are waiting for Paystack to return a transaction reference for this checkout.',
-        });
-        await loadBilling();
-        replaceNavigation('/admin/billing');
-        return;
-      }
-
-      setIsVerifyingCheckout(true);
-      try {
-        const result = await verifyCheckout(callback.reference);
-        setSubscription(result.subscription);
-        invalidateSubscriptionCache();
-        setCheckoutMessage({
-          tone: 'success',
-          title: `${result.plan === 'agency' ? 'Agency' : 'Pro'} plan activated`,
-          detail: 'Your payment was confirmed with Paystack and your subscription is now active.',
-        });
-        toast.success(`Payment confirmed. Your ${result.plan} plan is active.`);
-      } catch (err) {
-        const message = extractErrorMessage(err, 'We could not verify your payment yet.');
-        setCheckoutMessage({
-          tone: 'error',
-          title: 'Payment verification pending',
-          detail: message,
-        });
-        toast.error(message);
-      } finally {
-        setCheckoutPlan(null);
-        setIsVerifyingCheckout(false);
-        await loadBilling();
-        replaceNavigation('/admin/billing');
-      }
-    };
-
-    void handleCallback();
   }, []);
 
   const currentPlanConfig = useMemo(() => {

@@ -2,6 +2,7 @@
 import uuid
 import hmac
 import hashlib
+import math
 from datetime import datetime, timezone
 from typing import Any, Literal
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -516,6 +517,11 @@ class BillingService:
             and org.trial_ends_at.replace(tzinfo=timezone.utc) > now
             and not org.trial_used
         )
+        trial_days_remaining = (
+            max(0, math.ceil((org.trial_ends_at.replace(tzinfo=timezone.utc) - now).total_seconds() / 86400))
+            if trial_active
+            else None
+        )
         # Use the stored plan's price (not the trial plan's ₦0) so the UI
         # shows what they'll pay when they upgrade, not "Free" while on trial.
         stored_plan_config = PLAN_FEATURES.get(org.plan, PLAN_FEATURES["free"])
@@ -528,6 +534,7 @@ class BillingService:
             "amount_ngn": amount_kobo / 100,
             "trial_active": trial_active,
             "trial_ends_at": org.trial_ends_at.isoformat() if org.trial_ends_at else None,
+            "trial_days_remaining": trial_days_remaining,
             "features": {
                 k: v for k, v in features.items()
                 if k not in ("name", "plan_code", "amount_kobo")

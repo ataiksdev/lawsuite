@@ -747,7 +747,7 @@ export function resolveMockRequest(
       handled: true,
       data: {
         plan, effective_plan: plan, plan_name: 'Pro', amount_kobo: 500000, amount_ngn: 5000,
-        trial_active: false, trial_ends_at: null,
+        trial_active: false, trial_ends_at: null, trial_days_remaining: null,
         features: { drive_integration: true, reports: true, mfa: true, advanced_tasks: true, api_access: false },
         limits: { max_matters: null, max_seats: mockBillingInfo.member_limit },
         paystack_customer_code: null, paystack_public_key: 'pk_test_demo', can_cancel: false,

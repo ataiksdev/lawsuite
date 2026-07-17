@@ -19,6 +19,8 @@ interface UseSubscriptionReturn {
   canUseMfa: boolean;
   isOnTrial: boolean;
   trialEndsAt: Date | null;
+  // Server-computed — see SubscriptionSummary.trial_days_remaining
+  trialDaysRemaining: number | null;
 }
 
 let _cached: SubscriptionSummary | null = null;
@@ -86,5 +88,6 @@ export function useSubscription(): UseSubscriptionReturn {
     canUseMfa: subscription?.features?.mfa ?? true,
     isOnTrial: subscription?.trial_active ?? false,
     trialEndsAt: subscription?.trial_ends_at ? new Date(subscription.trial_ends_at) : null,
+    trialDaysRemaining: subscription?.trial_days_remaining ?? null,
   };
 }

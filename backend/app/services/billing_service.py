@@ -169,10 +169,15 @@ class BillingService:
         self.db = db
         self.notifications = NotificationService(db)
 
-    async def _get_org(self, org_id: uuid.UUID) -> Organisation:
-        result = await self.db.execute(
-            select(Organisation).where(Organisation.id == org_id)
-        )
+    async def _get_org(self, org_id: uuid.UUID, for_update: bool = False) -> Organisation:
+        query = select(Organisation).where(Organisation.id == org_id)
+        if for_update:
+            # Serializes concurrent limit checks for the same org: the second
+            # request's lock acquisition blocks until the first commits (or
+            # rolls back), so its count query sees the first request's
+            # already-committed insert instead of racing it.
+            query = query.with_for_update()
+        result = await self.db.execute(query)
         org = result.scalar_one_or_none()
         if not org:
             raise HTTPException(
@@ -631,11 +636,15 @@ class BillingService:
         """
         Raise 402 if the org has reached the matter limit for their plan.
         Called before creating a new matter.
+
+        Locks the organisation row for the rest of the caller's transaction
+        so two concurrent creates for the same org can't both pass the count
+        check before either commits — see _get_org's for_update.
         """
         from sqlalchemy import func
         from app.models.matter import Matter, MatterStatus
 
-        org = await self._get_org(org_id)
+        org = await self._get_org(org_id, for_update=True)
         # plan_config = PLANS.get(org.plan, PLANS["free"])
         _, features = get_effective_plan(org)
         max_matters = features["max_matters"]
@@ -664,11 +673,15 @@ class BillingService:
         """
         Raise 402 if the org has reached the seat limit for their plan.
         Called before inviting a new member.
+
+        Locks the organisation row for the rest of the caller's transaction
+        so two concurrent invites for the same org can't both pass the count
+        check before either commits — see _get_org's for_update.
         """
         from sqlalchemy import func
         from app.models.user import OrganisationMember
 
-        org = await self._get_org(org_id)
+        org = await self._get_org(org_id, for_update=True)
         _, features = get_effective_plan(org)
         max_seats = features["max_seats"]
 

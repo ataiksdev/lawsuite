@@ -750,11 +750,14 @@ export function resolveMockRequest(
         trial_active: false, trial_ends_at: null,
         features: { drive_integration: true, reports: true, mfa: true, advanced_tasks: true, api_access: false },
         limits: { max_matters: null, max_seats: mockBillingInfo.member_limit },
-        paystack_customer_code: null, paystack_public_key: 'pk_test_demo',
+        paystack_customer_code: null, paystack_public_key: 'pk_test_demo', can_cancel: false,
       },
     };
   }
-  if (p === '/billing/checkout' || p === '/billing/portal' || p === '/billing/verify') {
+  if (p === '/billing/history' && method === 'GET') {
+    return { handled: true, data: [] };
+  }
+  if (p === '/billing/checkout' || p === '/billing/cancel' || p === '/billing/verify') {
     return BLOCKED("Billing isn't available in the demo. Sign up for a full account to manage a subscription.");
   }
 

@@ -89,12 +89,21 @@ async def get_subscription(current_user: AuthUser, db: DB):
     return await service.get_subscription(current_user.org_id)
 
 
-@router.get("/portal", response_model=dict)
-async def billing_portal(current_user: AdminUser, db: DB):
+@router.get("/history", response_model=list[dict])
+async def billing_history(current_user: AuthUser, db: DB):
     """
-    Return the Paystack customer portal URL for self-service
-    subscription management (upgrade, downgrade, cancel).
-    Admin only.
+    Return the current organisation's payment history — sourced entirely
+    from our own ledger, no Paystack API call involved.
     """
     service = BillingService(db)
-    return await service.manage_subscription_portal(current_user.org_id)
+    return await service.get_billing_history(current_user.org_id)
+
+
+@router.post("/cancel", response_model=dict)
+async def cancel_subscription(current_user: AdminUser, db: DB):
+    """
+    Cancel the current organisation's active Paystack subscription and
+    downgrade to Free. Admin only. The customer never leaves the app.
+    """
+    service = BillingService(db)
+    return await service.cancel_subscription(current_user.org_id)

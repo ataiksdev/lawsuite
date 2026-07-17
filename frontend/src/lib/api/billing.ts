@@ -34,6 +34,8 @@ export interface SubscriptionSummary {
   limits: SubscriptionLimits;
   paystack_customer_code: string | null;
   paystack_public_key: string;
+  // Whether we hold enough Paystack subscription info to cancel in-app
+  can_cancel: boolean;
 }
 
 export interface CheckoutResponse {
@@ -41,11 +43,6 @@ export interface CheckoutResponse {
   reference: string;
   access_code: string;
   amount_kobo: number;
-}
-
-export interface BillingPortalResponse {
-  portal_url: string;
-  message: string;
 }
 
 export interface VerifyCheckoutResponse {
@@ -56,6 +53,21 @@ export interface VerifyCheckoutResponse {
   subscription: SubscriptionSummary;
 }
 
+export interface BillingTransaction {
+  id: string;
+  reference: string;
+  plan: BillingPlan;
+  amount_kobo: number;
+  amount_ngn: number;
+  status: string;
+  paid_at: string;
+}
+
+export interface CancelSubscriptionResponse {
+  cancelled: boolean;
+  plan: BillingPlan;
+}
+
 export async function getSubscription() {
   return apiClient.get<SubscriptionSummary>('/billing/subscription');
 }
@@ -64,10 +76,14 @@ export async function startCheckout(plan: PaidBillingPlan) {
   return apiClient.post<CheckoutResponse>('/billing/checkout', { plan });
 }
 
-export async function getBillingPortal() {
-  return apiClient.get<BillingPortalResponse>('/billing/portal');
-}
-
 export async function verifyCheckout(reference: string) {
   return apiClient.get<VerifyCheckoutResponse>('/billing/verify', { reference });
+}
+
+export async function getBillingHistory() {
+  return apiClient.get<BillingTransaction[]>('/billing/history');
+}
+
+export async function cancelSubscription() {
+  return apiClient.post<CancelSubscriptionResponse>('/billing/cancel', {});
 }

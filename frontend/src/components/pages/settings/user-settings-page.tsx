@@ -327,7 +327,7 @@ export function UserSettingsPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Theme */}
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-0.5">
               <Label className="text-sm font-medium flex items-center gap-1.5">
                 {theme === 'dark' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
@@ -335,7 +335,7 @@ export function UserSettingsPage() {
               </Label>
               <p className="text-xs text-slate-500">Choose between light and dark mode.</p>
             </div>
-            <div className="flex items-center gap-1 rounded-lg border border-slate-200 dark:border-slate-700 p-0.5">
+            <div className="flex items-center gap-1 self-start rounded-lg border border-slate-200 dark:border-slate-700 p-0.5">
               <Button
                 variant="ghost"
                 size="sm"

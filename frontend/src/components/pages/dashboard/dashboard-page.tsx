@@ -279,8 +279,8 @@ export function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <h1 className="text-[26px] font-semibold tracking-tight text-foreground">
             {greeting()}, Barrister {user?.first_name || 'there'}
           </h1>

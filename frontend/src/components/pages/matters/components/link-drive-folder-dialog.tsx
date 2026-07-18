@@ -210,7 +210,7 @@ export function LinkDriveFolderDialog({
                     : 'No new files to import'}
                 </span>
               </div>
-              <div className="grid grid-cols-3 gap-3 text-center">
+              <div className="grid grid-cols-3 gap-2 text-center sm:gap-3">
                 {[
                   { label: 'Files in folder', value: result.file_count },
                   { label: 'Newly imported', value: result.imported_count },

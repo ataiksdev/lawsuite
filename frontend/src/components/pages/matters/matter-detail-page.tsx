@@ -1236,7 +1236,7 @@ export function MatterDetailPage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card className="shadow-sm lg:col-span-2">
           <CardContent className="p-4">
-            <div className="grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-4 sm:gap-x-8">
               <div className="space-y-2">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Matter Details</p>
                 <DetailRow label="Reference" value={matter.reference_no} />
@@ -1434,7 +1434,7 @@ export function MatterDetailPage() {
                                 }
                                 disabled={updatingDocumentId === document.id}
                               >
-                                <SelectTrigger className="h-8 w-[170px]">
+                                <SelectTrigger className="h-8 w-36 sm:w-[170px]">
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>

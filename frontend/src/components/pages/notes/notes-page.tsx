@@ -687,7 +687,7 @@ export function NotesPage() {
           </div>
 
           {/* ── Right panel: viewer / new form ── */}
-          <Card className="shadow-sm min-h-[500px]">
+          <Card className="shadow-sm min-h-[320px] sm:min-h-[500px]">
             <CardContent className="p-6 h-full">
               {isCreating ? (
                 <>

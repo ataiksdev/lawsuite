@@ -364,9 +364,9 @@ function OrgDetailSheet({
               {/* Plan override */}
               <div className="space-y-3">
                 <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Override Plan</p>
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row">
                   <Select value={planValue} onValueChange={(v) => setPlanValue(v as 'free' | 'pro' | 'agency')}>
-                    <SelectTrigger className="w-36">
+                    <SelectTrigger className="sm:w-36">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -379,12 +379,12 @@ function OrgDetailSheet({
                     placeholder="Reason (optional)"
                     value={planReason}
                     onChange={(e) => setPlanReason(e.target.value)}
-                    className="flex-1"
+                    className="sm:flex-1"
                   />
                   <Button
                     onClick={() => void handlePlanSave()}
                     disabled={savingPlan || planValue === detail.plan}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white shrink-0"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white sm:shrink-0"
                   >
                     {savingPlan ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Apply'}
                   </Button>
@@ -448,9 +448,9 @@ function OrgDetailSheet({
                     const isSet = key in featureFlags;
                     const val = featureFlags[key];
                     return (
-                      <div key={key} className="flex items-center justify-between rounded-lg border border-slate-100 dark:border-slate-800 px-3 py-2">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs text-slate-600 dark:text-slate-400">{key}</span>
+                      <div key={key} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-100 dark:border-slate-800 px-3 py-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="break-all font-mono text-xs text-slate-600 dark:text-slate-400">{key}</span>
                           {!isSet && (
                             <Badge className="border-slate-200 bg-slate-50 text-slate-400 text-[10px]">plan default</Badge>
                           )}

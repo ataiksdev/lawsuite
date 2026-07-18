@@ -98,3 +98,129 @@ async def send_password_reset_email(
     )
     await _send(to=to, subject="Reset your LegalOps password", html=html)
     print(f"[EMAIL] Password reset sent to {to}")
+
+
+# ---------------------------------------------------------------------------
+# Matter update email
+# ---------------------------------------------------------------------------
+
+async def send_matter_update_email(
+    *,
+    to: str,
+    name: str,
+    matter_title: str,
+    matter_ref: str,
+    change_summary: str,
+    matter_url: str,
+) -> None:
+    if not _is_configured():
+        print(f"[EMAIL] Resend not configured — skipping matter update email to {to}")
+        return
+
+    html = _render(
+        "matter_update.html",
+        name=name or to,
+        matter_title=matter_title,
+        matter_ref=matter_ref,
+        change_summary=change_summary,
+        matter_url=matter_url,
+    )
+    await _send(to=to, subject=f"Matter updated: {matter_title}", html=html)
+    print(f"[EMAIL] Matter update sent to {to}")
+
+
+# ---------------------------------------------------------------------------
+# Task assigned email
+# ---------------------------------------------------------------------------
+
+async def send_task_assigned_email(
+    *,
+    to: str,
+    name: str,
+    task_title: str,
+    matter_title: str,
+    matter_ref: str,
+    priority: str,
+    task_url: str,
+) -> None:
+    if not _is_configured():
+        print(f"[EMAIL] Resend not configured — skipping task assigned email to {to}")
+        return
+
+    html = _render(
+        "task_assigned.html",
+        name=name or to,
+        task_title=task_title,
+        matter_title=matter_title,
+        matter_ref=matter_ref,
+        priority=priority.capitalize(),
+        task_url=task_url,
+    )
+    await _send(to=to, subject=f"Task assigned to you: {task_title}", html=html)
+    print(f"[EMAIL] Task assigned sent to {to}")
+
+
+# ---------------------------------------------------------------------------
+# Document shared email
+# ---------------------------------------------------------------------------
+
+async def send_document_shared_email(
+    *,
+    to: str,
+    name: str,
+    document_name: str,
+    matter_title: str,
+    matter_ref: str,
+    uploaded_by_name: str,
+    matter_url: str,
+    version_label: str = "",
+) -> None:
+    if not _is_configured():
+        print(f"[EMAIL] Resend not configured — skipping document shared email to {to}")
+        return
+
+    html = _render(
+        "document_shared.html",
+        name=name or to,
+        document_name=document_name,
+        matter_title=matter_title,
+        matter_ref=matter_ref,
+        uploaded_by_name=uploaded_by_name,
+        matter_url=matter_url,
+        version_label=version_label,
+    )
+    await _send(to=to, subject=f"New document: {document_name}", html=html)
+    print(f"[EMAIL] Document shared sent to {to}")
+
+
+# ---------------------------------------------------------------------------
+# Task due soon email
+# ---------------------------------------------------------------------------
+
+async def send_task_due_soon_email(
+    *,
+    to: str,
+    name: str,
+    task_title: str,
+    matter_title: str,
+    matter_ref: str,
+    due_date: str,
+    priority: str,
+    matter_url: str,
+) -> None:
+    if not _is_configured():
+        print(f"[EMAIL] Resend not configured — skipping task due soon email to {to}")
+        return
+
+    html = _render(
+        "task_due.html",
+        assignee_name=name or to,
+        task_title=task_title,
+        matter_title=matter_title,
+        matter_ref=matter_ref,
+        due_date=due_date,
+        priority=priority.capitalize(),
+        matter_url=matter_url,
+    )
+    await _send(to=to, subject=f"Task due soon: {task_title}", html=html)
+    print(f"[EMAIL] Task due soon sent to {to}")

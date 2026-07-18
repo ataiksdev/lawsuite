@@ -37,6 +37,18 @@ async def setup(client: AsyncClient) -> tuple[str, str]:
     return token, m.json()["id"]
 
 
+async def _add_member(db_session, org_id: str, email: str) -> "uuid.UUID":
+    """Directly create a second org member (bypasses the invite/accept email flow)."""
+    from app.models.user import OrganisationMember, User
+
+    user = User(email=email, full_name="Second Lawyer", is_active=True, is_verified=True)
+    db_session.add(user)
+    await db_session.flush()
+    db_session.add(OrganisationMember(organisation_id=org_id, user_id=user.id))
+    await db_session.commit()
+    return user.id
+
+
 # ─── Link document ────────────────────────────────────────────────────────────
 
 
@@ -239,3 +251,98 @@ async def test_document_isolation(client: AsyncClient):
         f"/matters/{m_b.json()['id']}/documents/{doc_id}/versions", headers={"Authorization": f"Bearer {token_b}"}
     )
     assert resp.status_code == 404
+
+
+# ─── Document-shared email notifications ───────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_link_document_sends_email_to_assigned_lawyer(client: AsyncClient, db_session, mock_resend):
+    """
+    link_document sends the document_shared email to matter.assigned_to,
+    excluding the actor -- so the actor performing the link must not be
+    the assignee for this test to observe an email.
+    """
+    from sqlalchemy import select
+
+    from app.models.organisation import Organisation
+
+    token, matter_id = await setup(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    org = (await db_session.execute(select(Organisation))).scalar_one()
+    second_user_id = await _add_member(db_session, str(org.id), "assignee@doctest.ng")
+
+    await client.patch(
+        f"/matters/{matter_id}",
+        json={"assigned_to": str(second_user_id)},
+        headers=headers,
+    )
+    mock_resend.reset_mock()
+
+    resp = await client.post(f"/matters/{matter_id}/documents", json=LINK_PAYLOAD, headers=headers)
+    assert resp.status_code == 201
+    assert mock_resend.called
+    assert mock_resend.call_args[0][0]["to"] == ["assignee@doctest.ng"]
+
+
+@pytest.mark.asyncio
+async def test_link_document_respects_disabled_preference(client: AsyncClient, db_session, mock_resend):
+    from sqlalchemy import select
+
+    from app.models.organisation import Organisation
+    from app.models.user import User
+
+    token, matter_id = await setup(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    org = (await db_session.execute(select(Organisation))).scalar_one()
+    second_user_id = await _add_member(db_session, str(org.id), "quiet-assignee@doctest.ng")
+
+    await client.patch(
+        f"/matters/{matter_id}",
+        json={"assigned_to": str(second_user_id)},
+        headers=headers,
+    )
+
+    user = (await db_session.execute(select(User).where(User.id == second_user_id))).scalar_one()
+    user.notification_email_preferences = {"document_shared": False}
+    await db_session.commit()
+    mock_resend.reset_mock()
+
+    resp = await client.post(f"/matters/{matter_id}/documents", json=LINK_PAYLOAD, headers=headers)
+    assert resp.status_code == 201
+    assert not mock_resend.called
+
+
+@pytest.mark.asyncio
+async def test_add_version_sends_email_to_assigned_lawyer(client: AsyncClient, db_session, mock_resend):
+    from sqlalchemy import select
+
+    from app.models.organisation import Organisation
+
+    token, matter_id = await setup(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    org = (await db_session.execute(select(Organisation))).scalar_one()
+    second_user_id = await _add_member(db_session, str(org.id), "version-assignee@doctest.ng")
+
+    await client.patch(
+        f"/matters/{matter_id}",
+        json={"assigned_to": str(second_user_id)},
+        headers=headers,
+    )
+
+    doc = await client.post(f"/matters/{matter_id}/documents", json=LINK_PAYLOAD, headers=headers)
+    doc_id = doc.json()["id"]
+    mock_resend.reset_mock()
+
+    resp = await client.post(
+        f"/matters/{matter_id}/documents/{doc_id}/versions",
+        json={
+            "drive_file_id": "signed-file-id-999",
+            "drive_url": "https://docs.google.com/document/d/signed/edit",
+            "label": "signed copy",
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 201
+    assert mock_resend.called
+    assert mock_resend.call_args[0][0]["to"] == ["version-assignee@doctest.ng"]

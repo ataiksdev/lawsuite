@@ -1,6 +1,6 @@
 # backend/app/services/task_service.py
 import uuid
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 from fastapi import HTTPException, status
@@ -24,6 +24,35 @@ class TaskService:
         self.notifications = NotificationService(db)
 
     # ── Helpers ───────────────────────────────────────────────────────────
+
+    async def _send_task_assigned_email(
+        self,
+        recipient_id: uuid.UUID,
+        task: Task,
+        matter_id: uuid.UUID,
+    ) -> None:
+        """Best-effort email alongside the in-app task-assigned notification."""
+        from app.core.config import settings
+        from app.services import email_service
+        from app.services.notification_preferences import should_send
+
+        try:
+            result = await self.db.execute(select(User).where(User.id == recipient_id))
+            user = result.scalar_one_or_none()
+            if not user or not should_send(user, "task_assigned"):
+                return
+            matter = await self._get_matter(matter_id, task.organisation_id)
+            await email_service.send_task_assigned_email(
+                to=user.email,
+                name=user.full_name,
+                task_title=task.title,
+                matter_title=matter.title,
+                matter_ref=matter.reference_no,
+                priority=task.priority,
+                task_url=f"{settings.frontend_url}/#/matters/{matter_id}",
+            )
+        except Exception:
+            pass
 
     async def _get_matter(self, matter_id: uuid.UUID, org_id: uuid.UUID) -> Matter:
         result = await self.db.execute(
@@ -138,6 +167,10 @@ class TaskService:
 
         await self.db.commit()
         await self.db.refresh(task)
+
+        if data.assigned_to and data.assigned_to != user_id:
+            await self._send_task_assigned_email(data.assigned_to, task, matter_id)
+
         return task
 
     async def update_task(
@@ -152,6 +185,7 @@ class TaskService:
         update_data = data.model_dump(exclude_unset=True)
 
         old_status = task.status
+        old_assigned_to = task.assigned_to  # captured before the mutation loop below
         changed: dict = {}
 
         for field, value in update_data.items():
@@ -165,7 +199,7 @@ class TaskService:
 
         # Notify new assignee if assigned_to changed
         new_assignee = update_data.get("assigned_to")
-        if new_assignee and new_assignee != task.assigned_to and new_assignee != user_id:
+        if new_assignee and new_assignee != old_assigned_to and new_assignee != user_id:
             await self.notifications.create(
                 user_id=new_assignee,
                 org_id=org_id,
@@ -225,6 +259,10 @@ class TaskService:
 
         await self.db.commit()
         await self.db.refresh(task)
+
+        if new_assignee and new_assignee != old_assigned_to and new_assignee != user_id:
+            await self._send_task_assigned_email(new_assignee, task, matter_id)
+
         return task
 
     async def delete_task(
@@ -273,6 +311,54 @@ class TaskService:
                 Task.status.notin_([TaskStatus.done, TaskStatus.cancelled]),
                 Task.due_date < today,
                 Task.due_date.isnot(None),
+            )
+        )
+
+        count_q = select(func.count()).select_from(query.subquery())
+        total = (await self.db.execute(count_q)).scalar_one()
+
+        query = query.order_by(Task.due_date.asc()).offset((page - 1) * page_size).limit(page_size)
+        rows = (await self.db.execute(query)).all()
+
+        return [
+            {
+                "id": task.id,
+                "matter_id": task.matter_id,
+                "matter_title": matter.title,
+                "matter_reference_no": matter.reference_no,
+                "title": task.title,
+                "priority": task.priority,
+                "due_date": task.due_date,
+                "assigned_to": task.assigned_to,
+            }
+            for task, matter in rows
+        ], total
+
+    # ── Due soon ─────────────────────────────────────────────────────────────
+
+    async def get_due_soon(
+        self,
+        org_id: uuid.UUID,
+        days: int = 3,
+        page: int = 1,
+        page_size: int = 50,
+    ) -> tuple[list[dict], int]:
+        """
+        Returns all incomplete tasks due within the next `days` days
+        (inclusive of today, exclusive of already-overdue), joined with
+        their parent matter for context.
+        """
+        today = date.today()
+        horizon = today + timedelta(days=days)
+
+        query = (
+            select(Task, Matter)
+            .join(Matter, Matter.id == Task.matter_id)
+            .where(
+                Task.organisation_id == org_id,
+                Task.is_deleted == False,
+                Task.status.notin_([TaskStatus.done, TaskStatus.cancelled]),
+                Task.due_date.between(today, horizon),
             )
         )
 

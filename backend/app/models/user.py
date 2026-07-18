@@ -38,6 +38,9 @@ class User(Base):
     # 8 single-use backup codes stored as JSON list of bcrypt hashes
     mfa_backup_codes: Mapped[list | None] = mapped_column(JSONB)
 
+    # Email notification preferences — see app/services/notification_preferences.py
+    # for the default values applied when a key (or the whole column) is absent.
+    notification_email_preferences: Mapped[dict | None] = mapped_column(JSONB)
 
     # Invite flow
     invite_token: Mapped[str | None] = mapped_column(String(255), unique=True)

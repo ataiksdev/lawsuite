@@ -525,6 +525,36 @@ class AuthService:
         await self.db.refresh(user)
         return user
 
+    # ── Notification preferences (self) ────────────────────────────────────
+
+    async def get_notification_preferences(self, user_id: uuid.UUID) -> dict:
+        from app.services.notification_preferences import get_all_preferences
+
+        result = await self.db.execute(select(User).where(User.id == user_id))
+        user = result.scalar_one_or_none()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        return get_all_preferences(user)
+
+    async def update_notification_preferences(
+        self,
+        user_id: uuid.UUID,
+        updates: dict,
+    ) -> dict:
+        from app.services.notification_preferences import get_all_preferences, merge_preferences
+
+        result = await self.db.execute(select(User).where(User.id == user_id))
+        user = result.scalar_one_or_none()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        user.notification_email_preferences = merge_preferences(
+            user.notification_email_preferences, updates
+        )
+        await self.db.commit()
+        await self.db.refresh(user)
+        return get_all_preferences(user)
+
     # ── Change password (self) ────────────────────────────────────────────
 
     async def change_password(

@@ -15,6 +15,8 @@ from app.schemas.auth import (
     AcceptInviteRequest,
     UpdateMemberRoleRequest,
     UpdateProfileRequest,
+    NotificationPreferences,
+    UpdateNotificationPreferencesRequest,
     ChangePasswordRequest,
     UpdateOrgRequest,
     ForgotPasswordRequest,
@@ -317,6 +319,26 @@ async def me(current_user: AuthUser, db: DB):
         id=user.id, email=user.email, full_name=user.full_name,
         role=membership.role, is_active=user.is_active,
         is_verified=user.is_verified, created_at=user.created_at,
+    )
+
+
+@router.get("/me/notification-preferences", response_model=NotificationPreferences)
+async def get_notification_preferences(current_user: AuthUser, db: DB):
+    """Return the current user's email notification preferences."""
+    service = AuthService(db)
+    return await service.get_notification_preferences(current_user.user_id)
+
+
+@router.patch("/me/notification-preferences", response_model=NotificationPreferences)
+async def update_notification_preferences(
+    payload: UpdateNotificationPreferencesRequest,
+    current_user: AuthUser,
+    db: DB,
+):
+    """Update one or more of the current user's email notification preferences."""
+    service = AuthService(db)
+    return await service.update_notification_preferences(
+        current_user.user_id, payload.model_dump()
     )
 
 

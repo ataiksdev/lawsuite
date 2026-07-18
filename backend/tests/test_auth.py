@@ -193,3 +193,63 @@ async def test_list_members(client: AsyncClient):
     members = response.json()
     assert len(members) >= 1
     assert members[0]["email"] == REGISTER_PAYLOAD["email"]
+
+
+# ─── Notification preferences ──────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_get_notification_preferences_defaults(client: AsyncClient):
+    reg = await client.post("/auth/register", json=REGISTER_PAYLOAD)
+    token = reg.json()["tokens"]["access_token"]
+
+    resp = await client.get(
+        "/auth/me/notification-preferences",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body == {
+        "matter_updates": True,
+        "task_assigned": True,
+        "task_due_soon": True,
+        "document_shared": True,
+        "weekly_digest": False,
+        "marketing_emails": False,
+    }
+
+
+@pytest.mark.asyncio
+async def test_update_notification_preferences_partial(client: AsyncClient):
+    reg = await client.post("/auth/register", json=REGISTER_PAYLOAD)
+    token = reg.json()["tokens"]["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    resp = await client.patch(
+        "/auth/me/notification-preferences",
+        json={"weekly_digest": True, "matter_updates": False},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["weekly_digest"] is True
+    assert body["matter_updates"] is False
+    # Untouched keys keep their defaults
+    assert body["task_assigned"] is True
+    assert body["document_shared"] is True
+
+    # A second partial update doesn't clobber the first one's changes
+    resp2 = await client.patch(
+        "/auth/me/notification-preferences",
+        json={"task_due_soon": False},
+        headers=headers,
+    )
+    assert resp2.status_code == 200
+    body2 = resp2.json()
+    assert body2["task_due_soon"] is False
+    assert body2["weekly_digest"] is True
+    assert body2["matter_updates"] is False
+
+    # Reflected on a fresh GET too
+    resp3 = await client.get("/auth/me/notification-preferences", headers=headers)
+    assert resp3.json() == body2

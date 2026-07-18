@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   User,
   Mail,
@@ -17,7 +17,7 @@ import {
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/lib/auth-store';
-import { UserRole } from '@/lib/types';
+import { NotificationPreferences, UserRole } from '@/lib/types';
 import { useTheme } from 'next-themes';
 import apiClient, { ApiClientError } from '@/lib/api-client';
 import { MfaSettingsPage } from './mfa-settings-page';
@@ -96,14 +96,31 @@ export function UserSettingsPage() {
   const [changingPassword, setChangingPassword] = useState(false);
 
   // Notification preferences
-  const [emailNotifications, setEmailNotifications] = useState({
-    matterUpdates: true,
-    taskAssigned: true,
-    taskDueSoon: true,
-    documentShared: true,
-    weeklyDigest: false,
-    marketingEmails: false,
-  });
+  const [emailNotifications, setEmailNotifications] = useState<NotificationPreferences | null>(null);
+
+  useEffect(() => {
+    apiClient
+      .get<NotificationPreferences>('/auth/me/notification-preferences')
+      .then(setEmailNotifications)
+      .catch(() => toast.error('Could not load notification preferences.'));
+  }, []);
+
+  const handleToggleNotification = async (key: keyof NotificationPreferences, checked: boolean) => {
+    if (!emailNotifications) return;
+    const previous = emailNotifications;
+    setEmailNotifications({ ...previous, [key]: checked });
+    try {
+      const updated = await apiClient.patch<NotificationPreferences>('/auth/me/notification-preferences', {
+        [key]: checked,
+      });
+      setEmailNotifications(updated);
+      toast.success('Notification preference updated');
+    } catch (err) {
+      setEmailNotifications(previous);
+      const message = err instanceof ApiClientError ? err.detail : 'Could not update notification preference.';
+      toast.error(message);
+    }
+  };
 
   if (!user) return null;
 
@@ -355,25 +372,25 @@ export function UserSettingsPage() {
           <div>
             <Label className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3 block">Email Notifications</Label>
             <div className="space-y-3">
-              {[
-                { key: 'matterUpdates', label: 'Matter updates', desc: 'When a matter status changes or is updated' },
-                { key: 'taskAssigned', label: 'Task assigned to me', desc: 'When a new task is assigned to you' },
-                { key: 'taskDueSoon', label: 'Task due soon', desc: 'When a task deadline is approaching' },
-                { key: 'documentShared', label: 'Document shared', desc: 'When a document is shared with you' },
-                { key: 'weeklyDigest', label: 'Weekly digest', desc: 'Summary of weekly activity via email' },
-                { key: 'marketingEmails', label: 'Marketing emails', desc: 'Product updates and new features' },
-              ].map(({ key, label, desc }) => (
+              {(
+                [
+                  { key: 'matter_updates', label: 'Matter updates', desc: 'When a matter status changes or is updated' },
+                  { key: 'task_assigned', label: 'Task assigned to me', desc: 'When a new task is assigned to you' },
+                  { key: 'task_due_soon', label: 'Task due soon', desc: 'When a task deadline is approaching' },
+                  { key: 'document_shared', label: 'Document shared', desc: 'When a document is shared with you' },
+                  { key: 'weekly_digest', label: 'Weekly digest', desc: 'Summary of weekly activity via email' },
+                  { key: 'marketing_emails', label: 'Marketing emails', desc: 'Product updates and new features' },
+                ] as const
+              ).map(({ key, label, desc }) => (
                 <div key={key} className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-slate-700 dark:text-slate-300">{label}</p>
                     <p className="text-xs text-slate-400">{desc}</p>
                   </div>
                   <Switch
-                    checked={emailNotifications[key as keyof typeof emailNotifications]}
-                    onCheckedChange={(checked) => {
-                      setEmailNotifications((prev) => ({ ...prev, [key]: checked }));
-                      toast.success('Notification preference updated');
-                    }}
+                    disabled={!emailNotifications}
+                    checked={emailNotifications ? emailNotifications[key] : false}
+                    onCheckedChange={(checked) => handleToggleNotification(key, checked)}
                   />
                 </div>
               ))}

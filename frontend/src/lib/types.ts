@@ -667,6 +667,15 @@ export interface Notification {
   created_at: string;
 }
 
+export interface NotificationPreferences {
+  matter_updates: boolean;
+  task_assigned: boolean;
+  task_due_soon: boolean;
+  document_shared: boolean;
+  weekly_digest: boolean;
+  marketing_emails: boolean;
+}
+
 // ============================================================================
 // Integration Types
 // ============================================================================

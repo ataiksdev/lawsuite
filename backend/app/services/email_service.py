@@ -224,3 +224,65 @@ async def send_task_due_soon_email(
     )
     await _send(to=to, subject=f"Task due soon: {task_title}", html=html)
     print(f"[EMAIL] Task due soon sent to {to}")
+
+
+# ---------------------------------------------------------------------------
+# Weekly digest email
+# ---------------------------------------------------------------------------
+
+def _digest_section(title: str, tasks: list[dict]) -> str:
+    """
+    Build a pre-escaped HTML fragment for one digest section. Each task
+    field is escaped individually before assembly — the fragment as a
+    whole is then passed through _load_template(...).format() directly
+    (never _render, which would re-escape and mangle the markup).
+    """
+    if not tasks:
+        return ""
+
+    rows = "".join(
+        f"""
+        <tr>
+          <td style="padding:10px 0;border-bottom:1px solid #e8d5c4;">
+            <p style="margin:0 0 4px;font-size:14px;font-weight:bold;color:#3b1f0e;">{_html.escape(str(t['title']))}</p>
+            <p style="margin:0;font-size:12px;color:#7c5c47;">{_html.escape(str(t['matter_title']))} &nbsp;·&nbsp; Ref: {_html.escape(str(t['matter_reference_no']))} &nbsp;·&nbsp; Due: {_html.escape(str(t['due_date']))}</p>
+          </td>
+        </tr>"""
+        for t in tasks
+    )
+
+    return f"""
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#fdf8f5;border:1px solid #e8d5c4;border-radius:6px;margin-bottom:20px;">
+      <tr>
+        <td style="padding:16px 20px 4px;">
+          <p style="margin:0;font-size:13px;font-weight:bold;color:#7c3a1e;text-transform:uppercase;letter-spacing:0.5px;">{_html.escape(title)} ({len(tasks)})</p>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:0 20px 12px;">
+          <table width="100%" cellpadding="0" cellspacing="0">{rows}</table>
+        </td>
+      </tr>
+    </table>"""
+
+
+async def send_weekly_digest_email(
+    *,
+    to: str,
+    name: str,
+    overdue: list[dict],
+    due_soon: list[dict],
+    tasks_url: str,
+) -> None:
+    if not _is_configured():
+        print(f"[EMAIL] Resend not configured — skipping weekly digest email to {to}")
+        return
+
+    html = _load_template("weekly_digest.html").format(
+        name=_html.escape(name or to),
+        overdue_section=_digest_section("Overdue", overdue),
+        due_soon_section=_digest_section("Due this week", due_soon),
+        tasks_url=_html.escape(tasks_url),
+    )
+    await _send(to=to, subject="Your weekly task digest", html=html)
+    print(f"[EMAIL] Weekly digest sent to {to}")

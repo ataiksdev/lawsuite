@@ -243,3 +243,67 @@ async def _send_task_due_soon_emails() -> None:
                         pass
             except Exception:
                 pass  # One org's failure shouldn't block the others
+
+
+# ─── Weekly digest ─────────────────────────────────────────────────────────────
+
+
+@celery_app.task(name="tasks.send_weekly_digest_emails")
+def send_weekly_digest_emails() -> None:
+    """Scheduled task (Celery beat) — runs weekly, emails each user their overdue + due-soon tasks."""
+    asyncio.run(_send_weekly_digest_emails())
+
+
+async def _send_weekly_digest_emails() -> None:
+    from sqlalchemy import select
+
+    from app.core.config import settings
+    from app.core.database import worker_session
+    from app.models.organisation import Organisation
+    from app.models.user import User
+    from app.services import email_service
+    from app.services.notification_preferences import should_send
+    from app.services.task_service import TaskService
+
+    async with worker_session() as db:
+        orgs = (
+            await db.execute(select(Organisation).where(Organisation.is_active == True))
+        ).scalars().all()
+
+        for org in orgs:
+            try:
+                overdue_rows, _ = await TaskService(db).get_overdue(org.id, page=1, page_size=500)
+                due_soon_rows, _ = await TaskService(db).get_due_soon(org.id, days=7, page=1, page_size=500)
+                if not overdue_rows and not due_soon_rows:
+                    continue
+
+                by_user: dict = {}
+                for row in overdue_rows:
+                    if row["assigned_to"]:
+                        by_user.setdefault(row["assigned_to"], {"overdue": [], "due_soon": []})["overdue"].append(row)
+                for row in due_soon_rows:
+                    if row["assigned_to"]:
+                        by_user.setdefault(row["assigned_to"], {"overdue": [], "due_soon": []})["due_soon"].append(row)
+                if not by_user:
+                    continue
+
+                users = (
+                    await db.execute(select(User).where(User.id.in_(by_user.keys())))
+                ).scalars().all()
+
+                for user in users:
+                    try:
+                        if not should_send(user, "weekly_digest"):
+                            continue
+                        tasks = by_user[user.id]
+                        await email_service.send_weekly_digest_email(
+                            to=user.email,
+                            name=user.full_name,
+                            overdue=tasks["overdue"],
+                            due_soon=tasks["due_soon"],
+                            tasks_url=f"{settings.frontend_url}/#/tasks",
+                        )
+                    except Exception:
+                        pass
+            except Exception:
+                pass  # One org's failure shouldn't block the others

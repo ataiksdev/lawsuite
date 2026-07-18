@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Your Weekly Task Digest</title>
+</head>
+<body style="margin:0;padding:0;background:#f5f1ee;font-family:Georgia,'Times New Roman',serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f1ee;padding:40px 0;">
+    <tr>
+      <td align="center">
+        <table width="580" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+
+          <!-- Header -->
+          <tr>
+            <td style="background:#3b1f0e;padding:28px 40px;">
+              <p style="margin:0;font-size:22px;font-weight:bold;color:#f5f1ee;letter-spacing:0.5px;">LegalOps</p>
+              <p style="margin:6px 0 0;font-size:13px;color:#c8a98a;">Weekly Digest</p>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding:36px 40px 28px;">
+              <p style="margin:0 0 16px;font-size:16px;color:#3b1f0e;">Hi {name},</p>
+              <p style="margin:0 0 24px;font-size:15px;color:#5c3d2e;line-height:1.6;">
+                Here's where things stand on your tasks this week.
+              </p>
+
+              {overdue_section}
+
+              {due_soon_section}
+
+              <!-- CTA -->
+              <table cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="background:#7c3a1e;border-radius:5px;">
+                    <a href="{tasks_url}" style="display:inline-block;padding:12px 28px;font-size:14px;color:#ffffff;text-decoration:none;font-weight:bold;">View All Tasks</a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background:#f5f1ee;padding:20px 40px;border-top:1px solid #e8d5c4;">
+              <p style="margin:0;font-size:12px;color:#a0856f;line-height:1.6;">
+                You're receiving this weekly digest because you opted in under Email Notifications in your account settings.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

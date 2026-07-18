@@ -36,5 +36,10 @@ celery_app.conf.update(
             "task": "tasks.send_task_due_soon_emails",
             "schedule": crontab(hour=7, minute=0),
         },
+        # Email each user their overdue + due-soon task digest (Monday 07:30 UTC)
+        "weekly-digest": {
+            "task": "tasks.send_weekly_digest_emails",
+            "schedule": crontab(day_of_week=1, hour=7, minute=30),
+        },
     },
 )

@@ -54,6 +54,37 @@ class MatterService:
 
     # ── Helpers ───────────────────────────────────────────────────────────
 
+    async def _send_matter_update_email(
+        self,
+        recipient_id: uuid.UUID,
+        matter: Matter,
+        change_summary: str,
+    ) -> None:
+        """
+        Best-effort email alongside the in-app notification — never lets a
+        Resend outage or a missing user row fail the caller's request.
+        """
+        from app.core.config import settings
+        from app.models.user import User
+        from app.services import email_service
+        from app.services.notification_preferences import should_send
+
+        try:
+            result = await self.db.execute(select(User).where(User.id == recipient_id))
+            user = result.scalar_one_or_none()
+            if not user or not should_send(user, "matter_updates"):
+                return
+            await email_service.send_matter_update_email(
+                to=user.email,
+                name=user.full_name,
+                matter_title=matter.title,
+                matter_ref=matter.reference_no,
+                change_summary=change_summary,
+                matter_url=f"{settings.frontend_url}/#/matters/{matter.id}",
+            )
+        except Exception:
+            pass
+
     async def _get_matter(self, matter_id: uuid.UUID, org_id: uuid.UUID) -> Matter:
         result = await self.db.execute(
             select(Matter)
@@ -167,6 +198,12 @@ class MatterService:
 
         await self.db.commit()
         await self.db.refresh(matter)
+
+        if matter.assigned_to and matter.assigned_to != user_id:
+            await self._send_matter_update_email(
+                matter.assigned_to, matter, "You've been assigned to a new matter."
+            )
+
         return await self._get_matter(matter.id, org_id)
 
     async def update_matter(
@@ -183,6 +220,7 @@ class MatterService:
 
         update_data = data.model_dump(exclude_unset=True)
         changed: dict = {}
+        old_assigned_to = matter.assigned_to  # captured before the mutation loop below
 
         for field, value in update_data.items():
             old = getattr(matter, field)
@@ -190,6 +228,7 @@ class MatterService:
                 changed[field] = {"from": str(old) if old else None, "to": str(value) if value else None}
                 setattr(matter, field, value)
 
+        new_assignee = None
         if changed:
             await self.activity.log(
                 matter_id=matter_id,
@@ -201,7 +240,7 @@ class MatterService:
 
             # Notify new assignee if assigned_to changed
             new_assignee = update_data.get("assigned_to")
-            if new_assignee and new_assignee != matter.assigned_to and new_assignee != user_id:
+            if new_assignee and new_assignee != old_assigned_to and new_assignee != user_id:
                 await self.notifications.create(
                     user_id=new_assignee,
                     org_id=org_id,
@@ -210,8 +249,16 @@ class MatterService:
                     message="A matter has been assigned to you.",
                     link=f"/matters/{matter_id}",
                 )
+            else:
+                new_assignee = None
 
         await self.db.commit()
+
+        if new_assignee:
+            await self._send_matter_update_email(
+                new_assignee, matter, "You've been reassigned to this matter."
+            )
+
         return await self._get_matter(matter_id, org_id)
 
     async def change_status(
@@ -266,6 +313,12 @@ class MatterService:
             )
 
         await self.db.commit()
+
+        if matter.assigned_to and matter.assigned_to != user_id:
+            await self._send_matter_update_email(
+                matter.assigned_to, matter, f"Status changed from {old_status} to {new_status}."
+            )
+
         return await self._get_matter(matter_id, org_id)
 
     async def delete_matter(

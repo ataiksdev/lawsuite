@@ -183,3 +183,63 @@ async def _renew_expiring_channels() -> None:
                 )
             except Exception:
                 pass  # Log and continue — don't let one failure block others
+
+
+# ─── Task due-soon reminders ──────────────────────────────────────────────────
+
+
+@celery_app.task(name="tasks.send_task_due_soon_emails")
+def send_task_due_soon_emails() -> None:
+    """Scheduled task (Celery beat) — runs daily, emails assignees of tasks due soon."""
+    asyncio.run(_send_task_due_soon_emails())
+
+
+async def _send_task_due_soon_emails() -> None:
+    from sqlalchemy import select
+
+    from app.core.config import settings
+    from app.core.database import worker_session
+    from app.models.organisation import Organisation
+    from app.models.user import User
+    from app.services import email_service
+    from app.services.notification_preferences import should_send
+    from app.services.task_service import TaskService
+
+    async with worker_session() as db:
+        orgs = (
+            await db.execute(select(Organisation).where(Organisation.is_active == True))
+        ).scalars().all()
+
+        for org in orgs:
+            try:
+                rows, _ = await TaskService(db).get_due_soon(org.id, days=3, page=1, page_size=500)
+                if not rows:
+                    continue
+
+                assignee_ids = {row["assigned_to"] for row in rows if row["assigned_to"]}
+                if not assignee_ids:
+                    continue
+                users = (
+                    await db.execute(select(User).where(User.id.in_(assignee_ids)))
+                ).scalars().all()
+                users_by_id = {user.id: user for user in users}
+
+                for row in rows:
+                    try:
+                        user = users_by_id.get(row["assigned_to"])
+                        if not user or not should_send(user, "task_due_soon"):
+                            continue
+                        await email_service.send_task_due_soon_email(
+                            to=user.email,
+                            name=user.full_name,
+                            task_title=row["title"],
+                            matter_title=row["matter_title"],
+                            matter_ref=row["matter_reference_no"],
+                            due_date=row["due_date"].isoformat(),
+                            priority=row["priority"],
+                            matter_url=f"{settings.frontend_url}/#/matters/{row['matter_id']}",
+                        )
+                    except Exception:
+                        pass
+            except Exception:
+                pass  # One org's failure shouldn't block the others

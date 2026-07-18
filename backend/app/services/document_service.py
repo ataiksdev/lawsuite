@@ -14,14 +14,67 @@ from app.models.matter_document import (
 )
 from app.schemas.document import DocumentLink, DocumentVersionUpload
 from app.services.activity_service import ActivityService
+from app.services.notification_service import NotificationService
 
 
 class DocumentService:
     def __init__(self, db: AsyncSession):
         self.db = db
         self.activity = ActivityService(db)
+        self.notifications = NotificationService(db)
 
     # ── Helpers ───────────────────────────────────────────────────────────
+
+    async def _notify_document_shared(
+        self,
+        matter: Matter,
+        org_id: uuid.UUID,
+        actor_id: uuid.UUID,
+        document_name: str,
+        title: str,
+        version_label: str,
+    ) -> None:
+        """
+        In-app notification + best-effort email to the matter's assigned
+        lawyer when a document (or a new version of one) is added — there
+        was no notification of any kind here before this.
+        """
+        if not matter.assigned_to or matter.assigned_to == actor_id:
+            return
+
+        await self.notifications.create(
+            user_id=matter.assigned_to,
+            org_id=org_id,
+            type="info",
+            title=title,
+            message=f"A document was added to {matter.title}.",
+            link=f"/matters/{matter.id}",
+        )
+
+        from app.core.config import settings
+        from app.models.user import User
+        from app.services import email_service
+        from app.services.notification_preferences import should_send
+
+        try:
+            result = await self.db.execute(select(User).where(User.id == matter.assigned_to))
+            recipient = result.scalar_one_or_none()
+            if not recipient or not should_send(recipient, "document_shared"):
+                return
+            uploader_result = await self.db.execute(select(User).where(User.id == actor_id))
+            uploader = uploader_result.scalar_one_or_none()
+            await email_service.send_document_shared_email(
+                to=recipient.email,
+                name=recipient.full_name,
+                document_name=document_name,
+                matter_title=matter.title,
+                matter_ref=matter.reference_no,
+                uploaded_by_name=uploader.full_name if uploader else "A team member",
+                matter_url=f"{settings.frontend_url}/#/matters/{matter.id}",
+                version_label=version_label,
+            )
+        except Exception:
+            pass
 
     async def _get_matter(self, matter_id: uuid.UUID, org_id: uuid.UUID) -> Matter:
         result = await self.db.execute(
@@ -87,7 +140,7 @@ class DocumentService:
         user_id: uuid.UUID,
         data: DocumentLink,
     ) -> MatterDocument:
-        await self._get_matter(matter_id, org_id)
+        matter = await self._get_matter(matter_id, org_id)
 
         doc = MatterDocument(
             matter_id=matter_id,
@@ -128,6 +181,13 @@ class DocumentService:
         )
 
         await self.db.commit()
+
+        await self._notify_document_shared(
+            matter, org_id, user_id, doc.name,
+            title=f'New document added: "{doc.name}"',
+            version_label="",
+        )
+
         return await self._get_document(doc.id, matter_id, org_id)
 
     # ── Add new version ───────────────────────────────────────────────────
@@ -141,6 +201,7 @@ class DocumentService:
         data: DocumentVersionUpload,
     ) -> MatterDocument:
         doc = await self._get_document(doc_id, matter_id, org_id)
+        matter = await self._get_matter(matter_id, org_id)
 
         new_version_number = doc.current_version + 1
 
@@ -180,6 +241,13 @@ class DocumentService:
         )
 
         await self.db.commit()
+
+        await self._notify_document_shared(
+            matter, org_id, user_id, doc.name,
+            title=f'New version added: "{doc.name}"',
+            version_label=f" ({data.label})" if data.label else " (new version)",
+        )
+
         return await self._get_document(doc.id, matter_id, org_id)
 
     # ── Update status ─────────────────────────────────────────────────────

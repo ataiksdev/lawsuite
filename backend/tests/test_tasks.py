@@ -40,6 +40,18 @@ async def setup(client: AsyncClient) -> tuple[str, str, str]:
     return token, client_id, matter_id
 
 
+async def _add_member(db_session, org_id: str, email: str) -> "uuid.UUID":
+    """Directly create a second org member (bypasses the invite/accept email flow)."""
+    from app.models.user import OrganisationMember, User
+
+    user = User(email=email, full_name="Second Lawyer", is_active=True, is_verified=True)
+    db_session.add(user)
+    await db_session.flush()
+    db_session.add(OrganisationMember(organisation_id=org_id, user_id=user.id))
+    await db_session.commit()
+    return user.id
+
+
 # ─── Create ───────────────────────────────────────────────────────────────────
 
 
@@ -400,3 +412,84 @@ async def test_remove_task_watcher(client: AsyncClient):
 
     list_resp = await client.get(f"/matters/{matter_id}/tasks/{task_id}/watchers", headers=headers)
     assert len(list_resp.json()) == 0
+
+
+# ─── Task-assignment email notifications ───────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_task_assignment_sends_email_by_default(client: AsyncClient, db_session, mock_resend):
+    from sqlalchemy import select
+
+    from app.models.organisation import Organisation
+
+    token, _, matter_id = await setup(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    org = (await db_session.execute(select(Organisation))).scalar_one()
+    second_user_id = await _add_member(db_session, str(org.id), "second@tasktest.ng")
+
+    resp = await client.post(
+        f"/matters/{matter_id}/tasks",
+        json={**TASK_PAYLOAD, "assigned_to": str(second_user_id)},
+        headers=headers,
+    )
+    assert resp.status_code == 201
+    assert mock_resend.called
+    assert mock_resend.call_args[0][0]["to"] == ["second@tasktest.ng"]
+
+
+@pytest.mark.asyncio
+async def test_task_assignment_respects_disabled_preference(client: AsyncClient, db_session, mock_resend):
+    from sqlalchemy import select
+
+    from app.models.organisation import Organisation
+    from app.models.user import User
+
+    token, _, matter_id = await setup(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    org = (await db_session.execute(select(Organisation))).scalar_one()
+    second_user_id = await _add_member(db_session, str(org.id), "third@tasktest.ng")
+
+    user = (await db_session.execute(select(User).where(User.id == second_user_id))).scalar_one()
+    user.notification_email_preferences = {"task_assigned": False}
+    await db_session.commit()
+
+    resp = await client.post(
+        f"/matters/{matter_id}/tasks",
+        json={**TASK_PAYLOAD, "assigned_to": str(second_user_id)},
+        headers=headers,
+    )
+    assert resp.status_code == 201
+    assert not mock_resend.called
+
+
+@pytest.mark.asyncio
+async def test_task_reassignment_via_update_notifies_new_assignee(client: AsyncClient, db_session, mock_resend):
+    """
+    Regression test: update_task's reassignment-notification check used to
+    compare against task.assigned_to *after* it had already been mutated to
+    the new value in the same loop, making the check permanently dead code
+    (same bug class fixed in matter_service.py). Confirm the email actually
+    fires on a genuine reassignment.
+    """
+    from sqlalchemy import select
+
+    from app.models.organisation import Organisation
+
+    token, _, matter_id = await setup(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    org = (await db_session.execute(select(Organisation))).scalar_one()
+    second_user_id = await _add_member(db_session, str(org.id), "reassign@tasktest.ng")
+
+    t = await client.post(f"/matters/{matter_id}/tasks", json=TASK_PAYLOAD, headers=headers)
+    task_id = t.json()["id"]
+    mock_resend.reset_mock()
+
+    resp = await client.patch(
+        f"/matters/{matter_id}/tasks/{task_id}",
+        json={"assigned_to": str(second_user_id)},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert mock_resend.called
+    assert mock_resend.call_args[0][0]["to"] == ["reassign@tasktest.ng"]

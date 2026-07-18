@@ -1,4 +1,6 @@
 # backend/tests/api/test_matters.py
+import uuid
+
 import pytest
 from httpx import AsyncClient
 
@@ -24,6 +26,18 @@ async def setup(client: AsyncClient) -> tuple[str, str]:
     headers = {"Authorization": f"Bearer {token}"}
     cl = await client.post("/clients/", json=CLIENT_PAYLOAD, headers=headers)
     return token, cl.json()["id"]
+
+
+async def _add_member(db_session, org_id: str, email: str) -> "uuid.UUID":
+    """Directly create a second org member (bypasses the invite/accept email flow)."""
+    from app.models.user import OrganisationMember, User
+
+    user = User(email=email, full_name="Second Lawyer", is_active=True, is_verified=True)
+    db_session.add(user)
+    await db_session.flush()
+    db_session.add(OrganisationMember(organisation_id=org_id, user_id=user.id))
+    await db_session.commit()
+    return user.id
 
 
 @pytest.mark.asyncio
@@ -206,3 +220,84 @@ async def test_delete_requires_archived(client: AsyncClient):
     # Cannot delete while in intake
     resp = await client.delete(f"/matters/{matter_id}", headers=headers)
     assert resp.status_code == 422
+
+
+# ─── Matter-update email notifications ─────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_matter_assignment_sends_email_by_default(client: AsyncClient, db_session, mock_resend):
+    from sqlalchemy import select
+
+    from app.models.organisation import Organisation
+
+    token, client_id = await setup(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    org = (await db_session.execute(select(Organisation))).scalar_one()
+    second_user_id = await _add_member(db_session, str(org.id), "second@mattertest.ng")
+
+    resp = await client.post(
+        "/matters/",
+        json={**MATTER_PAYLOAD, "client_id": client_id, "assigned_to": str(second_user_id)},
+        headers=headers,
+    )
+    assert resp.status_code == 201
+    assert mock_resend.called
+    assert mock_resend.call_args[0][0]["to"] == ["second@mattertest.ng"]
+
+
+@pytest.mark.asyncio
+async def test_matter_assignment_respects_disabled_preference(client: AsyncClient, db_session, mock_resend):
+    from sqlalchemy import select
+
+    from app.models.organisation import Organisation
+    from app.models.user import User
+
+    token, client_id = await setup(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    org = (await db_session.execute(select(Organisation))).scalar_one()
+    second_user_id = await _add_member(db_session, str(org.id), "third@mattertest.ng")
+
+    user = (await db_session.execute(select(User).where(User.id == second_user_id))).scalar_one()
+    user.notification_email_preferences = {"matter_updates": False}
+    await db_session.commit()
+
+    resp = await client.post(
+        "/matters/",
+        json={**MATTER_PAYLOAD, "client_id": client_id, "assigned_to": str(second_user_id)},
+        headers=headers,
+    )
+    assert resp.status_code == 201
+    assert not mock_resend.called
+
+
+@pytest.mark.asyncio
+async def test_matter_reassignment_via_update_notifies_new_assignee(client: AsyncClient, db_session, mock_resend):
+    """
+    Regression test: update_matter's reassignment check used to compare
+    against matter.assigned_to *after* it had already been mutated to the
+    new value in the same loop, so it always evaluated false and neither
+    the in-app notification nor (now) the email ever fired. Confirm both
+    actually fire on a genuine reassignment.
+    """
+    from sqlalchemy import select
+
+    from app.models.organisation import Organisation
+
+    token, client_id = await setup(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    org = (await db_session.execute(select(Organisation))).scalar_one()
+    second_user_id = await _add_member(db_session, str(org.id), "reassign@mattertest.ng")
+
+    m = await client.post("/matters/", json={**MATTER_PAYLOAD, "client_id": client_id}, headers=headers)
+    matter_id = m.json()["id"]
+    mock_resend.reset_mock()
+
+    resp = await client.patch(
+        f"/matters/{matter_id}",
+        json={"assigned_to": str(second_user_id)},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert mock_resend.called
+    assert mock_resend.call_args[0][0]["to"] == ["reassign@mattertest.ng"]

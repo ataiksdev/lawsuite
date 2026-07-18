@@ -31,5 +31,10 @@ celery_app.conf.update(
             "task": "tasks.generate_scheduled_reports",
             "schedule": crontab(day_of_month=1, hour=8, minute=0),
         },
+        # Email assignees of tasks due within the next 3 days (daily at 07:00 UTC)
+        "task-due-soon-daily": {
+            "task": "tasks.send_task_due_soon_emails",
+            "schedule": crontab(hour=7, minute=0),
+        },
     },
 )

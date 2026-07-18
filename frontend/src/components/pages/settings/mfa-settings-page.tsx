@@ -116,7 +116,7 @@ function BackupCodesDisplay({
           {codes.map((code, i) => (
             <div
               key={i}
-              className="rounded bg-white px-3 py-2 font-mono text-sm text-slate-800 border border-amber-200 dark:bg-slate-900 dark:text-slate-200 dark:border-amber-800"
+              className="rounded bg-white px-3 py-2 font-mono text-sm text-slate-800 border border-amber-200 break-all dark:bg-slate-900 dark:text-slate-200 dark:border-amber-800"
             >
               {code}
             </div>

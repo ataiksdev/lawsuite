@@ -331,7 +331,7 @@ function OrgDetailSheet({
               </div>
 
               {/* Usage row */}
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-3 gap-2 sm:gap-3">
                 {[
                   { label: 'Members', value: detail.usage.member_count },
                   { label: 'Matters', value: detail.usage.matter_count },
@@ -537,7 +537,7 @@ function OrgDetailSheet({
               <div className="space-y-3">
                 <p className="text-sm font-semibold text-red-600 dark:text-red-400">Danger Zone</p>
                 {detail.is_active ? (
-                  <div className="flex items-center justify-between rounded-lg border border-red-100 dark:border-red-900/30 p-4">
+                  <div className="flex flex-col gap-3 rounded-lg border border-red-100 p-4 dark:border-red-900/30 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <p className="text-sm font-medium">Suspend Organisation</p>
                       <p className="text-xs text-slate-400 mt-0.5">
@@ -556,7 +556,7 @@ function OrgDetailSheet({
                     </Button>
                   </div>
                 ) : (
-                  <div className="flex items-center justify-between rounded-lg border border-emerald-100 dark:border-emerald-900/30 p-4">
+                  <div className="flex flex-col gap-3 rounded-lg border border-emerald-100 p-4 dark:border-emerald-900/30 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <p className="text-sm font-medium">Reactivate Organisation</p>
                       <p className="text-xs text-slate-400 mt-0.5">

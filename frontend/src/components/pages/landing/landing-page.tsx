@@ -92,7 +92,7 @@ export function LandingPage() {
           </div>
 
           <button
-            className="md:hidden text-foreground"
+            className="md:hidden -m-2 p-2 text-foreground"
             aria-label="Toggle menu"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           >
@@ -148,7 +148,7 @@ export function LandingPage() {
               <Button size="lg" variant="secondary" onClick={() => scrollToSection('features')}>Explore Features</Button>
             </div>
 
-            <div className="flex items-center gap-8 pt-6 mt-2 border-t border-border w-full">
+            <div className="flex items-center gap-4 sm:gap-8 pt-6 mt-2 border-t border-border w-full">
               <div className="flex flex-col">
                 <span className="text-2xl font-semibold tabular-nums text-foreground">30%+</span>
                 <span className="text-[10px] uppercase tracking-wider text-muted-foreground mt-0.5">Billable hours saved</span>
@@ -263,13 +263,13 @@ export function LandingPage() {
 
           <div className="inline-flex border border-border rounded-md overflow-hidden mb-10">
             <button
-              className={cn('px-4 py-1.5 text-sm transition-colors', !annualBilling ? 'bg-primary text-primary-foreground' : 'hover:bg-accent hover:text-accent-foreground')}
+              className={cn('px-4 py-2.5 text-sm transition-colors', !annualBilling ? 'bg-primary text-primary-foreground' : 'hover:bg-accent hover:text-accent-foreground')}
               onClick={() => setAnnualBilling(false)}
             >
               Monthly
             </button>
             <button
-              className={cn('px-4 py-1.5 text-sm border-l border-border flex items-center gap-1.5 transition-colors', annualBilling ? 'bg-primary text-primary-foreground' : 'hover:bg-accent hover:text-accent-foreground')}
+              className={cn('px-4 py-2.5 text-sm border-l border-border flex items-center gap-1.5 transition-colors', annualBilling ? 'bg-primary text-primary-foreground' : 'hover:bg-accent hover:text-accent-foreground')}
               onClick={() => setAnnualBilling(true)}
             >
               Annual <span className="text-[10px] opacity-80">2 months free</span>

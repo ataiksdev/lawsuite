@@ -438,14 +438,14 @@ export function BillingPage() {
         <>
           <Card className="border-slate-200/80 dark:border-slate-700/80">
             <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <CardTitle className="text-lg">Current Plan</CardTitle>
                   <CardDescription className="mt-0.5">
                     Your subscription details and usage
                   </CardDescription>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {subscription.trial_active && (
                     <Badge className="border-purple-200 bg-purple-100 px-2 py-1 text-xs font-semibold text-purple-700">
                       <Clock className="mr-1 h-3 w-3" />

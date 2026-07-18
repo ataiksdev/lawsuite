@@ -506,7 +506,7 @@ export function DocumentsPage() {
           />
         </div>
         <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as BackendDocumentStatus | 'all')}>
-          <SelectTrigger className="w-44">
+          <SelectTrigger className="w-full sm:w-44">
             <Filter className="h-3.5 w-3.5 mr-2 text-slate-400" />
             <SelectValue placeholder="All statuses" />
           </SelectTrigger>
@@ -518,7 +518,7 @@ export function DocumentsPage() {
           </SelectContent>
         </Select>
         <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as BackendDocumentType | 'all')}>
-          <SelectTrigger className="w-44">
+          <SelectTrigger className="w-full sm:w-44">
             <SelectValue placeholder="All types" />
           </SelectTrigger>
           <SelectContent>

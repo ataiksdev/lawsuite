@@ -754,7 +754,7 @@ function TaskDetailSheet({
 
             {/* ── Details tab ── */}
             <TabsContent value="details" className="mt-0 p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {[
                   { label: 'Client', value: task.client_name ?? '—' },
                   { label: 'Assigned To', value: assigneeName },
@@ -1498,7 +1498,7 @@ export function KanbanPage() {
           <Input value={kanban.search} onChange={(e) => setKanbanFilters({ search: e.target.value })} placeholder="Search tasks…" className="pl-8 h-8 text-xs" />
         </div>
         <Select value={kanban.matterFilter} onValueChange={(v) => setKanbanFilters({ matterFilter: v })}>
-          <SelectTrigger className="h-8 text-xs w-44">
+          <SelectTrigger className="h-8 text-xs w-40">
             <Briefcase className="h-3.5 w-3.5 mr-2 text-slate-400 shrink-0" />
             <SelectValue placeholder="All Matters" />
           </SelectTrigger>
@@ -1508,7 +1508,7 @@ export function KanbanPage() {
           </SelectContent>
         </Select>
         <Select value={kanban.assigneeFilter} onValueChange={(v) => setKanbanFilters({ assigneeFilter: v, myTasksOnly: false })}>
-          <SelectTrigger className="h-8 text-xs w-40">
+          <SelectTrigger className="h-8 text-xs w-36">
             <User className="h-3.5 w-3.5 mr-2 text-slate-400 shrink-0" />
             <SelectValue placeholder="All Assignees" />
           </SelectTrigger>
@@ -1539,7 +1539,7 @@ export function KanbanPage() {
 
         <DragOverlay dropAnimation={{ duration: 150, easing: 'ease' }}>
           {activeTask ? (
-            <div className="rounded-lg border border-slate-200 bg-white dark:bg-slate-900 shadow-xl p-3 w-[260px] opacity-90 rotate-1 scale-105">
+            <div className="rounded-lg border border-slate-200 bg-white dark:bg-slate-900 shadow-xl p-3 w-[min(260px,90vw)] opacity-90 rotate-1 scale-105">
               <p className="text-sm font-medium">{activeTask.title}</p>
               {activeTask.client_name && <p className="text-xs text-slate-400 mt-0.5">{activeTask.client_name}</p>}
               <Badge className={cn('mt-2 border text-[10px]', PRIORITY_STYLE[activeTask.priority])}>{activeTask.priority}</Badge>

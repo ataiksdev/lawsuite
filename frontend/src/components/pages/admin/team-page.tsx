@@ -427,7 +427,7 @@ export function TeamPage() {
                 <Table>
                   <TableHeader>
                     <TableRow className="border-slate-100 dark:border-slate-800">
-                      <TableHead className="w-[280px]">Name</TableHead>
+                      <TableHead className="md:w-[280px]">Name</TableHead>
                       <TableHead className="hidden md:table-cell">Email</TableHead>
                       <TableHead>Role</TableHead>
                       <TableHead>Status</TableHead>
@@ -452,8 +452,8 @@ export function TeamPage() {
                                   {member.last_name[0] || member.first_name[1] || ''}
                                 </AvatarFallback>
                               </Avatar>
-                              <div>
-                                <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">
                                   {member.full_name}
                                   {isSelf && (
                                     <span className="ml-1.5 text-xs text-emerald-600">(You)</span>
@@ -610,7 +610,7 @@ export function TeamPage() {
                   {pendingInvitations.map((member) => (
                     <div
                       key={member.id}
-                      className="flex items-center justify-between gap-4 rounded-lg border border-slate-100 p-3 dark:border-slate-800"
+                      className="flex flex-col gap-3 rounded-lg border border-slate-100 p-3 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
                     >
                       <div className="flex min-w-0 items-center gap-3">
                         <Avatar className="h-8 w-8">
@@ -632,7 +632,7 @@ export function TeamPage() {
                           </div>
                         </div>
                       </div>
-                      <div className="flex shrink-0 items-center gap-2">
+                      <div className="flex shrink-0 flex-wrap items-center gap-2">
                         {getInvitationStatusBadge()}
                         <Button
                           variant="ghost"

@@ -203,7 +203,7 @@ function MfaSetupFlow({ onComplete }: { onComplete: () => void }) {
           <div className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">1</div>
           <p className="text-sm font-medium">Scan this QR code in your authenticator app</p>
         </div>
-        <div className="flex gap-6 items-start">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-6">
           {setupData?.qr_code_svg && (
             <div
               className="h-40 w-40 shrink-0 rounded-lg border border-slate-200 dark:border-slate-700 bg-white p-2"

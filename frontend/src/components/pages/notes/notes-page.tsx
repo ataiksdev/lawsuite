@@ -279,7 +279,7 @@ function NoteViewer({
 
       {/* Links */}
       {editing && (
-        <div className="grid grid-cols-2 gap-3 mt-4">
+        <div className="grid grid-cols-1 gap-3 mt-4 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label className="text-xs text-slate-500">Linked Matter (optional)</Label>
             <Select value={matterId} onValueChange={(v) => { setMatterId(v); setEventId('none'); }}>
@@ -418,7 +418,7 @@ function NewNoteForm({
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-2">
           <Label>
             Matter <span className="text-slate-400 font-normal">(optional)</span>

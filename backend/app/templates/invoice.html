@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  /* xhtml2pdf (reportlab-based) has limited CSS support — no CSS variables,
+     no @import web fonts, no flexbox/grid, no color-mix(). Plain hex
+     colors, table-based layout, and standard fonts only. */
+  body { font-family: Helvetica, Arial, sans-serif; font-size: 10pt; color: #201e1d; }
+  h1 { font-size: 20pt; margin: 0 0 4px; color: #201e1d; }
+  .muted { color: #605d5d; }
+  .header-table { width: 100%; margin-bottom: 24px; }
+  .header-table td { vertical-align: top; }
+  .status-badge {
+    display: inline-block; padding: 3px 10px; border-radius: 3px;
+    font-size: 9pt; font-weight: bold; color: #ffffff; background-color: #7d7979;
+  }
+  table.items { width: 100%; border-collapse: collapse; margin-top: 16px; }
+  table.items th {
+    text-align: left; font-size: 8pt; text-transform: uppercase; letter-spacing: 0.5px;
+    color: #605d5d; border-bottom: 1px solid #bab6b6; padding: 6px 4px;
+  }
+  table.items td { padding: 6px 4px; border-bottom: 1px solid #eae7e7; font-size: 9.5pt; }
+  td.amount, th.amount { text-align: right; }
+  table.totals { width: 260px; margin-top: 16px; margin-left: auto; }
+  table.totals td { padding: 3px 4px; font-size: 9.5pt; }
+  table.totals td.label { color: #605d5d; }
+  table.totals td.amount { text-align: right; }
+  table.totals tr.grand-total td { border-top: 1px solid #201e1d; font-weight: bold; font-size: 11pt; padding-top: 6px; }
+  .section-title { font-size: 8pt; text-transform: uppercase; letter-spacing: 0.5px; color: #605d5d; margin: 0 0 4px; }
+  .footer-notes { margin-top: 24px; font-size: 9pt; color: #605d5d; }
+</style>
+</head>
+<body>
+
+  <table class="header-table">
+    <tr>
+      <td style="width: 55%;">
+        <h1>{{ organisation.name }}</h1>
+        {% if organisation.tin %}<p class="muted" style="margin: 2px 0;">TIN: {{ organisation.tin }}</p>{% endif %}
+        {% if organisation.vat_reg_no %}<p class="muted" style="margin: 2px 0;">VAT Reg. No: {{ organisation.vat_reg_no }}</p>{% endif %}
+      </td>
+      <td style="width: 45%; text-align: right;">
+        <h1>INVOICE</h1>
+        <p class="muted" style="margin: 2px 0;">{{ invoice.number or "DRAFT" }}</p>
+        <span class="status-badge">{{ invoice.status.upper() }}</span>
+      </td>
+    </tr>
+  </table>
+
+  <table class="header-table">
+    <tr>
+      <td style="width: 50%;">
+        <p class="section-title">Bill To</p>
+        <p style="margin: 0; font-weight: bold;">{{ client.name }}</p>
+        {% if client.billing_address %}<p class="muted" style="margin: 2px 0;">{{ client.billing_address }}</p>{% endif %}
+        {% if client.tin %}<p class="muted" style="margin: 2px 0;">TIN: {{ client.tin }}</p>{% endif %}
+      </td>
+      <td style="width: 50%; text-align: right;">
+        <p class="muted" style="margin: 2px 0;">Issue Date: {{ invoice.issue_date }}</p>
+        {% if invoice.due_date %}<p class="muted" style="margin: 2px 0;">Due Date: {{ invoice.due_date }}</p>{% endif %}
+        <p class="muted" style="margin: 2px 0;">Currency: {{ invoice.currency }}</p>
+      </td>
+    </tr>
+  </table>
+
+  {% if matter_titles %}
+  <p class="section-title">Matters Covered</p>
+  <p style="margin: 0 0 8px;">{{ matter_titles | join(", ") }}</p>
+  {% endif %}
+
+  <table class="items">
+    <thead>
+      <tr>
+        <th>Description</th>
+        <th>Qty</th>
+        <th class="amount">Unit Amount</th>
+        <th class="amount">Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in line_items %}
+      <tr>
+        <td>
+          {{ item.description }}
+          {% if item.matter_title %}<br/><span class="muted" style="font-size: 8pt;">{{ item.matter_title }}</span>{% endif %}
+        </td>
+        <td>{{ item.quantity }}</td>
+        <td class="amount">{{ item.unit_amount_display }}</td>
+        <td class="amount">{{ item.amount_display }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <table class="totals">
+    <tr>
+      <td class="label">Subtotal</td>
+      <td class="amount">{{ totals.subtotal_display }}</td>
+    </tr>
+    <tr>
+      <td class="label">Disbursements</td>
+      <td class="amount">{{ totals.disbursements_display }}</td>
+    </tr>
+    {% if invoice.vat_enabled %}
+    <tr>
+      <td class="label">VAT</td>
+      <td class="amount">{{ totals.vat_display }}</td>
+    </tr>
+    {% endif %}
+    <tr>
+      <td class="label">Total</td>
+      <td class="amount">{{ totals.total_display }}</td>
+    </tr>
+    {% if invoice.wht_enabled %}
+    <tr>
+      <td class="label">Less: WHT</td>
+      <td class="amount">({{ totals.wht_display }})</td>
+    </tr>
+    {% endif %}
+    <tr class="grand-total">
+      <td class="label">Net Payable</td>
+      <td class="amount">{{ totals.net_payable_display }}</td>
+    </tr>
+    <tr>
+      <td class="label">Amount Paid</td>
+      <td class="amount">{{ totals.amount_paid_display }}</td>
+    </tr>
+    <tr>
+      <td class="label" style="font-weight: bold;">Balance Due</td>
+      <td class="amount" style="font-weight: bold;">{{ totals.balance_due_display }}</td>
+    </tr>
+  </table>
+
+  {% if invoice.notes %}
+  <div class="footer-notes">
+    <p class="section-title">Notes</p>
+    <p>{{ invoice.notes }}</p>
+  </div>
+  {% endif %}
+
+  {% if invoice.is_bill_of_charges %}
+  <div class="footer-notes">
+    <p><strong>This is a formal Bill of Charges</strong>{% if invoice.served_at %} served on {{ invoice.served_at }}{% endif %}.</p>
+  </div>
+  {% endif %}
+
+</body>
+</html>

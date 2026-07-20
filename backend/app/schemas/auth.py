@@ -143,6 +143,8 @@ class ResetPasswordRequest(BaseModel):
 
 class UpdateOrgRequest(BaseModel):
     name: str | None = Field(None, min_length=2, max_length=255)
+    tin: str | None = Field(None, max_length=50)
+    vat_reg_no: str | None = Field(None, max_length=50)
 
 
 # ─── Responses ───────────────────────────────────────────────────────────────
@@ -179,6 +181,8 @@ class OrgResponse(BaseModel):
     slug: str
     plan: str
     is_active: bool
+    tin: str | None = None
+    vat_reg_no: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

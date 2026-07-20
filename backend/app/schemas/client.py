@@ -1,6 +1,7 @@
 # backend/app/schemas/client.py
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field
 
@@ -13,6 +14,11 @@ class ClientCreate(BaseModel):
     phone: str | None = Field(None, max_length=50)
     address: str | None = Field(None, max_length=1000)
     notes: str | None = None
+    # Invoicing
+    client_type: Literal["individual", "corporate"] = "individual"
+    tin: str | None = Field(None, max_length=50)
+    vat_registered: bool = False
+    billing_address: str | None = Field(None, max_length=1000)
 
 
 class ClientUpdate(BaseModel):
@@ -21,6 +27,11 @@ class ClientUpdate(BaseModel):
     phone: str | None = Field(None, max_length=50)
     address: str | None = Field(None, max_length=1000)
     notes: str | None = None
+    # Invoicing
+    client_type: Literal["individual", "corporate"] | None = None
+    tin: str | None = Field(None, max_length=50)
+    vat_registered: bool | None = None
+    billing_address: str | None = Field(None, max_length=1000)
 
 
 # ─── Responses ───────────────────────────────────────────────────────────────
@@ -35,6 +46,10 @@ class ClientResponse(BaseModel):
     address: str | None
     notes: str | None
     is_active: bool
+    client_type: str
+    tin: str | None
+    vat_registered: bool
+    billing_address: str | None
     created_at: datetime
     updated_at: datetime
 

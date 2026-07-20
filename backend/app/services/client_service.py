@@ -56,6 +56,10 @@ class ClientService:
             phone=data.phone,
             address=data.address,
             notes=data.notes,
+            client_type=data.client_type,
+            tin=data.tin,
+            vat_registered=data.vat_registered,
+            billing_address=data.billing_address,
         )
         self.db.add(client)
         await self.db.commit()

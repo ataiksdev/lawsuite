@@ -3,6 +3,10 @@ from app.models.activity_log import ActivityLog
 from app.models.billing_transaction import BillingTransaction
 from app.models.calendar_event import CalendarEvent, CalendarEventType, CalendarSyncStatus
 from app.models.client import Client
+from app.models.disbursement import Disbursement, DisbursementType
+from app.models.fee_arrangement import FeeArrangement, FeeArrangementType
+from app.models.invoice import Invoice, InvoiceStatus
+from app.models.invoice_line_item import InvoiceLineItem, LineItemKind
 from app.models.matter import Matter, MatterStatus, MatterType
 from app.models.matter_document import (
     DocumentStatus,
@@ -18,6 +22,7 @@ from app.models.note import Note, NoteType
 from app.models.note import Note as MatterNote, NoteType as MatterNoteType
 from app.models.notification import Notification
 from app.models.organisation import Organisation
+from app.models.payment import Payment, PaymentMethod
 from app.models.report import Report
 from app.models.task import Task, TaskPriority, TaskStatus
 from app.models.task_comment import TaskComment
@@ -56,4 +61,14 @@ __all__ = [
     "TaskDocumentLink",
     "TaskWatcher",
     "Notification",
+    "FeeArrangement",
+    "FeeArrangementType",
+    "Invoice",
+    "InvoiceStatus",
+    "InvoiceLineItem",
+    "LineItemKind",
+    "Disbursement",
+    "DisbursementType",
+    "Payment",
+    "PaymentMethod",
 ]

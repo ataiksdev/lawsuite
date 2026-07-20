@@ -91,12 +91,12 @@ async def _seed_two_orgs(conn):
                (:id_b, 'Org B', :slug_b, 'free', true, false, now(), now(), now())
     """), {"id": org_a, "slug_a": f"org-a-{org_a.hex[:8]}", "id_b": org_b, "slug_b": f"org-b-{org_b.hex[:8]}"})
     await conn.execute(text("""
-        INSERT INTO clients (id, organisation_id, name, is_active, created_at, updated_at)
-        VALUES (:cid, :org_id, :name, true, now(), now())
+        INSERT INTO clients (id, organisation_id, name, client_type, vat_registered, is_active, created_at, updated_at)
+        VALUES (:cid, :org_id, :name, 'individual', false, true, now(), now())
     """), {"cid": client_a, "org_id": org_a, "name": "Client A"})
     await conn.execute(text("""
-        INSERT INTO clients (id, organisation_id, name, is_active, created_at, updated_at)
-        VALUES (:cid, :org_id, :name, true, now(), now())
+        INSERT INTO clients (id, organisation_id, name, client_type, vat_registered, is_active, created_at, updated_at)
+        VALUES (:cid, :org_id, :name, 'individual', false, true, now(), now())
     """), {"cid": client_b, "org_id": org_b, "name": "Client B"})
     await conn.commit()
     return org_a, org_b, client_a, client_b
@@ -150,8 +150,8 @@ async def test_insert_with_spoofed_org_id_is_rejected(rls_conn):
     await _scope_to(rls_conn, org_a)
     with pytest.raises(Exception, match="row-level security"):
         await rls_conn.execute(text("""
-            INSERT INTO clients (id, organisation_id, name, is_active, created_at, updated_at)
-            VALUES (gen_random_uuid(), :spoofed_org, 'spoofed', true, now(), now())
+            INSERT INTO clients (id, organisation_id, name, client_type, vat_registered, is_active, created_at, updated_at)
+            VALUES (gen_random_uuid(), :spoofed_org, 'spoofed', 'individual', false, true, now(), now())
         """), {"spoofed_org": org_b})
     await rls_conn.rollback()
 

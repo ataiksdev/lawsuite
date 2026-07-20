@@ -590,6 +590,10 @@ class AuthService:
 
         if data.name:
             org.name = data.name.strip()
+        if data.tin is not None:
+            org.tin = data.tin
+        if data.vat_reg_no is not None:
+            org.vat_reg_no = data.vat_reg_no
 
         await self.db.commit()
         await self.db.refresh(org)

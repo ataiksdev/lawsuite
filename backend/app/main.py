@@ -55,8 +55,12 @@ from app.api import (
     billing,
     calendar,
     clients,
+    disbursements,
     documents,
+    fee_arrangements,
     integrations,
+    invoice_payments,
+    invoices,
     matters,
     notes,
     notifications,
@@ -83,4 +87,8 @@ app.include_router(billing.router, prefix="/billing", tags=["billing"])
 app.include_router(admin.router, prefix="/admin", tags=["admin"])
 app.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
 app.include_router(notes.router, prefix="/notes", tags=["notes"])
+app.include_router(fee_arrangements.router, prefix="/matters", tags=["invoicing"])
+app.include_router(disbursements.router, prefix="/matters", tags=["invoicing"])
+app.include_router(invoices.router, prefix="/invoices", tags=["invoicing"])
+app.include_router(invoice_payments.router, prefix="/invoice-payments", tags=["invoicing"])
 app.include_router(search.router, prefix="/search", tags=["search"])

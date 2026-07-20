@@ -22,6 +22,12 @@ class Client(Base):
     notes: Mapped[str | None] = mapped_column(Text)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
+    # Invoicing
+    client_type: Mapped[str] = mapped_column(String(20), default="individual", nullable=False)  # "individual" | "corporate"
+    tin: Mapped[str | None] = mapped_column(String(50))
+    vat_registered: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    billing_address: Mapped[str | None] = mapped_column(Text)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False

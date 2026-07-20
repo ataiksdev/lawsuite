@@ -82,6 +82,12 @@ class Matter(Base):
         back_populates="matter", cascade="all, delete-orphan"
     )
     notes: Mapped[list["Note"]] = relationship(back_populates="matter")
+    fee_arrangements: Mapped[list["FeeArrangement"]] = relationship(
+        back_populates="matter", cascade="all, delete-orphan"
+    )
+    disbursements: Mapped[list["Disbursement"]] = relationship(
+        back_populates="matter", cascade="all, delete-orphan"
+    )
 
     def __repr__(self) -> str:
         return f"<Matter id={self.id} ref={self.reference_no} status={self.status}>"

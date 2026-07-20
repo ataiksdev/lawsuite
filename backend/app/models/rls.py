@@ -37,6 +37,11 @@ TENANT_TABLES = [
     "matter_emails",
     "activity_logs",
     "organisation_members",
+    "fee_arrangements",
+    "invoices",
+    "invoice_line_items",
+    "disbursements",
+    "payments",
 ]
 
 _BYPASS = "current_setting('app.bypass_rls', true) = 'on'"
@@ -61,6 +66,16 @@ ALTER TABLE activity_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE activity_logs FORCE ROW LEVEL SECURITY;
 ALTER TABLE organisation_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE organisation_members FORCE ROW LEVEL SECURITY;
+ALTER TABLE fee_arrangements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE fee_arrangements FORCE ROW LEVEL SECURITY;
+ALTER TABLE invoices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE invoices FORCE ROW LEVEL SECURITY;
+ALTER TABLE invoice_line_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE invoice_line_items FORCE ROW LEVEL SECURITY;
+ALTER TABLE disbursements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE disbursements FORCE ROW LEVEL SECURITY;
+ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payments FORCE ROW LEVEL SECURITY;
 
 -- Policies: each row is visible only to the matching organisation,
 -- unless the session has explicitly opted into app.bypass_rls = 'on'
@@ -105,6 +120,28 @@ CREATE POLICY tenant_isolation ON activity_logs
 
 DROP POLICY IF EXISTS tenant_isolation ON organisation_members;
 CREATE POLICY tenant_isolation ON organisation_members
+    USING ({_BYPASS} OR {_ORG_MATCH});
+
+-- Invoicing tables all carry their own organisation_id directly, so they
+-- all use the simple direct-match policy (no EXISTS subquery needed).
+DROP POLICY IF EXISTS tenant_isolation ON fee_arrangements;
+CREATE POLICY tenant_isolation ON fee_arrangements
+    USING ({_BYPASS} OR {_ORG_MATCH});
+
+DROP POLICY IF EXISTS tenant_isolation ON invoices;
+CREATE POLICY tenant_isolation ON invoices
+    USING ({_BYPASS} OR {_ORG_MATCH});
+
+DROP POLICY IF EXISTS tenant_isolation ON invoice_line_items;
+CREATE POLICY tenant_isolation ON invoice_line_items
+    USING ({_BYPASS} OR {_ORG_MATCH});
+
+DROP POLICY IF EXISTS tenant_isolation ON disbursements;
+CREATE POLICY tenant_isolation ON disbursements
+    USING ({_BYPASS} OR {_ORG_MATCH});
+
+DROP POLICY IF EXISTS tenant_isolation ON payments;
+CREATE POLICY tenant_isolation ON payments
     USING ({_BYPASS} OR {_ORG_MATCH});
 """
 

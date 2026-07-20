@@ -39,6 +39,10 @@ class Organisation(Base):
     trial_used: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     feature_flags: Mapped[dict | list | None] = mapped_column(JSONB)
 
+    # Invoicing — shown on the invoice header
+    tin: Mapped[str | None] = mapped_column(String(50))
+    vat_reg_no: Mapped[str | None] = mapped_column(String(50))
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False

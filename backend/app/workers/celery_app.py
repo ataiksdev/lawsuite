@@ -41,5 +41,10 @@ celery_app.conf.update(
             "task": "tasks.send_weekly_digest_emails",
             "schedule": crontab(day_of_week=1, hour=7, minute=30),
         },
+        # Flip sent/part_paid invoices past their due_date to overdue (daily at 01:00 UTC)
+        "mark-overdue-invoices-daily": {
+            "task": "tasks.mark_overdue_invoices",
+            "schedule": crontab(hour=1, minute=0),
+        },
     },
 )

@@ -503,6 +503,25 @@ class InvoiceService:
         await self.db.refresh(invoice, attribute_names=["line_items"])
         return invoice
 
+    # ── Overdue sweep (Celery beat, cross-org) ──────────────────────────────
+
+    async def mark_overdue_invoices(self) -> int:
+        """Flips sent/part_paid invoices whose due_date has passed to
+        overdue. Cross-org — callers must supply an RLS-bypassed session."""
+        result = await self.db.execute(
+            select(Invoice).where(
+                Invoice.status.in_([InvoiceStatus.sent, InvoiceStatus.part_paid]),
+                Invoice.due_date.isnot(None),
+                Invoice.due_date < date.today(),
+            )
+        )
+        invoices = result.scalars().all()
+        for invoice in invoices:
+            invoice.status = InvoiceStatus.overdue
+        if invoices:
+            await self.db.commit()
+        return len(invoices)
+
     # ── PDF ───────────────────────────────────────────────────────────────
 
     async def render_pdf(self, invoice_id: uuid.UUID, org_id: uuid.UUID) -> bytes:

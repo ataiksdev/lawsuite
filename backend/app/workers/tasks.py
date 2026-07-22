@@ -245,6 +245,23 @@ async def _send_task_due_soon_emails() -> None:
                 pass  # One org's failure shouldn't block the others
 
 
+# ─── Invoice overdue sweep ────────────────────────────────────────────────────
+
+
+@celery_app.task(name="tasks.mark_overdue_invoices")
+def mark_overdue_invoices() -> None:
+    """Scheduled task (Celery beat) — runs daily, flips sent/part_paid invoices past their due_date to overdue."""
+    asyncio.run(_mark_overdue_invoices())
+
+
+async def _mark_overdue_invoices() -> None:
+    from app.core.database import worker_session
+    from app.services.invoice_service import InvoiceService
+
+    async with worker_session() as db:
+        await InvoiceService(db).mark_overdue_invoices()
+
+
 # ─── Weekly digest ─────────────────────────────────────────────────────────────
 
 

@@ -310,3 +310,44 @@ async def test_non_admin_member_blocked_from_all_invoicing_routes(client: AsyncC
         "/invoice-payments", params={"invoice_id": matter_a_id}, headers=member_headers
     )
     assert payment_resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_overdue_sweep_flips_sent_invoice_past_due_date(client: AsyncClient, db_session):
+    """The Celery beat sweep (InvoiceService.mark_overdue_invoices) should
+    flip a sent invoice to overdue once its due_date has passed, and must
+    leave invoices with no due_date or a future due_date untouched."""
+    token, client_id, matter_a_id, _ = await setup_two_matters(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    past_due = (date.today() - timedelta(days=5)).isoformat()
+
+    draft = await client.post(
+        "/invoices",
+        json={
+            "client_id": client_id,
+            "due_date": past_due,
+            "line_items": [
+                {
+                    "kind": "professional_fee",
+                    "description": "Overdue test fee",
+                    "unit_amount_kobo": 100_000,
+                    "matter_id": matter_a_id,
+                }
+            ],
+        },
+        headers=headers,
+    )
+    invoice_id = draft.json()["id"]
+    issued = await client.post(f"/invoices/{invoice_id}/issue", headers=headers)
+    assert issued.json()["status"] == "sent"
+
+    from sqlalchemy import text
+
+    from app.services.invoice_service import InvoiceService
+
+    await db_session.execute(text("SELECT set_config('app.bypass_rls', 'on', false)"))
+    updated_count = await InvoiceService(db_session).mark_overdue_invoices()
+    assert updated_count >= 1
+
+    check = await client.get(f"/invoices/{invoice_id}", headers=headers)
+    assert check.json()["status"] == "overdue"

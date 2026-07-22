@@ -21,6 +21,7 @@ import {
   UsersRound,
   Puzzle,
   CreditCard,
+  Receipt,
   Shield,
   Sparkles,
   Clock,
@@ -221,6 +222,7 @@ const adminNavItems: NavItem[] = [
   { label: 'Team',         path: '/admin/team',         icon: UsersRound, adminOnly: true },
   { label: 'Integrations', path: '/admin/integrations', icon: Puzzle,     adminOnly: true },
   { label: 'Billing',      path: '/admin/billing',      icon: CreditCard, adminOnly: true },
+  { label: 'Invoices',     path: '/admin/invoices',     icon: Receipt,    adminOnly: true },
 ];
 
 const platformAdminNavItem: NavItem = {

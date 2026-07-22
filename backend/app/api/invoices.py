@@ -7,10 +7,12 @@ column since one invoice can span multiple matters (see invoice_service.py).
 Routes:
   GET    /invoices                                       — list (matter_id/client_id/status filters)
   POST   /invoices                                        — create draft
+  GET    /invoices/dashboard-summary                       — outstanding/overdue/expected/paid totals + attention list
   GET    /invoices/{invoice_id}                           — get one
   PATCH  /invoices/{invoice_id}                           — edit draft
   POST   /invoices/{invoice_id}/issue                     — draft -> sent, assigns number
   POST   /invoices/{invoice_id}/void                      — void
+  DELETE /invoices/{invoice_id}                            — hard-delete (empty drafts only)
   POST   /invoices/{invoice_id}/mark-served                — Bill of Charges served_at
   GET    /invoices/{invoice_id}/pdf                        — render PDF
   POST   /invoices/{invoice_id}/line-items                 — add line item (draft only)
@@ -25,7 +27,9 @@ from fastapi import APIRouter, Query, Response, status
 from app.core.deps import ScopedDB, AdminUser
 from app.models.invoice import Invoice, InvoiceStatus
 from app.schemas.invoice import (
+    InvoiceAttentionItem,
     InvoiceCreate,
+    InvoiceDashboardSummary,
     InvoiceLineItemCreate,
     InvoiceLineItemUpdate,
     InvoiceListResponse,
@@ -81,6 +85,31 @@ async def create_invoice(payload: InvoiceCreate, current_user: AdminUser, db: Sc
     return _to_response(invoice)
 
 
+@router.get("/dashboard-summary", response_model=InvoiceDashboardSummary)
+async def get_dashboard_summary(current_user: AdminUser, db: ScopedDB):
+    service = InvoiceService(db)
+    summary = await service.get_dashboard_summary(current_user.org_id)
+    return InvoiceDashboardSummary(
+        outstanding_kobo=summary["outstanding_kobo"],
+        overdue_kobo=summary["overdue_kobo"],
+        expected_kobo=summary["expected_kobo"],
+        paid_this_month_kobo=summary["paid_this_month_kobo"],
+        status_counts=summary["status_counts"],
+        attention_items=[
+            InvoiceAttentionItem(
+                id=inv.id,
+                number=inv.number,
+                client_id=inv.client_id,
+                status=inv.status,
+                currency=inv.currency,
+                due_date=inv.due_date,
+                balance_due_kobo=inv.net_payable_kobo - inv.amount_paid_kobo,
+            )
+            for inv in summary["attention_items"]
+        ],
+    )
+
+
 @router.get("/{invoice_id}", response_model=InvoiceResponse)
 async def get_invoice(invoice_id: uuid.UUID, current_user: AdminUser, db: ScopedDB):
     service = InvoiceService(db)
@@ -111,6 +140,12 @@ async def void_invoice(
     service = InvoiceService(db)
     invoice = await service.void_invoice(invoice_id, current_user.org_id, current_user.user_id, payload.reason)
     return _to_response(invoice)
+
+
+@router.delete("/{invoice_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_invoice(invoice_id: uuid.UUID, current_user: AdminUser, db: ScopedDB):
+    service = InvoiceService(db)
+    await service.delete_invoice(invoice_id, current_user.org_id, current_user.user_id)
 
 
 @router.post("/{invoice_id}/mark-served", response_model=InvoiceResponse)

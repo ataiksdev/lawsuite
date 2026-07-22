@@ -293,6 +293,9 @@ async def test_non_admin_member_blocked_from_all_invoicing_routes(client: AsyncC
     list_resp = await client.get("/invoices", headers=member_headers)
     assert list_resp.status_code == 403
 
+    dashboard_resp = await client.get("/invoices/dashboard-summary", headers=member_headers)
+    assert dashboard_resp.status_code == 403
+
     create_resp = await client.post("/invoices", json={"client_id": client_id}, headers=member_headers)
     assert create_resp.status_code == 403
 
@@ -351,3 +354,65 @@ async def test_overdue_sweep_flips_sent_invoice_past_due_date(client: AsyncClien
 
     check = await client.get(f"/invoices/{invoice_id}", headers=headers)
     assert check.json()["status"] == "overdue"
+
+
+@pytest.mark.asyncio
+async def test_dashboard_summary_totals_and_attention_list(client: AsyncClient):
+    token, client_id, matter_a_id, _ = await setup_two_matters(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    async def create_invoice(amount_kobo: int) -> str:
+        draft = await client.post(
+            "/invoices",
+            json={
+                "client_id": client_id,
+                "line_items": [
+                    {
+                        "kind": "professional_fee",
+                        "description": "Dashboard test fee",
+                        "unit_amount_kobo": amount_kobo,
+                        "matter_id": matter_a_id,
+                    }
+                ],
+            },
+            headers=headers,
+        )
+        return draft.json()["id"]
+
+    # Draft — contributes to expected_kobo only.
+    draft_id = await create_invoice(1_000_000)
+    draft_invoice = (await client.get(f"/invoices/{draft_id}", headers=headers)).json()
+
+    # Sent, unpaid — contributes to outstanding_kobo and the attention list.
+    sent_id = await create_invoice(2_000_000)
+    sent_invoice = (await client.post(f"/invoices/{sent_id}/issue", headers=headers)).json()
+
+    # Sent, then fully paid today — contributes to paid_this_month_kobo, not outstanding.
+    paid_id = await create_invoice(500_000)
+    paid_invoice = (await client.post(f"/invoices/{paid_id}/issue", headers=headers)).json()
+    await client.post(
+        "/invoice-payments",
+        json={
+            "invoice_id": paid_id,
+            "amount_kobo": paid_invoice["net_payable_kobo"],
+            "method": "bank_transfer",
+            "paid_at": "2026-07-22T10:00:00Z",
+            "reference": f"DASH-{paid_id[:8]}",
+        },
+        headers=headers,
+    )
+
+    summary = (await client.get("/invoices/dashboard-summary", headers=headers)).json()
+
+    assert summary["status_counts"].get("draft", 0) >= 1
+    assert summary["status_counts"].get("sent", 0) >= 1
+    assert summary["status_counts"].get("paid", 0) >= 1
+
+    assert summary["expected_kobo"] >= draft_invoice["net_payable_kobo"]
+    assert summary["outstanding_kobo"] >= sent_invoice["net_payable_kobo"]
+    assert summary["paid_this_month_kobo"] >= paid_invoice["net_payable_kobo"]
+
+    attention_ids = {item["id"] for item in summary["attention_items"]}
+    assert sent_id in attention_ids
+    assert draft_id not in attention_ids
+    assert paid_id not in attention_ids

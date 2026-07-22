@@ -57,6 +57,9 @@ class InvoiceCreate(BaseModel):
     wht_enabled: bool | None = None
     is_bill_of_charges: bool = False
     line_items: list[InvoiceLineItemCreate] = []
+    # Client-generated key so a retried request returns the original draft
+    # instead of creating a duplicate — see InvoiceService.create_invoice.
+    idempotency_key: str | None = Field(None, max_length=100)
 
 
 class UpdateInvoiceRequest(BaseModel):
@@ -148,3 +151,25 @@ class InvoiceListResponse(BaseModel):
     page: int
     page_size: int
     pages: int
+
+
+class InvoiceAttentionItem(BaseModel):
+    """One row in the dashboard's "needs attention" list — sent/part-paid/
+    overdue invoices, not the full InvoiceResponse shape."""
+
+    id: uuid.UUID
+    number: str | None
+    client_id: uuid.UUID
+    status: InvoiceStatus
+    currency: str
+    due_date: date | None
+    balance_due_kobo: int
+
+
+class InvoiceDashboardSummary(BaseModel):
+    outstanding_kobo: int
+    overdue_kobo: int
+    expected_kobo: int
+    paid_this_month_kobo: int
+    status_counts: dict[str, int]
+    attention_items: list[InvoiceAttentionItem]

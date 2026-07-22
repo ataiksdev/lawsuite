@@ -1,13 +1,14 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Plus, Receipt, ShieldAlert, Loader2 } from 'lucide-react';
+import { Plus, Receipt, ShieldAlert, Loader2, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { navigate } from '@/lib/router';
 import { formatNaira } from '@/lib/utils';
 import { useAuthStore } from '@/lib/auth-store';
 import { UserRole } from '@/lib/types';
 import { handleApiError } from '@/lib/error-utils';
-import { listInvoices, type BackendInvoice, type InvoiceStatus } from '@/lib/api/invoices';
+import { listInvoices, deleteInvoice, type BackendInvoice, type InvoiceStatus } from '@/lib/api/invoices';
 import { listMatters, type BackendMatter } from '@/lib/api/matters';
 import { listClients, type BackendClient } from '@/lib/api/clients';
 
@@ -32,6 +33,20 @@ export function InvoiceListPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [showNewInvoiceDialog, setShowNewInvoiceDialog] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const handleDeleteEmpty = async (invoiceId: string) => {
+    setDeletingId(invoiceId);
+    try {
+      await deleteInvoice(invoiceId);
+      setInvoices((current) => current.filter((inv) => inv.id !== invoiceId));
+      toast.success('Empty draft invoice deleted');
+    } catch (err) {
+      handleApiError(err, 'Unable to delete this invoice.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   useEffect(() => {
     if (!isAdmin) {
@@ -162,6 +177,7 @@ export function InvoiceListPage() {
                     <TableHead className="text-right">Total</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Issue Date</TableHead>
+                    <TableHead className="w-[48px]" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -195,6 +211,17 @@ export function InvoiceListPage() {
                         <InvoiceStatusBadge status={invoice.status} />
                       </TableCell>
                       <TableCell className="text-slate-500">{invoice.issue_date}</TableCell>
+                      <TableCell>
+                        {invoice.status === 'draft' && invoice.line_items.length === 0 && (
+                          <Button
+                            size="icon" variant="ghost" className="h-7 w-7 text-red-500 hover:text-red-600"
+                            disabled={deletingId === invoice.id}
+                            onClick={(e) => { e.stopPropagation(); void handleDeleteEmpty(invoice.id); }}
+                          >
+                            {deletingId === invoice.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                          </Button>
+                        )}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

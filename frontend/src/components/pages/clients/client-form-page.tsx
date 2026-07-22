@@ -12,6 +12,7 @@ import {
   getClient,
   updateClient,
   type BackendClient,
+  type ClientType,
   type ClientUpsertPayload,
 } from '@/lib/api/clients';
 
@@ -19,7 +20,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface FormErrors {
   name?: string;
@@ -32,6 +35,10 @@ interface ClientFormData {
   phone: string;
   address: string;
   notes: string;
+  client_type: ClientType;
+  tin: string;
+  vat_registered: boolean;
+  billing_address: string;
 }
 
 function validateForm(data: ClientUpsertPayload): FormErrors {
@@ -60,6 +67,10 @@ function mapClientToFormData(client?: BackendClient | null): ClientFormData {
     phone: client?.phone ?? '',
     address: client?.address ?? '',
     notes: client?.notes ?? '',
+    client_type: client?.client_type ?? 'individual',
+    tin: client?.tin ?? '',
+    vat_registered: client?.vat_registered ?? false,
+    billing_address: client?.billing_address ?? '',
   };
 }
 
@@ -134,6 +145,16 @@ export function ClientFormPage() {
     }
   };
 
+  const updateClientType = (value: ClientType) => {
+    setFormData((current) => ({ ...current, client_type: value }));
+    setIsDirty(true);
+  };
+
+  const updateVatRegistered = (value: boolean) => {
+    setFormData((current) => ({ ...current, vat_registered: value }));
+    setIsDirty(true);
+  };
+
   const handleCancel = () => {
     if (isEditMode && clientId) {
       navigate(`/clients/${clientId}`);
@@ -151,6 +172,10 @@ export function ClientFormPage() {
       phone: formData.phone.trim() || undefined,
       address: formData.address.trim() || undefined,
       notes: formData.notes.trim() || undefined,
+      client_type: formData.client_type,
+      tin: formData.tin.trim() || undefined,
+      vat_registered: formData.vat_registered,
+      billing_address: formData.billing_address.trim() || undefined,
     };
 
     const validationErrors = validateForm(payload);
@@ -326,6 +351,41 @@ export function ClientFormPage() {
                 onChange={(event) => updateField('notes', event.target.value)}
                 className="min-h-[100px] resize-y"
               />
+            </div>
+
+            <div className="space-y-4 border-t border-slate-100 pt-4 dark:border-slate-800">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Invoicing</p>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="client-type">Client Type</Label>
+                  <Select value={formData.client_type} onValueChange={(v) => updateClientType(v as ClientType)}>
+                    <SelectTrigger id="client-type" className="h-10"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="individual">Individual</SelectItem>
+                      <SelectItem value="corporate">Corporate</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-slate-400">Corporate clients always have WHT withheld; individuals only above the monthly safe-harbour threshold.</p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="tin">Tax Identification Number (TIN)</Label>
+                  <Input id="tin" value={formData.tin} onChange={(event) => updateField('tin', event.target.value)} className="h-10" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="billing-address">Billing Address</Label>
+                <Textarea
+                  id="billing-address"
+                  placeholder="Used on invoices, if different from the address above..."
+                  value={formData.billing_address}
+                  onChange={(event) => updateField('billing_address', event.target.value)}
+                  className="min-h-[80px] resize-y"
+                />
+              </div>
+              <label className="flex items-center gap-2 text-sm">
+                <Checkbox checked={formData.vat_registered} onCheckedChange={(v) => updateVatRegistered(!!v)} />
+                VAT registered
+              </label>
             </div>
 
             <div className="flex flex-col-reverse gap-3 border-t border-slate-100 pt-2 dark:border-slate-800 sm:flex-row sm:justify-end">

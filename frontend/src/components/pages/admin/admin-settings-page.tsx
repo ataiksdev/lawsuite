@@ -28,12 +28,16 @@ interface OrgDetails {
   plan: string;
   is_active: boolean;
   created_at: string;
+  tin?: string | null;
+  vat_reg_no?: string | null;
 }
 
 export function AdminSettingsPage() {
   const { user, organisation, setOrganisation } = useAuthStore();
   const [orgDetails, setOrgDetails] = useState<OrgDetails | null>(null);
   const [orgName, setOrgName] = useState('');
+  const [orgTin, setOrgTin] = useState('');
+  const [orgVatRegNo, setOrgVatRegNo] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
@@ -56,6 +60,8 @@ export function AdminSettingsPage() {
         const data = await apiClient.get<OrgDetails>('/auth/organisation');
         setOrgDetails(data);
         setOrgName(data.name);
+        setOrgTin(data.tin || '');
+        setOrgVatRegNo(data.vat_reg_no || '');
       } catch {
         // Use store data as fallback
         if (organisation) {
@@ -68,6 +74,11 @@ export function AdminSettingsPage() {
     void load();
   }, [organisation]);
 
+  const hasChanges =
+    orgName.trim() !== (orgDetails?.name ?? organisation?.name ?? '') ||
+    orgTin.trim() !== (orgDetails?.tin ?? '') ||
+    orgVatRegNo.trim() !== (orgDetails?.vat_reg_no ?? '');
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = orgName.trim();
@@ -75,21 +86,27 @@ export function AdminSettingsPage() {
       setError('Organisation name must be at least 2 characters');
       return;
     }
-    if (trimmed === (orgDetails?.name ?? organisation?.name)) {
+    if (!hasChanges) {
       toast.info('No changes to save.');
       return;
     }
     setIsSaving(true);
     setError('');
     try {
-      const updated = await apiClient.patch<OrgDetails>('/auth/organisation', { name: trimmed });
+      const updated = await apiClient.patch<OrgDetails>('/auth/organisation', {
+        name: trimmed,
+        tin: orgTin.trim() || undefined,
+        vat_reg_no: orgVatRegNo.trim() || undefined,
+      });
       setOrgDetails(updated);
       setOrgName(updated.name);
+      setOrgTin(updated.tin || '');
+      setOrgVatRegNo(updated.vat_reg_no || '');
       // Update the auth store so the sidebar name refreshes
       if (organisation) {
         setOrganisation({ ...organisation, name: updated.name });
       }
-      toast.success('Organisation name updated.');
+      toast.success('Organisation details updated.');
     } catch (err) {
       const msg = err instanceof ApiClientError ? err.detail : 'Could not save changes.';
       setError(msg);
@@ -186,10 +203,34 @@ export function AdminSettingsPage() {
                 </p>
               </div>
 
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500">Invoicing</Label>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="org-tin">Tax Identification Number (TIN)</Label>
+                    <Input
+                      id="org-tin"
+                      value={orgTin}
+                      onChange={(e) => setOrgTin(e.target.value)}
+                      placeholder="e.g. 01234567-0001"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="org-vat-reg-no">VAT Registration Number</Label>
+                    <Input
+                      id="org-vat-reg-no"
+                      value={orgVatRegNo}
+                      onChange={(e) => setOrgVatRegNo(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-slate-400">Printed on the header of every invoice PDF.</p>
+              </div>
+
               <div className="flex justify-end">
                 <Button
                   type="submit"
-                  disabled={isSaving || orgName.trim() === (currentOrg?.name ?? '')}
+                  disabled={isSaving || !hasChanges}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white"
                 >
                   {isSaving ? (

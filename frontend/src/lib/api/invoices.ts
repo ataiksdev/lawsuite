@@ -101,6 +101,9 @@ export interface InvoiceCreatePayload {
   wht_enabled?: boolean;
   is_bill_of_charges?: boolean;
   line_items?: LineItemCreatePayload[];
+  // Client-generated key so a retried create request returns the original
+  // draft instead of creating a duplicate.
+  idempotency_key?: string;
 }
 
 export interface InvoiceUpdatePayload {
@@ -161,4 +164,33 @@ export async function deleteLineItem(invoiceId: string, lineItemId: string) {
 
 export async function getInvoicePdfBlob(invoiceId: string) {
   return apiClient.getBlob(`/invoices/${invoiceId}/pdf`);
+}
+
+// Only allowed for a draft invoice with zero line items — anything with
+// content should be voided instead, which preserves the record.
+export async function deleteInvoice(invoiceId: string) {
+  return apiClient.delete<void>(`/invoices/${invoiceId}`);
+}
+
+export interface InvoiceAttentionItem {
+  id: string;
+  number?: string | null;
+  client_id: string;
+  status: InvoiceStatus;
+  currency: string;
+  due_date?: string | null;
+  balance_due_kobo: number;
+}
+
+export interface InvoiceDashboardSummary {
+  outstanding_kobo: number;
+  overdue_kobo: number;
+  expected_kobo: number;
+  paid_this_month_kobo: number;
+  status_counts: Record<string, number>;
+  attention_items: InvoiceAttentionItem[];
+}
+
+export async function getDashboardSummary() {
+  return apiClient.get<InvoiceDashboardSummary>('/invoices/dashboard-summary');
 }

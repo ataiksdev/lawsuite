@@ -17,7 +17,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { navigate } from '@/lib/router';
 import { ApiClientError } from '@/lib/api-client';
-import { archiveClient, listClients, type BackendClient } from '@/lib/api/clients';
+import { archiveClient, getClient, listClients, type BackendClient } from '@/lib/api/clients';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -159,15 +159,25 @@ export function ClientListPage() {
     setArchivingClientId(clientId);
     try {
       await archiveClient(clientId);
-      setClients((current) =>
-        current.map((entry) =>
-          entry.id === clientId ? { ...entry, is_active: false } : entry
-        )
-      );
-      toast.success(`"${client.name}" has been archived.`);
+      // Clients with no matters or invoices are permanently deleted instead
+      // of archived — a follow-up 404 is how we tell the two apart.
+      try {
+        const refreshed = await getClient(clientId);
+        setClients((current) =>
+          current.map((entry) => (entry.id === clientId ? refreshed : entry))
+        );
+        toast.success(`"${client.name}" has been archived.`);
+      } catch (checkErr) {
+        if (checkErr instanceof ApiClientError && checkErr.status === 404) {
+          setClients((current) => current.filter((entry) => entry.id !== clientId));
+          toast.success(`"${client.name}" had no matters or invoices and was permanently deleted.`);
+        } else {
+          throw checkErr;
+        }
+      }
     } catch (err) {
       const message =
-        err instanceof ApiClientError ? err.detail : 'Unable to archive client.';
+        err instanceof ApiClientError ? err.detail : 'Unable to remove client.';
       toast.error(message);
     } finally {
       setArchivingClientId(null);
@@ -405,7 +415,7 @@ export function ClientListPage() {
                               ) : (
                                 <Archive className="mr-2 h-4 w-4" />
                               )}
-                              Archive
+                              Remove
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>

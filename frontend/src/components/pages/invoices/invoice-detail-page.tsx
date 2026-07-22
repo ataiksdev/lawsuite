@@ -11,7 +11,7 @@ import { useAuthStore } from '@/lib/auth-store';
 import { UserRole } from '@/lib/types';
 import { handleApiError, extractErrorMessage } from '@/lib/error-utils';
 import {
-  getInvoice, issueInvoice, voidInvoice, markServed, deleteLineItem, updateInvoice, getInvoicePdfBlob,
+  getInvoice, issueInvoice, voidInvoice, deleteInvoice, markServed, deleteLineItem, updateInvoice, getInvoicePdfBlob,
   type BackendInvoice, type BackendInvoiceLineItem,
 } from '@/lib/api/invoices';
 import { listPayments, type BackendPayment } from '@/lib/api/invoice-payments';
@@ -81,6 +81,7 @@ export function InvoiceDetailPage() {
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [showVoidDialog, setShowVoidDialog] = useState(false);
   const [voidReason, setVoidReason] = useState('');
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showServedDialog, setShowServedDialog] = useState(false);
   const [servedAtInput, setServedAtInput] = useState(() => new Date().toISOString().slice(0, 10));
   const [vatOverride, setVatOverride] = useState('');
@@ -162,6 +163,7 @@ export function InvoiceDetailPage() {
 
   const isDraft = invoice.status === 'draft';
   const canVoid = ['draft', 'sent', 'part_paid', 'overdue'].includes(invoice.status) && invoice.amount_paid_kobo === 0;
+  const canDelete = isDraft && invoice.line_items.length === 0;
   const canRecordPayment = ['sent', 'part_paid', 'overdue'].includes(invoice.status);
   const canMarkServed = invoice.is_bill_of_charges && !isDraft && !invoice.served_at;
   const balanceDueKobo = invoice.net_payable_kobo - invoice.amount_paid_kobo;
@@ -192,6 +194,18 @@ export function InvoiceDetailPage() {
     } catch (err) {
       handleApiError(err, 'Unable to void invoice.');
     } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const handleDelete = async () => {
+    setBusyAction('delete');
+    try {
+      await deleteInvoice(invoice.id);
+      toast.success('Empty draft invoice deleted');
+      navigate('/admin/invoices');
+    } catch (err) {
+      handleApiError(err, 'Unable to delete this invoice.');
       setBusyAction(null);
     }
   };
@@ -374,6 +388,11 @@ export function InvoiceDetailPage() {
           {canVoid && (
             <Button size="sm" variant="outline" className="text-red-600 hover:bg-red-50 hover:text-red-700" onClick={() => setShowVoidDialog(true)}>
               <Ban className="mr-1.5 h-3.5 w-3.5" /> Void
+            </Button>
+          )}
+          {canDelete && (
+            <Button size="sm" variant="outline" className="text-red-600 hover:bg-red-50 hover:text-red-700" onClick={() => setShowDeleteDialog(true)}>
+              <Trash2 className="mr-1.5 h-3.5 w-3.5" /> Delete
             </Button>
           )}
         </div>
@@ -600,6 +619,23 @@ export function InvoiceDetailPage() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={() => void handleVoid()} disabled={busyAction === 'void'}>
               Void Invoice
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this draft invoice?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This invoice has no line items and is permanently deleted, not archived — this cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={() => void handleDelete()} disabled={busyAction === 'delete'}>
+              Delete Invoice
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

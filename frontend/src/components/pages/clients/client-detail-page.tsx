@@ -227,11 +227,23 @@ export function ClientDetailPage() {
     setIsArchiving(true);
     try {
       await archiveClient(client.id);
-      setClient({ ...client, is_active: false });
       setShowArchiveDialog(false);
-      toast.success(`"${client.name}" has been archived.`);
+      // Clients with no matters or invoices are permanently deleted instead
+      // of archived — a follow-up 404 is how we tell the two apart.
+      try {
+        const refreshed = await getClient(client.id);
+        setClient(refreshed);
+        toast.success(`"${client.name}" has been archived.`);
+      } catch (checkErr) {
+        if (checkErr instanceof ApiClientError && checkErr.status === 404) {
+          toast.success(`"${client.name}" had no matters or invoices and was permanently deleted.`);
+          navigate('/clients');
+        } else {
+          throw checkErr;
+        }
+      }
     } catch (err) {
-      toast.error(err instanceof ApiClientError ? err.detail : 'Unable to archive this client.');
+      toast.error(err instanceof ApiClientError ? err.detail : 'Unable to remove this client.');
     } finally {
       setIsArchiving(false);
     }
@@ -301,7 +313,7 @@ export function ClientDetailPage() {
             className={cn('h-9', client.is_active ? 'text-amber-600 hover:bg-amber-50 hover:text-amber-700' : 'text-slate-400')}
             disabled={!client.is_active}
           >
-            <Archive className="mr-1.5 h-3.5 w-3.5" /> Archive
+            <Archive className="mr-1.5 h-3.5 w-3.5" /> Remove
           </Button>
         </div>
       </div>
@@ -354,15 +366,15 @@ export function ClientDetailPage() {
       <AlertDialog open={showArchiveDialog} onOpenChange={setShowArchiveDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Archive Client</AlertDialogTitle>
+            <AlertDialogTitle>Remove Client</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to archive "{client.name}"?
+              This will archive "{client.name}" — or permanently delete it if it has no matters or invoices.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isArchiving}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleArchive} disabled={isArchiving} className="bg-amber-600 text-white hover:bg-amber-700">
-              {isArchiving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Archiving…</> : 'Archive'}
+              {isArchiving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Removing…</> : 'Remove'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -30,6 +30,10 @@ export function NewInvoiceDialog({ open, onOpenChange, clients, onCreated }: New
   // Guards against a second submission landing before React re-renders the
   // disabled button (fast double-click, or requestSubmit() bypassing it).
   const submittingRef = useRef(false);
+  // Fresh key each time the dialog opens for a new invoice — a retry within
+  // the same open session reuses it, so the backend returns the original
+  // draft instead of creating a duplicate.
+  const idempotencyKeyRef = useRef<string>('');
 
   useEffect(() => {
     if (open) {
@@ -37,6 +41,7 @@ export function NewInvoiceDialog({ open, onOpenChange, clients, onCreated }: New
       setDueDate('');
       setIsBillOfCharges(false);
       setError(null);
+      idempotencyKeyRef.current = crypto.randomUUID();
     }
   }, [open]);
 
@@ -54,6 +59,7 @@ export function NewInvoiceDialog({ open, onOpenChange, clients, onCreated }: New
         client_id: clientId,
         due_date: dueDate || undefined,
         is_bill_of_charges: isBillOfCharges,
+        idempotency_key: idempotencyKeyRef.current,
       });
       toast.success('Draft invoice created');
       onOpenChange(false);

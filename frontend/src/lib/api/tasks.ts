@@ -35,6 +35,9 @@ export interface TaskUpsertPayload {
   assigned_to?: string;
   due_date?: string;
   status?: BackendTaskStatus;
+  // Client-generated key so a retried create request returns the original
+  // row instead of creating a duplicate. Create-only, ignored on update.
+  idempotency_key?: string;
 }
 
 export interface OverdueTask {

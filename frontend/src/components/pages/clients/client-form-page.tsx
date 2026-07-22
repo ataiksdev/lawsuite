@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Loader2, Save, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -87,6 +87,13 @@ export function ClientFormPage() {
   const [isDirty, setIsDirty] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
   const [formData, setFormData] = useState<ClientFormData>(() => mapClientToFormData());
+  // Guards against a second submission landing before React re-renders the
+  // disabled button (fast double-click, or a retry after a network error
+  // made the first request look like it failed).
+  const submittingRef = useRef(false);
+  // Stable for the lifetime of this create form — a retry reuses the same
+  // key so the backend returns the original row instead of a duplicate.
+  const idempotencyKeyRef = useRef<string>(crypto.randomUUID());
 
   useEffect(() => {
     if (!isEditMode || !clientId) {
@@ -165,6 +172,7 @@ export function ClientFormPage() {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (submittingRef.current) return;
 
     const payload: ClientUpsertPayload = {
       name: formData.name.trim(),
@@ -184,6 +192,7 @@ export function ClientFormPage() {
       return;
     }
 
+    submittingRef.current = true;
     setIsSaving(true);
     try {
       if (isEditMode && clientId) {
@@ -191,13 +200,14 @@ export function ClientFormPage() {
         toast.success(`"${updatedClient.name}" has been updated successfully.`);
         navigate(`/clients/${updatedClient.id}`);
       } else {
-        const createdClient = await createClient(payload);
+        const createdClient = await createClient({ ...payload, idempotency_key: idempotencyKeyRef.current });
         toast.success(`"${createdClient.name}" has been created successfully.`);
         navigate(`/clients/${createdClient.id}`);
       }
     } catch (err) {
       handleApiError(err, 'Unable to save client right now.');
     } finally {
+      submittingRef.current = false;
       setIsSaving(false);
     }
   };

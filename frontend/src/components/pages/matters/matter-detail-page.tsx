@@ -141,6 +141,13 @@ function MatterTasksSection({ matterId, members }: { matterId: string; members: 
   const [newAssignee, setNewAssignee] = React.useState('unassigned');
   const [savingNew, setSavingNew] = React.useState(false);
   const memberNameById = React.useMemo(() => new Map(members.map((m) => [m.id, m.full_name])), [members]);
+  // Guards against a second submission landing before React re-renders the
+  // disabled button (fast double-click, or a retry after a network error
+  // made the first request look like it failed). Regenerated after each
+  // successful create so the next task doesn't reuse a spent key — a retry
+  // of a failed attempt still reuses the same one, which is the point.
+  const submittingRef = React.useRef(false);
+  const idempotencyKeyRef = React.useRef<string>(crypto.randomUUID());
 
   React.useEffect(() => {
     let cancelled = false;
@@ -165,20 +172,24 @@ function MatterTasksSection({ matterId, members }: { matterId: string; members: 
   };
 
   const handleCreate = async () => {
-    if (!newTitle.trim()) return;
+    if (!newTitle.trim() || submittingRef.current) return;
+    submittingRef.current = true;
     setSavingNew(true);
     try {
       const created = await createTask(matterId, {
         title: newTitle.trim(), priority: newPriority,
         assigned_to: newAssignee === 'unassigned' ? undefined : newAssignee,
+        idempotency_key: idempotencyKeyRef.current,
       });
       setTasks((cur) => [created, ...cur]);
       setNewTitle(''); setNewPriority('medium'); setNewAssignee('unassigned');
       setShowForm(false);
+      idempotencyKeyRef.current = crypto.randomUUID();
       toast.success('Task created.');
     } catch (e) {
       handleApiError(e, 'Unable to create task.');
     } finally {
+      submittingRef.current = false;
       setSavingNew(false);
     }
   };

@@ -44,6 +44,9 @@ export interface ClientUpsertPayload {
   tin?: string;
   vat_registered?: boolean;
   billing_address?: string;
+  // Client-generated key so a retried create request returns the original
+  // row instead of creating a duplicate. Create-only, ignored on update.
+  idempotency_key?: string;
 }
 
 export async function listClients(params: ClientListParams = {}) {
@@ -65,6 +68,10 @@ export async function updateClient(clientId: string, payload: Partial<ClientUpse
   return apiClient.patch<BackendClient>(`/clients/${clientId}`, payload);
 }
 
+// Archives the client (soft delete) if it has matters or invoices, or
+// permanently deletes it if it doesn't — see backend ClientService for the
+// exact rule. Callers can't tell which happened from this response alone
+// (the deleted-row snapshot looks the same shape); check with getClient().
 export async function archiveClient(clientId: string) {
-  return apiClient.delete<void>(`/clients/${clientId}`);
+  return apiClient.delete<BackendClient>(`/clients/${clientId}`);
 }

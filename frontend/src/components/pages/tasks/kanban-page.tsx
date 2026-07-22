@@ -1231,6 +1231,13 @@ export function KanbanPage() {
   const [taskDialogState, setTaskDialogState] = useState<TaskFormState>(emptyForm(''));
   const [savingTask, setSavingTask] = useState(false);
   const [busyTaskId, setBusyTaskId] = useState<string | null>(null);
+  // Guards against a second submission landing before React re-renders the
+  // disabled button (fast double-click, or a retry after a network error
+  // made the first request look like it failed).
+  const submittingTaskRef = useRef(false);
+  // Fresh key per "start a new task" action (see openCreate) — retries of
+  // the same failed attempt reuse it, but a genuinely new task never does.
+  const taskIdempotencyKeyRef = useRef<string>(crypto.randomUUID());
   const [selectedTask, setSelectedTask] = useState<EnrichedTask | null>(null);
   const [pendingDelete, setPendingDelete] = useState<EnrichedTask | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -1352,6 +1359,7 @@ export function KanbanPage() {
 
   const openCreate = (status: BackendTaskStatus = 'todo') => {
     setTaskDialogState({ ...emptyForm(matters[0]?.id ?? ''), status });
+    taskIdempotencyKeyRef.current = crypto.randomUUID();
     setTaskDialogOpen(true);
   };
 
@@ -1367,6 +1375,8 @@ export function KanbanPage() {
   };
 
   const handleSubmit = async (state: TaskFormState) => {
+    if (submittingTaskRef.current) return;
+    submittingTaskRef.current = true;
     setSavingTask(true);
     try {
       const matter = matters.find((m) => m.id === state.matterId);
@@ -1389,6 +1399,7 @@ export function KanbanPage() {
           priority: state.priority,
           assigned_to: state.assignedTo === 'unassigned' ? undefined : state.assignedTo,
           due_date: state.dueDate || undefined,
+          idempotency_key: taskIdempotencyKeyRef.current,
         });
         setTasks((cur) => [{ ...created, matter_title: matter?.title, matter_reference_no: matter?.reference_no, client_name: matter?.client?.name }, ...cur]);
         toast.success('Task created.');
@@ -1397,6 +1408,7 @@ export function KanbanPage() {
     } catch (err) {
       handleApiError(err, 'Unable to save task.');
     } finally {
+      submittingTaskRef.current = false;
       setSavingTask(false);
     }
   };

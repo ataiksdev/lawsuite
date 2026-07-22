@@ -4,7 +4,7 @@ import json
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Response, status
 from sqlalchemy import select
 
-from app.core.database import AsyncSessionLocal
+from app.core.database import AsyncSessionLocal, _reset_rls_bypass
 from app.models.organisation import Organisation
 
 router = APIRouter()
@@ -50,6 +50,9 @@ async def google_drive_webhook(
 
 async def _enqueue_drive_change(channel_id: str, resource_id: str) -> None:
     async with AsyncSessionLocal() as db:
+        # Bypasses get_db(), so this pooled connection may still carry
+        # another request's RLS GUCs (connection-scoped) -- reset first.
+        await _reset_rls_bypass(db)
         result = await db.execute(select(Organisation).where(Organisation.drive_webhook_channel_id == channel_id))
         org = result.scalar_one_or_none()
         if not org:
@@ -131,6 +134,7 @@ async def _handle_paystack_event(event_type: str, event_data: dict) -> None:
     from app.services.billing_service import BillingService
 
     async with AsyncSessionLocal() as db:
+        await _reset_rls_bypass(db)
         service = BillingService(db)
 
         if event_type == "charge.success":

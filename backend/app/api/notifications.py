@@ -115,13 +115,17 @@ async def notification_stream(current_user: AuthUser, db: DB):
     org_id = current_user.org_id
 
     async def event_generator() -> AsyncGenerator[str, None]:
-        from app.core.database import AsyncSessionLocal
+        from app.core.database import AsyncSessionLocal, _reset_rls_bypass
 
         last_seen_id: uuid.UUID | None = None
         last_count: int = -1
 
         # Bootstrap: send current unread count immediately on connect
         async with AsyncSessionLocal() as session:
+            # This session comes straight from the pool, bypassing get_db(),
+            # so it may carry another request's RLS GUCs (connection-scoped,
+            # not transaction-scoped) -- reset before querying.
+            await _reset_rls_bypass(session)
             svc = NotificationService(session)
             count = await svc.unread_count(user_id, org_id)
             last_count = count
@@ -140,6 +144,7 @@ async def notification_stream(current_user: AuthUser, db: DB):
                 tick += 1
 
                 async with AsyncSessionLocal() as session:
+                    await _reset_rls_bypass(session)
                     svc = NotificationService(session)
 
                     # Check for new notifications since last seen

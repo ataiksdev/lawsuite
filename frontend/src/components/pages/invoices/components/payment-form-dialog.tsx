@@ -8,6 +8,7 @@ import { handleApiError } from '@/lib/error-utils';
 import { recordPayment, type BackendPayment, type PaymentMethod } from '@/lib/api/invoice-payments';
 
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -36,6 +37,8 @@ export function PaymentFormDialog({ open, onOpenChange, invoiceId, balanceDueKob
   const [method, setMethod] = useState<PaymentMethod>('bank_transfer');
   const [paidAt, setPaidAt] = useState('');
   const [reference, setReference] = useState('');
+  const [whtWithheldNaira, setWhtWithheldNaira] = useState('');
+  const [whtCreditNoteReceived, setWhtCreditNoteReceived] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -43,6 +46,8 @@ export function PaymentFormDialog({ open, onOpenChange, invoiceId, balanceDueKob
       setMethod('bank_transfer');
       setPaidAt(new Date().toISOString().slice(0, 10));
       setReference('');
+      setWhtWithheldNaira('');
+      setWhtCreditNoteReceived(false);
       setErrors({});
     }
   }, [open, balanceDueKobo]);
@@ -57,12 +62,15 @@ export function PaymentFormDialog({ open, onOpenChange, invoiceId, balanceDueKob
 
     setIsLoading(true);
     try {
+      const whtWithheld = Number(whtWithheldNaira);
       const payment = await recordPayment({
         invoice_id: invoiceId,
         amount_kobo: Math.round(amount * 100),
         method,
         paid_at: new Date(paidAt).toISOString(),
         reference: reference.trim(),
+        wht_withheld_kobo: whtWithheldNaira && whtWithheld >= 0 ? Math.round(whtWithheld * 100) : undefined,
+        wht_credit_note_received: whtCreditNoteReceived,
       });
       toast.success('Payment recorded');
       onSave(payment);
@@ -125,6 +133,22 @@ export function PaymentFormDialog({ open, onOpenChange, invoiceId, balanceDueKob
               className={cn(errors.reference && 'border-red-300 focus-visible:ring-red-300')}
             />
             {errors.reference && <p className="text-sm text-red-500">{errors.reference}</p>}
+          </div>
+
+          <div className="space-y-2 rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+            <Label htmlFor="payment-wht-withheld">WHT withheld by client (₦, optional)</Label>
+            <Input
+              id="payment-wht-withheld"
+              type="number"
+              step="0.01"
+              min="0"
+              value={whtWithheldNaira}
+              onChange={(e) => setWhtWithheldNaira(e.target.value)}
+            />
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox checked={whtCreditNoteReceived} onCheckedChange={(v) => setWhtCreditNoteReceived(!!v)} />
+              WHT credit note received
+            </label>
           </div>
 
           <DialogFooter className="gap-2 pt-2">

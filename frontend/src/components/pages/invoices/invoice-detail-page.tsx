@@ -42,6 +42,26 @@ function DetailRow({ label, value }: { label: string; value?: string | null }) {
   );
 }
 
+// Recommended rates (must match backend/app/services/tax_engine.py) — used
+// only as a placeholder when there's no base yet to derive a real percentage from.
+const DEFAULT_VAT_PERCENT = 7.5;
+const DEFAULT_WHT_PERCENT = 5;
+
+function vatableBaseKobo(inv: BackendInvoice): number {
+  return inv.line_items.filter((li) => li.is_vatable).reduce((sum, li) => sum + li.amount_kobo, 0);
+}
+
+function whtBaseKobo(inv: BackendInvoice): number {
+  return inv.line_items
+    .filter((li) => li.kind === 'professional_fee' && li.is_wht_applicable)
+    .reduce((sum, li) => sum + li.amount_kobo, 0);
+}
+
+function percentFromKobo(amountKobo: number, baseKobo: number, fallbackPercent: number): string {
+  if (baseKobo <= 0) return fallbackPercent.toFixed(2);
+  return ((amountKobo / baseKobo) * 100).toFixed(2);
+}
+
 export function InvoiceDetailPage() {
   const params = useRouteParams();
   const invoiceId = params.id;
@@ -61,8 +81,17 @@ export function InvoiceDetailPage() {
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [showVoidDialog, setShowVoidDialog] = useState(false);
   const [voidReason, setVoidReason] = useState('');
+  const [showServedDialog, setShowServedDialog] = useState(false);
+  const [servedAtInput, setServedAtInput] = useState(() => new Date().toISOString().slice(0, 10));
   const [vatOverride, setVatOverride] = useState('');
   const [whtOverride, setWhtOverride] = useState('');
+  const [dueDateInput, setDueDateInput] = useState('');
+  const [notesInput, setNotesInput] = useState('');
+
+  const syncTaxOverrideInputs = (inv: BackendInvoice) => {
+    setVatOverride(percentFromKobo(inv.vat_kobo, vatableBaseKobo(inv), DEFAULT_VAT_PERCENT));
+    setWhtOverride(percentFromKobo(inv.wht_kobo, whtBaseKobo(inv), DEFAULT_WHT_PERCENT));
+  };
 
   const load = React.useCallback(async () => {
     if (!invoiceId || !isAdmin) { setIsLoading(false); return; }
@@ -75,8 +104,9 @@ export function InvoiceDetailPage() {
       ]);
       setInvoice(inv);
       setMatters(mattersRes.items);
-      setVatOverride((inv.vat_kobo / 100).toFixed(2));
-      setWhtOverride((inv.wht_kobo / 100).toFixed(2));
+      syncTaxOverrideInputs(inv);
+      setDueDateInput(inv.due_date || '');
+      setNotesInput(inv.notes || '');
       const [clientRes, paymentsRes] = await Promise.all([
         getClient(inv.client_id),
         listPayments(invoiceId),
@@ -135,6 +165,8 @@ export function InvoiceDetailPage() {
   const canRecordPayment = ['sent', 'part_paid', 'overdue'].includes(invoice.status);
   const canMarkServed = invoice.is_bill_of_charges && !isDraft && !invoice.served_at;
   const balanceDueKobo = invoice.net_payable_kobo - invoice.amount_paid_kobo;
+  const currentVatBaseKobo = vatableBaseKobo(invoice);
+  const currentWhtBaseKobo = whtBaseKobo(invoice);
 
   const handleIssue = async () => {
     setBusyAction('issue');
@@ -167,9 +199,11 @@ export function InvoiceDetailPage() {
   const handleMarkServed = async () => {
     setBusyAction('serve');
     try {
-      const updated = await markServed(invoice.id);
+      const servedAtIso = servedAtInput ? new Date(servedAtInput).toISOString() : undefined;
+      const updated = await markServed(invoice.id, servedAtIso);
       setInvoice(updated);
       toast.success('Marked as served');
+      setShowServedDialog(false);
     } catch (err) {
       handleApiError(err, 'Unable to mark as served.');
     } finally {
@@ -199,6 +233,7 @@ export function InvoiceDetailPage() {
     try {
       const updated = await deleteLineItem(invoice.id, lineItemId);
       setInvoice(updated);
+      syncTaxOverrideInputs(updated);
       toast.success('Line item removed');
     } catch (err) {
       handleApiError(err, 'Unable to remove line item.');
@@ -212,8 +247,7 @@ export function InvoiceDetailPage() {
     try {
       const updated = await updateInvoice(invoice.id, { [field]: value });
       setInvoice(updated);
-      setVatOverride((updated.vat_kobo / 100).toFixed(2));
-      setWhtOverride((updated.wht_kobo / 100).toFixed(2));
+      syncTaxOverrideInputs(updated);
     } catch (err) {
       handleApiError(err, 'Unable to update invoice.');
     } finally {
@@ -221,12 +255,40 @@ export function InvoiceDetailPage() {
     }
   };
 
-  const handleApplyOverride = async (field: 'vat_kobo' | 'wht_kobo', naira: string) => {
-    const amount = Number(naira);
-    if (Number.isNaN(amount) || amount < 0) { toast.error('Enter a valid amount.'); return; }
+  const handleUpdateDueDate = async () => {
+    setBusyAction('due_date');
+    try {
+      const updated = await updateInvoice(invoice.id, { due_date: dueDateInput || null });
+      setInvoice(updated);
+      toast.success('Due date updated');
+    } catch (err) {
+      handleApiError(err, 'Unable to update due date.');
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const handleUpdateNotes = async () => {
+    setBusyAction('notes');
+    try {
+      const updated = await updateInvoice(invoice.id, { notes: notesInput.trim() || null });
+      setInvoice(updated);
+      toast.success('Notes updated');
+    } catch (err) {
+      handleApiError(err, 'Unable to update notes.');
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const handleApplyOverride = async (field: 'vat_kobo' | 'wht_kobo', percentStr: string) => {
+    const percent = Number(percentStr);
+    if (Number.isNaN(percent) || percent < 0) { toast.error('Enter a valid percentage.'); return; }
+    const baseKobo = field === 'vat_kobo' ? currentVatBaseKobo : currentWhtBaseKobo;
+    const overrideKobo = Math.round(baseKobo * (percent / 100));
     setBusyAction(field);
     try {
-      const updated = await updateInvoice(invoice.id, { [field]: Math.round(amount * 100) });
+      const updated = await updateInvoice(invoice.id, { [field]: overrideKobo });
       setInvoice(updated);
       toast.success('Override applied');
     } catch (err) {
@@ -249,8 +311,26 @@ export function InvoiceDetailPage() {
           </div>
           <p className="page-description">
             {client?.name || '—'} · Issued {invoice.issue_date}
-            {invoice.due_date && ` · Due ${invoice.due_date}`}
+            {!isDraft && invoice.due_date && ` · Due ${invoice.due_date}`}
           </p>
+          {isDraft && (
+            <div className="mt-2 flex items-center gap-2">
+              <span className="text-xs text-slate-500">Due date</span>
+              <Input
+                type="date"
+                value={dueDateInput}
+                onChange={(e) => setDueDateInput(e.target.value)}
+                className="h-8 w-40 text-xs"
+              />
+              <Button
+                size="sm" variant="outline" className="h-8 shrink-0 text-xs"
+                disabled={busyAction === 'due_date' || dueDateInput === (invoice.due_date || '')}
+                onClick={() => void handleUpdateDueDate()}
+              >
+                {busyAction === 'due_date' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Save'}
+              </Button>
+            </div>
+          )}
           {invoice.matter_ids.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1">
               {invoice.matter_ids.map((id) => (
@@ -279,8 +359,11 @@ export function InvoiceDetailPage() {
             </Button>
           )}
           {canMarkServed && (
-            <Button size="sm" variant="outline" disabled={busyAction === 'serve'} onClick={() => void handleMarkServed()}>
-              {busyAction === 'serve' ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <FileCheck className="mr-1.5 h-3.5 w-3.5" />}
+            <Button
+              size="sm" variant="outline"
+              onClick={() => { setServedAtInput(new Date().toISOString().slice(0, 10)); setShowServedDialog(true); }}
+            >
+              <FileCheck className="mr-1.5 h-3.5 w-3.5" />
               Mark Served
             </Button>
           )}
@@ -383,7 +466,10 @@ export function InvoiceDetailPage() {
             </div>
             {isDraft && (
               <div className="flex items-center gap-2">
-                <Input type="number" step="0.01" value={vatOverride} onChange={(e) => setVatOverride(e.target.value)} className="h-8 text-xs" />
+                <div className="relative flex-1">
+                  <Input type="number" step="0.01" min="0" value={vatOverride} onChange={(e) => setVatOverride(e.target.value)} className="h-8 pr-6 text-xs" />
+                  <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">%</span>
+                </div>
                 <Button size="sm" variant="outline" className="h-8 shrink-0 text-xs" disabled={busyAction === 'vat_kobo'} onClick={() => void handleApplyOverride('vat_kobo', vatOverride)}>
                   Override
                 </Button>
@@ -395,7 +481,10 @@ export function InvoiceDetailPage() {
             </div>
             {isDraft && (
               <div className="flex items-center gap-2">
-                <Input type="number" step="0.01" value={whtOverride} onChange={(e) => setWhtOverride(e.target.value)} className="h-8 text-xs" />
+                <div className="relative flex-1">
+                  <Input type="number" step="0.01" min="0" value={whtOverride} onChange={(e) => setWhtOverride(e.target.value)} className="h-8 pr-6 text-xs" />
+                  <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">%</span>
+                </div>
                 <Button size="sm" variant="outline" className="h-8 shrink-0 text-xs" disabled={busyAction === 'wht_kobo'} onClick={() => void handleApplyOverride('wht_kobo', whtOverride)}>
                   Override
                 </Button>
@@ -446,6 +535,12 @@ export function InvoiceDetailPage() {
                     <div>
                       <p className="font-medium">{formatNaira(p.amount_kobo, invoice.currency)}</p>
                       <p className="text-xs text-slate-400">{p.method.replace('_', ' ')} · {p.reference} · {new Date(p.paid_at).toLocaleDateString()}</p>
+                      {!!p.wht_withheld_kobo && (
+                        <p className="text-xs text-slate-400">
+                          WHT withheld {formatNaira(p.wht_withheld_kobo, invoice.currency)}
+                          {p.wht_credit_note_received ? ' · credit note received' : ' · credit note pending'}
+                        </p>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -453,6 +548,28 @@ export function InvoiceDetailPage() {
             )}
           </CardContent>
         </Card>
+
+        {(isDraft || invoice.notes) && (
+          <Card className="shadow-sm lg:col-span-2">
+            <CardContent className="space-y-2 p-6">
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-900 dark:text-slate-100">Notes</h3>
+              {isDraft ? (
+                <>
+                  <Textarea value={notesInput} onChange={(e) => setNotesInput(e.target.value)} rows={3} placeholder="Internal notes about this invoice (not shown on the PDF)." />
+                  <Button
+                    size="sm" variant="outline" className="h-8 text-xs"
+                    disabled={busyAction === 'notes' || notesInput.trim() === (invoice.notes || '')}
+                    onClick={() => void handleUpdateNotes()}
+                  >
+                    {busyAction === 'notes' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Save'}
+                  </Button>
+                </>
+              ) : (
+                <p className="whitespace-pre-wrap text-sm text-slate-600 dark:text-slate-400">{invoice.notes}</p>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       <LineItemFormDialog
@@ -461,7 +578,7 @@ export function InvoiceDetailPage() {
         invoiceId={invoice.id}
         matters={matters}
         lineItem={editingLineItem}
-        onSave={(updated) => setInvoice(updated)}
+        onSave={(updated) => { setInvoice(updated); syncTaxOverrideInputs(updated); }}
       />
 
       <PaymentFormDialog
@@ -483,6 +600,24 @@ export function InvoiceDetailPage() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={() => void handleVoid()} disabled={busyAction === 'void'}>
               Void Invoice
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showServedDialog} onOpenChange={setShowServedDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Mark as served?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Records the date this Bill of Charges was served on the client — defaults to today, but can be backdated.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Input type="date" value={servedAtInput} onChange={(e) => setServedAtInput(e.target.value)} />
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void handleMarkServed()} disabled={busyAction === 'serve'}>
+              Mark Served
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

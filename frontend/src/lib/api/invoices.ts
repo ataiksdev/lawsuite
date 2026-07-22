@@ -106,9 +106,9 @@ export interface InvoiceCreatePayload {
 export interface InvoiceUpdatePayload {
   client_id?: string;
   issue_date?: string;
-  due_date?: string;
+  due_date?: string | null;
   currency?: string;
-  notes?: string;
+  notes?: string | null;
   vat_enabled?: boolean;
   wht_enabled?: boolean;
   is_bill_of_charges?: boolean;

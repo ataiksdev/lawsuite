@@ -12,7 +12,9 @@ import { navigate } from './router';
  *
  * Behaviour by error type:
  *   PaymentRequiredError (402) — amber toast with "Upgrade" action linking to billing
- *   NetworkError               — persistent red toast with "Check connection" hint
+ *   NetworkError (read)        — persistent red toast with "Check connection" hint
+ *   NetworkError (write)       — longer-lived toast warning the action may have
+ *                                 already completed, since fetch never saw a response
  *   ApiClientError             — red toast with backend detail message
  *   unknown                    — red toast with the provided fallback message
  *
@@ -34,10 +36,17 @@ export function handleApiError(err: unknown, fallback: string): void {
   }
 
   if (err instanceof NetworkError) {
-    toast.error(err.message, {
-      duration: 8_000,
-      description: 'Check your internet connection and try again.',
-    });
+    if (err.duringWrite) {
+      toast.error('Action may not have gone through', {
+        duration: 12_000,
+        description: err.message,
+      });
+    } else {
+      toast.error(err.message, {
+        duration: 8_000,
+        description: 'Check your internet connection and try again.',
+      });
+    }
     return;
   }
 

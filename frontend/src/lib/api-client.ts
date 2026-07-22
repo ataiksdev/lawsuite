@@ -36,9 +36,19 @@ export class ApiClientError extends Error {
 }
 
 export class NetworkError extends Error {
-  constructor(message = 'Network error. Please check your connection.') {
+  /**
+   * True when this happened on a POST/PATCH/PUT/DELETE. A write that never
+   * got a response back may still have reached and completed on the server
+   * (see api-client's request() catch block and error-utils' handleApiError)
+   * -- callers should warn about possible duplication rather than inviting
+   * an immediate retry.
+   */
+  duringWrite: boolean;
+
+  constructor(message = 'Network error. Please check your connection.', duringWrite = false) {
     super(message);
     this.name = 'NetworkError';
+    this.duringWrite = duringWrite;
   }
 }
 
@@ -240,13 +250,15 @@ class ApiClient {
     try {
       const response = await fetch(url, fetchOptions);
 
+      const isMutating = config.method !== 'GET';
+
       // Handle 401 — attempt token refresh once
       if (response.status === 401 && !config.skipAuth) {
         const newToken = await this.refreshToken();
         if (newToken) {
           config.headers = { ...config.headers, Authorization: `Bearer ${newToken}` };
           const retryResponse = await fetch(url, { ...fetchOptions, headers: config.headers });
-          if (!retryResponse.ok) throw await this.handleError(retryResponse);
+          if (!retryResponse.ok) throw await this.handleError(retryResponse, isMutating);
           const data = await retryResponse.json();
           return this.runResponseInterceptors(data) as T;
         } else {
@@ -255,7 +267,7 @@ class ApiClient {
         }
       }
 
-      if (!response.ok) throw await this.handleError(response);
+      if (!response.ok) throw await this.handleError(response, isMutating);
 
       // 204 No Content
       if (response.status === 204) return undefined as unknown as T;
@@ -273,9 +285,17 @@ class ApiClient {
       ) {
         throw await this.runErrorInterceptors(error);
       }
-      // Network / connection failure
+      // Network / connection failure — fetch itself threw, so we never saw a
+      // response at all. On a mutating request the server may well have
+      // received and completed it before the connection dropped.
       if (error instanceof TypeError && error.message.toLowerCase().includes('fetch')) {
-        const networkError = new NetworkError();
+        const isMutating = config.method !== 'GET';
+        const networkError = new NetworkError(
+          isMutating
+            ? "We couldn't confirm this action reached the server. It may have already completed — refresh and check before retrying."
+            : 'Network error. Please check your connection.',
+          isMutating
+        );
         throw await this.runErrorInterceptors(networkError);
       }
       throw await this.runErrorInterceptors(error as Error);
@@ -321,7 +341,7 @@ class ApiClient {
   // Error Handling
   // --------------------------------------------------------------------------
 
-  private async handleError(response: Response): Promise<Error> {
+  private async handleError(response: Response, isMutating = false): Promise<Error> {
     let errorData: ApiError = { detail: 'An unexpected error occurred' };
     try {
       errorData = await response.json();
@@ -365,7 +385,12 @@ class ApiClient {
       case 502:
       case 503:
       case 504:
-        return new NetworkError('The server is temporarily unavailable. Please try again.');
+        return new NetworkError(
+          isMutating
+            ? "The server didn't respond in time — this action may have already completed. Refresh and check before retrying."
+            : 'The server is temporarily unavailable. Please try again.',
+          isMutating
+        );
       default:
         return new ApiClientError(
           response.status,

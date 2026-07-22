@@ -14,7 +14,7 @@ const STATUS_STYLES: Record<InvoiceStatus, string> = {
   written_off: 'bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700',
 };
 
-const STATUS_LABELS: Record<InvoiceStatus, string> = {
+export const STATUS_LABELS: Record<InvoiceStatus, string> = {
   draft: 'Draft',
   sent: 'Sent',
   part_paid: 'Part Paid',

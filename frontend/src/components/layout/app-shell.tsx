@@ -21,7 +21,8 @@ import {
   UsersRound,
   Puzzle,
   CreditCard,
-  Receipt,
+  LineChart,
+  History,
   Shield,
   Sparkles,
   Clock,
@@ -205,6 +206,9 @@ interface NavItem {
   path: string;
   icon: React.ElementType;
   adminOnly?: boolean;
+  // Extra path prefixes that should also count as "active" for this item —
+  // e.g. Finance stays highlighted while browsing its Invoices sub-pages.
+  activePrefixes?: string[];
 }
 
 const mainNavItems: NavItem[] = [
@@ -222,7 +226,8 @@ const adminNavItems: NavItem[] = [
   { label: 'Team',         path: '/admin/team',         icon: UsersRound, adminOnly: true },
   { label: 'Integrations', path: '/admin/integrations', icon: Puzzle,     adminOnly: true },
   { label: 'Billing',      path: '/admin/billing',      icon: CreditCard, adminOnly: true },
-  { label: 'Invoices',     path: '/admin/invoices',     icon: Receipt,    adminOnly: true },
+  { label: 'Finance',      path: '/admin/finance',      icon: LineChart,  adminOnly: true, activePrefixes: ['/admin/invoices'] },
+  { label: 'Audit Log',    path: '/admin/audit-log',    icon: History,    adminOnly: true },
 ];
 
 const platformAdminNavItem: NavItem = {
@@ -240,10 +245,13 @@ const bottomNavItems: NavItem[] = [
 // Helpers
 // ============================================================================
 
-function isRouteActive(currentRoute: string, path: string): boolean {
+function isRouteActive(currentRoute: string, path: string, activePrefixes?: string[]): boolean {
   if (path === '/') return currentRoute === '/' || currentRoute === '';
   const normalized = path.endsWith('/') ? path : path + '/';
-  return currentRoute === path || currentRoute.startsWith(normalized);
+  if (currentRoute === path || currentRoute.startsWith(normalized)) return true;
+  return (activePrefixes || []).some(
+    (prefix) => currentRoute === prefix || currentRoute.startsWith(prefix.endsWith('/') ? prefix : prefix + '/')
+  );
 }
 
 // ============================================================================
@@ -482,7 +490,7 @@ function SidebarContent({
                     <NavItemButton
                       key={item.path}
                       item={item}
-                      isActive={isRouteActive(currentRoute, item.path)}
+                      isActive={isRouteActive(currentRoute, item.path, item.activePrefixes)}
                       collapsed={collapsed}
                       onClick={() => handleNavClick(item.path)}
                     />

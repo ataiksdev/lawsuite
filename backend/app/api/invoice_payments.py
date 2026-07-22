@@ -11,7 +11,7 @@ import uuid
 
 from fastapi import APIRouter, Query, status
 
-from app.core.deps import ScopedDB, AuthUser, MemberUser
+from app.core.deps import ScopedDB, AdminUser
 from app.schemas.payment import PaymentCreate, PaymentResponse
 from app.services.invoice_payment_service import InvoicePaymentService
 
@@ -19,7 +19,7 @@ router = APIRouter()
 
 
 @router.post("", response_model=PaymentResponse, status_code=status.HTTP_201_CREATED)
-async def record_payment(payload: PaymentCreate, current_user: MemberUser, db: ScopedDB):
+async def record_payment(payload: PaymentCreate, current_user: AdminUser, db: ScopedDB):
     service = InvoicePaymentService(db)
     payment = await service.record_payment(current_user.org_id, current_user.user_id, payload)
     return PaymentResponse.model_validate(payment)
@@ -27,7 +27,7 @@ async def record_payment(payload: PaymentCreate, current_user: MemberUser, db: S
 
 @router.get("", response_model=list[PaymentResponse])
 async def list_payments(
-    current_user: AuthUser,
+    current_user: AdminUser,
     db: ScopedDB,
     invoice_id: uuid.UUID = Query(...),
 ):

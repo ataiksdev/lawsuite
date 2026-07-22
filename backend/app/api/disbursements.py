@@ -12,7 +12,7 @@ import uuid
 
 from fastapi import APIRouter, Query, status
 
-from app.core.deps import ScopedDB, AuthUser, MemberUser
+from app.core.deps import ScopedDB, AdminUser
 from app.schemas.disbursement import DisbursementCreate, DisbursementResponse, DisbursementUpdate
 from app.services.disbursement_service import DisbursementService
 
@@ -22,7 +22,7 @@ router = APIRouter()
 @router.get("/{matter_id}/disbursements", response_model=list[DisbursementResponse])
 async def list_disbursements(
     matter_id: uuid.UUID,
-    current_user: AuthUser,
+    current_user: AdminUser,
     db: ScopedDB,
     unbilled_only: bool = Query(False),
 ):
@@ -39,7 +39,7 @@ async def list_disbursements(
 async def create_disbursement(
     matter_id: uuid.UUID,
     payload: DisbursementCreate,
-    current_user: MemberUser,
+    current_user: AdminUser,
     db: ScopedDB,
 ):
     service = DisbursementService(db)
@@ -52,7 +52,7 @@ async def update_disbursement(
     matter_id: uuid.UUID,
     disbursement_id: uuid.UUID,
     payload: DisbursementUpdate,
-    current_user: MemberUser,
+    current_user: AdminUser,
     db: ScopedDB,
 ):
     service = DisbursementService(db)
@@ -64,7 +64,7 @@ async def update_disbursement(
 async def delete_disbursement(
     matter_id: uuid.UUID,
     disbursement_id: uuid.UUID,
-    current_user: MemberUser,
+    current_user: AdminUser,
     db: ScopedDB,
 ):
     service = DisbursementService(db)

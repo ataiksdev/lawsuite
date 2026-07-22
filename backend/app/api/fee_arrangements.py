@@ -11,7 +11,7 @@ import uuid
 
 from fastapi import APIRouter, status
 
-from app.core.deps import ScopedDB, AuthUser, MemberUser
+from app.core.deps import ScopedDB, AdminUser
 from app.schemas.fee_arrangement import FeeArrangementCreate, FeeArrangementResponse, FeeArrangementUpdate
 from app.services.fee_arrangement_service import FeeArrangementService
 
@@ -19,7 +19,7 @@ router = APIRouter()
 
 
 @router.get("/{matter_id}/fee-arrangements", response_model=list[FeeArrangementResponse])
-async def list_fee_arrangements(matter_id: uuid.UUID, current_user: AuthUser, db: ScopedDB):
+async def list_fee_arrangements(matter_id: uuid.UUID, current_user: AdminUser, db: ScopedDB):
     service = FeeArrangementService(db)
     arrangements = await service.list_fee_arrangements(matter_id, current_user.org_id)
     return [FeeArrangementResponse.model_validate(a) for a in arrangements]
@@ -33,7 +33,7 @@ async def list_fee_arrangements(matter_id: uuid.UUID, current_user: AuthUser, db
 async def create_fee_arrangement(
     matter_id: uuid.UUID,
     payload: FeeArrangementCreate,
-    current_user: MemberUser,
+    current_user: AdminUser,
     db: ScopedDB,
 ):
     service = FeeArrangementService(db)
@@ -46,7 +46,7 @@ async def update_fee_arrangement(
     matter_id: uuid.UUID,
     fee_arrangement_id: uuid.UUID,
     payload: FeeArrangementUpdate,
-    current_user: MemberUser,
+    current_user: AdminUser,
     db: ScopedDB,
 ):
     service = FeeArrangementService(db)

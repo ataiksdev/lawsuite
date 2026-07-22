@@ -214,6 +214,10 @@ class InvoiceService:
         self.db.add(line_item)
 
         if disbursement is not None:
+            # Flush so line_item.id exists in the DB before the disbursement's
+            # FK update references it — no ORM relationship links the two, so
+            # the unit of work can't infer insert-before-update ordering here.
+            await self.db.flush()
             disbursement.invoiced = True
             disbursement.invoice_line_item_id = line_item.id
 

@@ -17,6 +17,7 @@ from io import BytesIO
 from fastapi import HTTPException, status
 from jinja2 import Environment, FileSystemLoader
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from xhtml2pdf import pisa
@@ -28,9 +29,11 @@ from app.models.invoice import Invoice, InvoiceStatus
 from app.models.invoice_line_item import InvoiceLineItem, LineItemKind
 from app.models.matter import Matter
 from app.models.organisation import Organisation
+from app.models.payment import Payment
 from app.schemas.invoice import InvoiceCreate, InvoiceLineItemCreate, InvoiceLineItemUpdate, UpdateInvoiceRequest
 from app.services import tax_engine
 from app.services.activity_service import ActivityService
+from app.services.audit_log_service import AuditLogService
 
 # [VERIFY with counsel — commonly cited as LPA Cap L11 LFN 2004 s.16,
 # unconfirmed]. Purely informational date math — no enforcement, no gating.
@@ -62,6 +65,7 @@ class InvoiceService:
     def __init__(self, db: AsyncSession):
         self.db = db
         self.activity = ActivityService(db)
+        self.audit = AuditLogService(db)
         template_dir = os.path.join(os.path.dirname(__file__), "..", "templates")
         self.jinja_env = Environment(loader=FileSystemLoader(template_dir))
 
@@ -225,7 +229,22 @@ class InvoiceService:
 
     # ── Create ────────────────────────────────────────────────────────────
 
+    async def _get_by_idempotency_key(self, org_id: uuid.UUID, key: str) -> Invoice | None:
+        result = await self.db.execute(
+            select(Invoice)
+            .options(selectinload(Invoice.line_items))
+            .where(Invoice.organisation_id == org_id, Invoice.idempotency_key == key)
+        )
+        return result.scalar_one_or_none()
+
     async def create_invoice(self, org_id: uuid.UUID, user_id: uuid.UUID, data: InvoiceCreate) -> Invoice:
+        # Checked first so a retried request (e.g. after the response looked
+        # like it failed) returns the original draft instead of a duplicate.
+        if data.idempotency_key:
+            existing = await self._get_by_idempotency_key(org_id, data.idempotency_key)
+            if existing:
+                return existing
+
         client = await self._validate_client(data.client_id, org_id)
         issue_date = data.issue_date or date.today()
 
@@ -238,6 +257,7 @@ class InvoiceService:
             id=uuid.uuid4(),
             organisation_id=org_id,
             client_id=data.client_id,
+            idempotency_key=data.idempotency_key,
             number=None,
             status=InvoiceStatus.draft,
             issue_date=issue_date,
@@ -259,7 +279,15 @@ class InvoiceService:
         await self.db.flush()
         await self.db.refresh(invoice, attribute_names=["line_items"])
         self._recompute_totals(invoice)
-        await self.db.commit()
+        try:
+            await self.db.commit()
+        except IntegrityError:
+            await self.db.rollback()
+            if data.idempotency_key:
+                existing = await self._get_by_idempotency_key(org_id, data.idempotency_key)
+                if existing:
+                    return existing
+            raise
         await self.db.refresh(invoice, attribute_names=["line_items"])
         return invoice
 
@@ -300,6 +328,77 @@ class InvoiceService:
 
     async def get_invoice(self, invoice_id: uuid.UUID, org_id: uuid.UUID) -> Invoice:
         return await self._get_invoice(invoice_id, org_id)
+
+    # ── Dashboard summary ────────────────────────────────────────────────
+
+    _OUTSTANDING_STATUSES = (InvoiceStatus.sent, InvoiceStatus.part_paid, InvoiceStatus.overdue)
+
+    async def get_dashboard_summary(self, org_id: uuid.UUID) -> dict:
+        balance_expr = Invoice.net_payable_kobo - Invoice.amount_paid_kobo
+
+        status_rows = await self.db.execute(
+            select(Invoice.status, func.count())
+            .where(Invoice.organisation_id == org_id)
+            .group_by(Invoice.status)
+        )
+        status_counts = {row[0].value: row[1] for row in status_rows.all()}
+
+        outstanding_kobo = (
+            await self.db.execute(
+                select(func.coalesce(func.sum(balance_expr), 0)).where(
+                    Invoice.organisation_id == org_id,
+                    Invoice.status.in_(self._OUTSTANDING_STATUSES),
+                )
+            )
+        ).scalar_one()
+
+        overdue_kobo = (
+            await self.db.execute(
+                select(func.coalesce(func.sum(balance_expr), 0)).where(
+                    Invoice.organisation_id == org_id, Invoice.status == InvoiceStatus.overdue
+                )
+            )
+        ).scalar_one()
+
+        expected_kobo = (
+            await self.db.execute(
+                select(func.coalesce(func.sum(Invoice.net_payable_kobo), 0)).where(
+                    Invoice.organisation_id == org_id, Invoice.status == InvoiceStatus.draft
+                )
+            )
+        ).scalar_one()
+
+        month_start = datetime(date.today().year, date.today().month, 1, tzinfo=timezone.utc)
+        paid_this_month_kobo = (
+            await self.db.execute(
+                select(func.coalesce(func.sum(Payment.amount_kobo), 0)).where(
+                    Payment.organisation_id == org_id, Payment.paid_at >= month_start
+                )
+            )
+        ).scalar_one()
+
+        attention_rows = await self.db.execute(
+            select(Invoice)
+            .where(
+                Invoice.organisation_id == org_id,
+                Invoice.status.in_(self._OUTSTANDING_STATUSES),
+            )
+            .order_by(
+                (Invoice.status == InvoiceStatus.overdue).desc(),
+                Invoice.due_date.asc().nulls_last(),
+                balance_expr.desc(),
+            )
+            .limit(10)
+        )
+
+        return {
+            "outstanding_kobo": outstanding_kobo,
+            "overdue_kobo": overdue_kobo,
+            "expected_kobo": expected_kobo,
+            "paid_this_month_kobo": paid_this_month_kobo,
+            "status_counts": status_counts,
+            "attention_items": list(attention_rows.scalars().all()),
+        }
 
     # ── Line items ────────────────────────────────────────────────────────
 
@@ -482,6 +581,34 @@ class InvoiceService:
         await self.db.commit()
         await self.db.refresh(invoice, attribute_names=["line_items"])
         return invoice
+
+    # ── Delete (empty drafts only) ──────────────────────────────────────────
+
+    async def delete_invoice(self, invoice_id: uuid.UUID, org_id: uuid.UUID, actor_id: uuid.UUID) -> None:
+        """Hard-deletes a draft invoice that never had any line items — a
+        stray record from an abandoned or duplicated create, not a real
+        invoice. Anything with content should be voided instead, which
+        preserves the record."""
+        invoice = await self._get_invoice(invoice_id, org_id)
+        if invoice.status != InvoiceStatus.draft or invoice.line_items:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Only an empty draft invoice (no line items) can be deleted — void it instead",
+            )
+
+        client_result = await self.db.execute(select(Client.name).where(Client.id == invoice.client_id))
+        client_name = client_result.scalar_one_or_none() or invoice.client_id
+
+        await self.audit.log(
+            org_id=org_id,
+            actor_id=actor_id,
+            action="invoice.deleted",
+            entity_type="invoice",
+            entity_id=invoice.id,
+            summary=f"Deleted empty draft invoice for client '{client_name}'",
+        )
+        await self.db.delete(invoice)
+        await self.db.commit()
 
     # ── Mark served (Bill of Charges) ─────────────────────────────────────
 

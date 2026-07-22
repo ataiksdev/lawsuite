@@ -37,6 +37,10 @@ import { IntegrationsPage } from '@/components/pages/admin/integrations-page';
 import { BillingPage } from '@/components/pages/admin/billing-page';
 import { AdminSettingsPage } from '@/components/pages/admin/admin-settings-page';
 
+// Invoice Pages (admin-only)
+import { InvoiceListPage } from '@/components/pages/invoices/invoice-list-page';
+import { InvoiceDetailPage } from '@/components/pages/invoices/invoice-detail-page';
+
 // Tasks Page
 import { KanbanPage } from '@/components/pages/tasks/kanban-page';
 
@@ -144,6 +148,8 @@ function AppRouter({ route }: { route: string }) {
   if (route === '/admin/integrations' || route === '/admin/integrations/') return <IntegrationsPage />;
   if (route === '/admin/billing' || route === '/admin/billing/') return <BillingPage />;
   if (route === '/admin/settings' || route === '/admin/settings/') return <AdminSettingsPage />;
+  if (route === '/admin/invoices' || route === '/admin/invoices/') return <InvoiceListPage />;
+  if (route.match(/^\/admin\/invoices\/([^/]+)\/?$/)) return <InvoiceDetailPage />;
   if (route.match(/^\/admin\/?$/)) return <TeamPage />;
 
   // Settings

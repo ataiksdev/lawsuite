@@ -46,6 +46,8 @@ export const ROUTES: RouteDefinition[] = [
   { path: '/admin/team', pattern: /^\/admin\/team\/?$/, name: 'Team Management', parent: '/' },
   { path: '/admin/integrations', pattern: /^\/admin\/integrations\/?$/, name: 'Integrations', parent: '/' },
   { path: '/admin/billing', pattern: /^\/admin\/billing\/?$/, name: 'Billing', parent: '/' },
+  { path: '/admin/invoices', pattern: /^\/admin\/invoices\/?$/, name: 'Invoices', icon: 'receipt', parent: '/' },
+  { path: '/admin/invoices/:id', pattern: /^\/admin\/invoices\/([^/]+)\/?$/, name: 'Invoice Details', parent: '/admin/invoices' },
   { path: '/settings', pattern: /^\/settings\/?$/, name: 'Settings', icon: 'settings', parent: '/' },
 ];
 

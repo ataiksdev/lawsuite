@@ -1,5 +1,6 @@
 # backend/app/models/__init__.py
 from app.models.activity_log import ActivityLog
+from app.models.audit_log import AuditLog
 from app.models.billing_transaction import BillingTransaction
 from app.models.calendar_event import CalendarEvent, CalendarEventType, CalendarSyncStatus
 from app.models.client import Client
@@ -55,6 +56,7 @@ __all__ = [
     "DocumentType",
     "DocumentStatus",
     "ActivityLog",
+    "AuditLog",
     "BillingTransaction",
     "Report",
     "TaskComment",

@@ -51,6 +51,7 @@ async def health():
 
 from app.api import (
     admin,
+    audit_logs,
     auth,
     billing,
     calendar,
@@ -92,3 +93,4 @@ app.include_router(disbursements.router, prefix="/matters", tags=["invoicing"])
 app.include_router(invoices.router, prefix="/invoices", tags=["invoicing"])
 app.include_router(invoice_payments.router, prefix="/invoice-payments", tags=["invoicing"])
 app.include_router(search.router, prefix="/search", tags=["search"])
+app.include_router(audit_logs.router, prefix="/audit-logs", tags=["audit-logs"])

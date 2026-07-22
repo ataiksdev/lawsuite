@@ -4,6 +4,8 @@ from datetime import date, timedelta
 import pytest
 from httpx import AsyncClient
 
+from app.core.security import create_access_token
+
 REGISTER = {
     "org_name": "Invoice Test Firm",
     "full_name": "Bola Adewale",
@@ -271,3 +273,40 @@ async def test_mark_served_requires_bill_of_charges_flag_and_computes_eligible_d
     )
     assert boc_mark.status_code == 200
     assert boc_mark.json()["eligible_to_sue_date"] == "2026-07-31"  # 30 days after 2026-07-01
+
+
+@pytest.mark.asyncio
+async def test_non_admin_member_blocked_from_all_invoicing_routes(client: AsyncClient):
+    """Invoicing is admin-only, view included — a member-role user (not just
+    viewer) must be blocked everywhere across all 4 routers."""
+    token, client_id, matter_a_id, _ = await setup_two_matters(client)
+    admin_headers = {"Authorization": f"Bearer {token}"}
+
+    me = await client.get("/auth/me", headers=admin_headers)
+    user_id = me.json()["id"]
+    org = await client.get("/auth/organisation", headers=admin_headers)
+    org_id = org.json()["id"]
+
+    member_token = create_access_token(subject=user_id, org_id=org_id, role="member")
+    member_headers = {"Authorization": f"Bearer {member_token}"}
+
+    list_resp = await client.get("/invoices", headers=member_headers)
+    assert list_resp.status_code == 403
+
+    create_resp = await client.post("/invoices", json={"client_id": client_id}, headers=member_headers)
+    assert create_resp.status_code == 403
+
+    fee_arrangement_resp = await client.get(
+        f"/matters/{matter_a_id}/fee-arrangements", headers=member_headers
+    )
+    assert fee_arrangement_resp.status_code == 403
+
+    disbursement_resp = await client.get(
+        f"/matters/{matter_a_id}/disbursements", headers=member_headers
+    )
+    assert disbursement_resp.status_code == 403
+
+    payment_resp = await client.get(
+        "/invoice-payments", params={"invoice_id": matter_a_id}, headers=member_headers
+    )
+    assert payment_resp.status_code == 403

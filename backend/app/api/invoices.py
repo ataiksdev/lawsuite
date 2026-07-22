@@ -22,7 +22,7 @@ import uuid
 
 from fastapi import APIRouter, Query, Response, status
 
-from app.core.deps import ScopedDB, AuthUser, MemberUser
+from app.core.deps import ScopedDB, AdminUser
 from app.models.invoice import Invoice, InvoiceStatus
 from app.schemas.invoice import (
     InvoiceCreate,
@@ -48,7 +48,7 @@ def _to_response(invoice: Invoice) -> InvoiceResponse:
 
 @router.get("", response_model=InvoiceListResponse)
 async def list_invoices(
-    current_user: AuthUser,
+    current_user: AdminUser,
     db: ScopedDB,
     matter_id: uuid.UUID | None = Query(None),
     client_id: uuid.UUID | None = Query(None),
@@ -75,14 +75,14 @@ async def list_invoices(
 
 
 @router.post("", response_model=InvoiceResponse, status_code=status.HTTP_201_CREATED)
-async def create_invoice(payload: InvoiceCreate, current_user: MemberUser, db: ScopedDB):
+async def create_invoice(payload: InvoiceCreate, current_user: AdminUser, db: ScopedDB):
     service = InvoiceService(db)
     invoice = await service.create_invoice(current_user.org_id, current_user.user_id, payload)
     return _to_response(invoice)
 
 
 @router.get("/{invoice_id}", response_model=InvoiceResponse)
-async def get_invoice(invoice_id: uuid.UUID, current_user: AuthUser, db: ScopedDB):
+async def get_invoice(invoice_id: uuid.UUID, current_user: AdminUser, db: ScopedDB):
     service = InvoiceService(db)
     invoice = await service.get_invoice(invoice_id, current_user.org_id)
     return _to_response(invoice)
@@ -90,7 +90,7 @@ async def get_invoice(invoice_id: uuid.UUID, current_user: AuthUser, db: ScopedD
 
 @router.patch("/{invoice_id}", response_model=InvoiceResponse)
 async def update_invoice(
-    invoice_id: uuid.UUID, payload: UpdateInvoiceRequest, current_user: MemberUser, db: ScopedDB
+    invoice_id: uuid.UUID, payload: UpdateInvoiceRequest, current_user: AdminUser, db: ScopedDB
 ):
     service = InvoiceService(db)
     invoice = await service.update_invoice(invoice_id, current_user.org_id, payload)
@@ -98,7 +98,7 @@ async def update_invoice(
 
 
 @router.post("/{invoice_id}/issue", response_model=InvoiceResponse)
-async def issue_invoice(invoice_id: uuid.UUID, current_user: MemberUser, db: ScopedDB):
+async def issue_invoice(invoice_id: uuid.UUID, current_user: AdminUser, db: ScopedDB):
     service = InvoiceService(db)
     invoice = await service.issue_invoice(invoice_id, current_user.org_id, current_user.user_id)
     return _to_response(invoice)
@@ -106,7 +106,7 @@ async def issue_invoice(invoice_id: uuid.UUID, current_user: MemberUser, db: Sco
 
 @router.post("/{invoice_id}/void", response_model=InvoiceResponse)
 async def void_invoice(
-    invoice_id: uuid.UUID, payload: VoidInvoiceRequest, current_user: MemberUser, db: ScopedDB
+    invoice_id: uuid.UUID, payload: VoidInvoiceRequest, current_user: AdminUser, db: ScopedDB
 ):
     service = InvoiceService(db)
     invoice = await service.void_invoice(invoice_id, current_user.org_id, current_user.user_id, payload.reason)
@@ -115,7 +115,7 @@ async def void_invoice(
 
 @router.post("/{invoice_id}/mark-served", response_model=InvoiceResponse)
 async def mark_served(
-    invoice_id: uuid.UUID, payload: MarkServedRequest, current_user: MemberUser, db: ScopedDB
+    invoice_id: uuid.UUID, payload: MarkServedRequest, current_user: AdminUser, db: ScopedDB
 ):
     service = InvoiceService(db)
     invoice = await service.mark_served(invoice_id, current_user.org_id, payload.served_at)
@@ -123,7 +123,7 @@ async def mark_served(
 
 
 @router.get("/{invoice_id}/pdf")
-async def get_invoice_pdf(invoice_id: uuid.UUID, current_user: AuthUser, db: ScopedDB):
+async def get_invoice_pdf(invoice_id: uuid.UUID, current_user: AdminUser, db: ScopedDB):
     service = InvoiceService(db)
     pdf_bytes = await service.render_pdf(invoice_id, current_user.org_id)
     return Response(content=pdf_bytes, media_type="application/pdf")
@@ -131,7 +131,7 @@ async def get_invoice_pdf(invoice_id: uuid.UUID, current_user: AuthUser, db: Sco
 
 @router.post("/{invoice_id}/line-items", response_model=InvoiceResponse)
 async def add_line_item(
-    invoice_id: uuid.UUID, payload: InvoiceLineItemCreate, current_user: MemberUser, db: ScopedDB
+    invoice_id: uuid.UUID, payload: InvoiceLineItemCreate, current_user: AdminUser, db: ScopedDB
 ):
     service = InvoiceService(db)
     invoice = await service.add_line_item(invoice_id, current_user.org_id, payload)
@@ -143,7 +143,7 @@ async def update_line_item(
     invoice_id: uuid.UUID,
     line_item_id: uuid.UUID,
     payload: InvoiceLineItemUpdate,
-    current_user: MemberUser,
+    current_user: AdminUser,
     db: ScopedDB,
 ):
     service = InvoiceService(db)
@@ -153,7 +153,7 @@ async def update_line_item(
 
 @router.delete("/{invoice_id}/line-items/{line_item_id}", response_model=InvoiceResponse)
 async def delete_line_item(
-    invoice_id: uuid.UUID, line_item_id: uuid.UUID, current_user: MemberUser, db: ScopedDB
+    invoice_id: uuid.UUID, line_item_id: uuid.UUID, current_user: AdminUser, db: ScopedDB
 ):
     service = InvoiceService(db)
     invoice = await service.delete_line_item(invoice_id, line_item_id, current_user.org_id)

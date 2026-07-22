@@ -72,11 +72,12 @@ async def update_client(
 
 
 @router.delete("/{client_id}", response_model=ClientResponse)
-async def archive_client(client_id: uuid.UUID, current_user: MemberUser, db: ScopedDB):
+async def delete_client(client_id: uuid.UUID, current_user: MemberUser, db: ScopedDB):
     """
-    Archive a client (soft delete). The client's matters are preserved.
-    Use PATCH to reactivate.
+    A client with no matters and no invoices is permanently deleted
+    (audit-logged). Otherwise this archives it instead (soft delete, matters
+    preserved, reactivate via PATCH).
     """
     service = ClientService(db)
-    client = await service.archive_client(client_id, current_user.org_id)
-    return ClientResponse.model_validate(client)
+    result = await service.delete_or_archive_client(client_id, current_user.org_id, current_user.user_id)
+    return ClientResponse.model_validate(result)

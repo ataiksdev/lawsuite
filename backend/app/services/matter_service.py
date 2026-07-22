@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -146,12 +147,26 @@ class MatterService:
     async def get_matter(self, matter_id: uuid.UUID, org_id: uuid.UUID) -> Matter:
         return await self._get_matter(matter_id, org_id)
 
+    async def _get_by_idempotency_key(self, org_id: uuid.UUID, key: str) -> Matter | None:
+        result = await self.db.execute(
+            select(Matter).where(Matter.organisation_id == org_id, Matter.idempotency_key == key)
+        )
+        return result.scalar_one_or_none()
+
     async def create_matter(
         self,
         org_id: uuid.UUID,
         user_id: uuid.UUID,
         data: MatterCreate,
     ) -> Matter:
+        # Checked first, before burning a reference number or re-running
+        # limit/client checks, so a retried request just returns the
+        # original matter instead of creating a duplicate.
+        if data.idempotency_key:
+            existing = await self._get_by_idempotency_key(org_id, data.idempotency_key)
+            if existing:
+                return await self._get_matter(existing.id, org_id)
+
         from app.services.billing_service import BillingService
 
         await BillingService(self.db).check_matter_limit(org_id)
@@ -162,6 +177,7 @@ class MatterService:
         matter = Matter(
             organisation_id=org_id,
             client_id=data.client_id,
+            idempotency_key=data.idempotency_key,
             assigned_to=data.assigned_to,
             title=data.title.strip(),
             reference_no=reference_no,
@@ -196,7 +212,15 @@ class MatterService:
                 link=f"/matters/{matter.id}",
             )
 
-        await self.db.commit()
+        try:
+            await self.db.commit()
+        except IntegrityError:
+            await self.db.rollback()
+            if data.idempotency_key:
+                existing = await self._get_by_idempotency_key(org_id, data.idempotency_key)
+                if existing:
+                    return await self._get_matter(existing.id, org_id)
+            raise
         await self.db.refresh(matter)
 
         if matter.assigned_to and matter.assigned_to != user_id:

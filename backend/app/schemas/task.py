@@ -15,6 +15,9 @@ class TaskCreate(BaseModel):
     priority: TaskPriority = TaskPriority.medium
     assigned_to: uuid.UUID | None = None
     due_date: date | None = None
+    # Client-generated key so a retried request returns the original row
+    # instead of creating a duplicate — see TaskService.create_task.
+    idempotency_key: str | None = Field(None, max_length=100)
 
 
 class TaskUpdate(BaseModel):

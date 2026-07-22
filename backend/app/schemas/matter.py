@@ -17,6 +17,9 @@ class MatterCreate(BaseModel):
     description: str | None = None
     assigned_to: uuid.UUID | None = None
     target_close_at: datetime | None = None
+    # Client-generated key so a retried request returns the original row
+    # instead of creating a duplicate — see MatterService.create_matter.
+    idempotency_key: str | None = Field(None, max_length=100)
 
 
 class MatterUpdate(BaseModel):

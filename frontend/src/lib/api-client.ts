@@ -439,6 +439,22 @@ class ApiClient {
     if (!response.ok) throw await this.handleError(response);
     return response.json() as Promise<T>;
   }
+
+  // --------------------------------------------------------------------------
+  // Blob Download (e.g. authenticated PDF endpoints — no JSON response body)
+  // --------------------------------------------------------------------------
+
+  async getBlob(path: string): Promise<Blob> {
+    const token = this.getAccessToken();
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const response = await fetch(`${this.baseUrl}${path}`, {
+      method: 'GET',
+      headers,
+    });
+    if (!response.ok) throw await this.handleError(response);
+    return response.blob();
+  }
 }
 
 // ============================================================================

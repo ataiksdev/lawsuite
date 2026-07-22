@@ -1,5 +1,7 @@
 import apiClient from '../api-client';
 
+export type ClientType = 'individual' | 'corporate';
+
 export interface BackendClient {
   id: string;
   organisation_id: string;
@@ -9,6 +11,10 @@ export interface BackendClient {
   address?: string | null;
   notes?: string | null;
   is_active: boolean;
+  client_type: ClientType;
+  tin?: string | null;
+  vat_registered: boolean;
+  billing_address?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -34,6 +40,10 @@ export interface ClientUpsertPayload {
   phone?: string;
   address?: string;
   notes?: string;
+  client_type?: ClientType;
+  tin?: string;
+  vat_registered?: boolean;
+  billing_address?: string;
 }
 
 export async function listClients(params: ClientListParams = {}) {

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Loader2, Save, X, CalendarIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -108,6 +108,13 @@ export function MatterFormPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [errors, setErrors] = useState<FormErrors>({});
+  // Guards against a second submission landing before React re-renders the
+  // disabled button (fast double-click, or a retry after a network error
+  // made the first request look like it failed).
+  const submittingRef = useRef(false);
+  // Stable for the lifetime of this create form — a retry reuses the same
+  // key so the backend returns the original row instead of a duplicate.
+  const idempotencyKeyRef = useRef<string>(crypto.randomUUID());
 
   useEffect(() => {
     let cancelled = false;
@@ -182,6 +189,7 @@ export function MatterFormPage() {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (submittingRef.current) return;
 
     const validationErrors = validateForm(formData);
     if (Object.keys(validationErrors).length > 0) {
@@ -198,6 +206,7 @@ export function MatterFormPage() {
       target_close_at: formData.targetCloseDate?.toISOString(),
     };
 
+    submittingRef.current = true;
     setIsSaving(true);
     try {
       if (isEditMode && matterId) {
@@ -205,13 +214,14 @@ export function MatterFormPage() {
         toast.success(`"${updatedMatter.title}" has been updated successfully.`);
         navigate(`/matters/${updatedMatter.id}`);
       } else {
-        const createdMatter = await createMatter(payload);
+        const createdMatter = await createMatter({ ...payload, idempotency_key: idempotencyKeyRef.current });
         toast.success(`"${createdMatter.title}" has been created successfully.`);
         navigate(`/matters/${createdMatter.id}`);
       }
     } catch (err) {
       handleApiError(err, 'Unable to save matter right now.');
     } finally {
+      submittingRef.current = false;
       setIsSaving(false);
     }
   };

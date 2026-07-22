@@ -74,6 +74,9 @@ export interface MatterUpsertPayload {
   description?: string;
   assigned_to?: string;
   target_close_at?: string;
+  // Client-generated key so a retried create request returns the original
+  // row instead of creating a duplicate. Create-only, ignored on update.
+  idempotency_key?: string;
 }
 
 export async function listMatters(params: MatterListParams = {}) {

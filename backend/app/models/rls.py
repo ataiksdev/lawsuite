@@ -42,6 +42,7 @@ TENANT_TABLES = [
     "invoice_line_items",
     "disbursements",
     "payments",
+    "audit_logs",
 ]
 
 _BYPASS = "current_setting('app.bypass_rls', true) = 'on'"
@@ -76,6 +77,8 @@ ALTER TABLE disbursements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE disbursements FORCE ROW LEVEL SECURITY;
 ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE payments FORCE ROW LEVEL SECURITY;
+ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE audit_logs FORCE ROW LEVEL SECURITY;
 
 -- Policies: each row is visible only to the matching organisation,
 -- unless the session has explicitly opted into app.bypass_rls = 'on'
@@ -142,6 +145,10 @@ CREATE POLICY tenant_isolation ON disbursements
 
 DROP POLICY IF EXISTS tenant_isolation ON payments;
 CREATE POLICY tenant_isolation ON payments
+    USING ({_BYPASS} OR {_ORG_MATCH});
+
+DROP POLICY IF EXISTS tenant_isolation ON audit_logs;
+CREATE POLICY tenant_isolation ON audit_logs
     USING ({_BYPASS} OR {_ORG_MATCH});
 """
 

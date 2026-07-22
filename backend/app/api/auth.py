@@ -45,6 +45,7 @@ async def register(payload: RegisterRequest, db: DB):
         organisation=OrgResponse(
             id=org.id, name=org.name, slug=org.slug,
             plan=org.plan, is_active=org.is_active, created_at=org.created_at,
+            tin=org.tin, vat_reg_no=org.vat_reg_no,
         ),
         tokens=tokens,
     )
@@ -193,6 +194,7 @@ async def complete_google_signup(payload: CompleteGoogleSignupRequest, db: DB):
         organisation=OrgResponse(
             id=org.id, name=org.name, slug=org.slug,
             plan=org.plan, is_active=org.is_active, created_at=org.created_at,
+            tin=org.tin, vat_reg_no=org.vat_reg_no,
         ),
         tokens=tokens,
     )
@@ -382,6 +384,7 @@ async def get_organisation(current_user: AuthUser, db: DB):
     return OrgResponse(
         id=org.id, name=org.name, slug=org.slug,
         plan=org.plan, is_active=org.is_active, created_at=org.created_at,
+        tin=org.tin, vat_reg_no=org.vat_reg_no,
     )
 
 
@@ -393,6 +396,7 @@ async def update_organisation(payload: UpdateOrgRequest, current_user: AdminUser
     return OrgResponse(
         id=org.id, name=org.name, slug=org.slug,
         plan=org.plan, is_active=org.is_active, created_at=org.created_at,
+        tin=org.tin, vat_reg_no=org.vat_reg_no,
     )
 
 

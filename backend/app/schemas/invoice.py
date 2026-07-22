@@ -13,7 +13,9 @@ from app.models.invoice_line_item import LineItemKind
 
 class InvoiceLineItemCreate(BaseModel):
     kind: LineItemKind
-    description: str = Field(..., min_length=1, max_length=500)
+    # Optional when disbursement_id is set — the service auto-fills it from
+    # the linked Disbursement row.
+    description: str = Field("", max_length=500)
     quantity: Decimal = Decimal("1")
     unit_amount_kobo: int = Field(..., ge=0)
     # Server computes quantity * unit_amount_kobo when omitted.

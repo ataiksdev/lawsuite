@@ -89,7 +89,11 @@ async def test_update_client(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_archive_client(client: AsyncClient):
+async def test_delete_empty_client_is_hard_deleted(client: AsyncClient):
+    """A client with no matters or invoices has no history worth archiving —
+    it's permanently deleted rather than soft-deleted. See
+    test_idempotency_and_deletes.py for the archive-when-non-empty case and
+    the audit log assertion."""
     token = await get_token(client)
     headers = {"Authorization": f"Bearer {token}"}
     created = await client.post("/clients/", json=CLIENT_PAYLOAD, headers=headers)
@@ -97,15 +101,14 @@ async def test_archive_client(client: AsyncClient):
 
     resp = await client.delete(f"/clients/{client_id}", headers=headers)
     assert resp.status_code == 200
-    assert resp.json()["is_active"] is False
 
-    # Should not appear in default listing
+    # Gone entirely — not just soft-deleted.
     list_resp = await client.get("/clients/", headers=headers)
     assert list_resp.json()["total"] == 0
-
-    # Should appear with include_inactive=true
     list_resp = await client.get("/clients/?include_inactive=true", headers=headers)
-    assert list_resp.json()["total"] == 1
+    assert list_resp.json()["total"] == 0
+    get_resp = await client.get(f"/clients/{client_id}", headers=headers)
+    assert get_resp.status_code == 404
 
 
 @pytest.mark.asyncio

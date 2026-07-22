@@ -19,6 +19,9 @@ class ClientCreate(BaseModel):
     tin: str | None = Field(None, max_length=50)
     vat_registered: bool = False
     billing_address: str | None = Field(None, max_length=1000)
+    # Client-generated key so a retried request returns the original row
+    # instead of creating a duplicate — see ClientService.create_client.
+    idempotency_key: str | None = Field(None, max_length=100)
 
 
 class ClientUpdate(BaseModel):

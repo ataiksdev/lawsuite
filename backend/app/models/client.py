@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -10,11 +10,18 @@ from app.core.database import Base
 
 class Client(Base):
     __tablename__ = "clients"
+    __table_args__ = (
+        UniqueConstraint("organisation_id", "idempotency_key", name="uq_clients_org_idempotency_key"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     organisation_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("organisations.id", ondelete="CASCADE"), nullable=False, index=True
     )
+    # Client-generated key for a create request — lets a retried request
+    # (e.g. after a network error) return the original row instead of
+    # creating a duplicate. NULL for rows created before this existed.
+    idempotency_key: Mapped[str | None] = mapped_column(String(100))
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     email: Mapped[str | None] = mapped_column(String(255))
     phone: Mapped[str | None] = mapped_column(String(50))

@@ -5,6 +5,7 @@ from typing import Any
 
 from fastapi import HTTPException, status
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.matter import Matter
@@ -118,6 +119,12 @@ class TaskService:
         result = await self.db.execute(query)
         return list(result.scalars().all()), total
 
+    async def _get_task_by_idempotency_key(self, org_id: uuid.UUID, key: str) -> Task | None:
+        result = await self.db.execute(
+            select(Task).where(Task.organisation_id == org_id, Task.idempotency_key == key)
+        )
+        return result.scalar_one_or_none()
+
     async def create_task(
         self,
         matter_id: uuid.UUID,
@@ -127,9 +134,17 @@ class TaskService:
     ) -> Task:
         await self._get_matter(matter_id, org_id)
 
+        # Checked before any side effect (activity log, notification, email)
+        # so a retried request can't double-fire those either.
+        if data.idempotency_key:
+            existing = await self._get_task_by_idempotency_key(org_id, data.idempotency_key)
+            if existing:
+                return existing
+
         task = Task(
             matter_id=matter_id,
             organisation_id=org_id,
+            idempotency_key=data.idempotency_key,
             created_by=user_id,
             assigned_to=data.assigned_to,
             title=data.title.strip(),
@@ -165,7 +180,15 @@ class TaskService:
                 link=f"/matters/{matter_id}",
             )
 
-        await self.db.commit()
+        try:
+            await self.db.commit()
+        except IntegrityError:
+            await self.db.rollback()
+            if data.idempotency_key:
+                existing = await self._get_task_by_idempotency_key(org_id, data.idempotency_key)
+                if existing:
+                    return existing
+            raise
         await self.db.refresh(task)
 
         if data.assigned_to and data.assigned_to != user_id:

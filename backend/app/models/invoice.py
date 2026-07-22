@@ -22,7 +22,10 @@ class InvoiceStatus(str, enum.Enum):
 
 class Invoice(Base):
     __tablename__ = "invoices"
-    __table_args__ = (UniqueConstraint("organisation_id", "number", name="uq_invoices_org_number"),)
+    __table_args__ = (
+        UniqueConstraint("organisation_id", "number", name="uq_invoices_org_number"),
+        UniqueConstraint("organisation_id", "idempotency_key", name="uq_invoices_org_idempotency_key"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     organisation_id: Mapped[uuid.UUID] = mapped_column(
@@ -31,6 +34,7 @@ class Invoice(Base):
     client_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), nullable=False, index=True
     )
+    idempotency_key: Mapped[str | None] = mapped_column(String(100))
 
     # Nullable — assigned only by issue_invoice() so abandoned drafts don't
     # burn numbers out of sequence. An invoice can span multiple matters (or

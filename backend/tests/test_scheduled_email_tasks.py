@@ -9,7 +9,7 @@ wrapper from testable async logic. worker_session is patched to yield the
 test's own db_session instead of opening a fresh AsyncSessionLocal.
 """
 from contextlib import asynccontextmanager
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from unittest.mock import patch
 
 import pytest
@@ -213,5 +213,83 @@ async def test_send_weekly_digest_emails_respects_default_opt_out(
 
     with _worker_session_patch(db_session):
         await _send_weekly_digest_emails()
+
+    assert not mock_resend.called
+
+
+async def _setup_calendar_event(client: AsyncClient, starts_at: datetime) -> str:
+    """Register, create a client + matter, and a calendar event on it starting at starts_at.
+    The registering admin is the event's creator (no separate assignee needed)."""
+    reg = await client.post("/auth/register", json=REGISTER)
+    token = reg.json()["tokens"]["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    cl = await client.post("/clients/", json={"name": "Calendar Client"}, headers=headers)
+    m = await client.post(
+        "/matters/",
+        json={"title": "Calendar Matter", "matter_type": "compliance", "client_id": cl.json()["id"]},
+        headers=headers,
+    )
+    matter_id = m.json()["id"]
+
+    await client.post(
+        f"/calendar/matters/{matter_id}/events",
+        json={
+            "title": "Hearing",
+            "event_type": "court_date",
+            "starts_at": starts_at.isoformat(),
+        },
+        headers=headers,
+    )
+    return token
+
+
+@pytest.mark.asyncio
+async def test_send_calendar_event_due_emails_notifies_creator(client: AsyncClient, db_session, mock_resend):
+    from app.workers.tasks import _send_calendar_event_due_emails
+
+    await _setup_calendar_event(client, datetime.now(timezone.utc) + timedelta(hours=12))
+    mock_resend.reset_mock()
+
+    with _worker_session_patch(db_session):
+        await _send_calendar_event_due_emails()
+
+    assert mock_resend.called
+    assert mock_resend.call_args[0][0]["to"] == [REGISTER["email"]]
+
+
+@pytest.mark.asyncio
+async def test_send_calendar_event_due_emails_skips_events_outside_window(
+    client: AsyncClient, db_session, mock_resend
+):
+    from app.workers.tasks import _send_calendar_event_due_emails
+
+    await _setup_calendar_event(client, datetime.now(timezone.utc) + timedelta(hours=48))
+    mock_resend.reset_mock()
+
+    with _worker_session_patch(db_session):
+        await _send_calendar_event_due_emails()
+
+    assert not mock_resend.called
+
+
+@pytest.mark.asyncio
+async def test_send_calendar_event_due_emails_respects_preference(
+    client: AsyncClient, db_session, mock_resend
+):
+    from sqlalchemy import select
+
+    from app.models.user import User
+    from app.workers.tasks import _send_calendar_event_due_emails
+
+    await _setup_calendar_event(client, datetime.now(timezone.utc) + timedelta(hours=12))
+
+    user = (await db_session.execute(select(User).where(User.email == REGISTER["email"]))).scalar_one()
+    user.notification_email_preferences = {"calendar_event_due": False}
+    await db_session.commit()
+    mock_resend.reset_mock()
+
+    with _worker_session_patch(db_session):
+        await _send_calendar_event_due_emails()
 
     assert not mock_resend.called

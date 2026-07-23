@@ -17,6 +17,28 @@ def mock_resend():
     with patch("resend.Emails.send") as mock_send:
         yield mock_send
 
+
+@pytest_asyncio.fixture(autouse=True)
+def mock_smtp():
+    """Globally mock SMTP sends to avoid real network calls in tests."""
+    with patch("app.services.email_service._send_via_smtp") as mock_send:
+        yield mock_send
+
+
+@pytest_asyncio.fixture(autouse=True)
+def force_resend_backend(monkeypatch):
+    """
+    Tests must be deterministic regardless of a developer's local .env — a
+    dev who has filled in SMTP_* for local Gmail testing would otherwise
+    silently flip every email-sending test from the mock_resend path to the
+    mock_smtp path. Force the Resend path (guaranteed configured) so
+    existing tests asserting on mock_resend keep working everywhere.
+    """
+    monkeypatch.setattr(settings, "smtp_host", "")
+    monkeypatch.setattr(settings, "smtp_user", "")
+    monkeypatch.setattr(settings, "smtp_password", "")
+    monkeypatch.setattr(settings, "resend_api_key", "test-resend-key")
+
 # Separate test database. Built from database_url_sync (the admin/owner role
 # Alembic uses) rather than database_url (the app's least-privilege runtime
 # role) because this fixture does a full drop_all/create_all per test --

@@ -1,9 +1,9 @@
 # backend/app/services/calendar_service.py
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.calendar_event import CalendarEvent, CalendarSyncStatus
@@ -68,6 +68,50 @@ class CalendarService:
             query = query.where(CalendarEvent.starts_at <= ends_before)
         result = await self.db.execute(query.order_by(CalendarEvent.starts_at.asc()))
         return list(result.scalars().all())
+
+    async def get_starting_soon(
+        self,
+        org_id: uuid.UUID,
+        hours: int = 24,
+        page: int = 1,
+        page_size: int = 50,
+    ) -> tuple[list[dict], int]:
+        """
+        Returns all calendar events starting within the next `hours` hours,
+        joined with their parent matter for context.
+        """
+        now = datetime.now(timezone.utc)
+        horizon = now + timedelta(hours=hours)
+
+        query = (
+            select(CalendarEvent, Matter)
+            .join(Matter, Matter.id == CalendarEvent.matter_id)
+            .where(
+                CalendarEvent.organisation_id == org_id,
+                CalendarEvent.starts_at.between(now, horizon),
+            )
+        )
+
+        count_q = select(func.count()).select_from(query.subquery())
+        total = (await self.db.execute(count_q)).scalar_one()
+
+        query = query.order_by(CalendarEvent.starts_at.asc()).offset((page - 1) * page_size).limit(page_size)
+        rows = (await self.db.execute(query)).all()
+
+        return [
+            {
+                "id": event.id,
+                "matter_id": event.matter_id,
+                "matter_title": matter.title,
+                "matter_reference_no": matter.reference_no,
+                "title": event.title,
+                "location": event.location,
+                "starts_at": event.starts_at,
+                "assigned_to": matter.assigned_to,
+                "created_by": event.created_by,
+            }
+            for event, matter in rows
+        ], total
 
     async def create_event(
         self,

@@ -245,6 +245,71 @@ async def _send_task_due_soon_emails() -> None:
                 pass  # One org's failure shouldn't block the others
 
 
+# ─── Calendar event reminders ─────────────────────────────────────────────────
+
+
+@celery_app.task(name="tasks.send_calendar_event_due_emails")
+def send_calendar_event_due_emails() -> None:
+    """Scheduled task (Celery beat) — runs daily, emails the assigned lawyer and/or
+    event creator about calendar events starting within the next 24 hours."""
+    asyncio.run(_send_calendar_event_due_emails())
+
+
+async def _send_calendar_event_due_emails() -> None:
+    from sqlalchemy import select
+
+    from app.core.config import settings
+    from app.core.database import worker_session
+    from app.models.organisation import Organisation
+    from app.models.user import User
+    from app.services import email_service
+    from app.services.calendar_service import CalendarService
+    from app.services.notification_preferences import should_send
+
+    async with worker_session() as db:
+        orgs = (
+            await db.execute(select(Organisation).where(Organisation.is_active == True))
+        ).scalars().all()
+
+        for org in orgs:
+            try:
+                rows, _ = await CalendarService(db).get_starting_soon(org.id, hours=24, page=1, page_size=500)
+                if not rows:
+                    continue
+
+                recipient_ids = {
+                    rid for row in rows for rid in (row["assigned_to"], row["created_by"]) if rid
+                }
+                if not recipient_ids:
+                    continue
+                users = (
+                    await db.execute(select(User).where(User.id.in_(recipient_ids)))
+                ).scalars().all()
+                users_by_id = {user.id: user for user in users}
+
+                for row in rows:
+                    # Assigned lawyer and event creator may be the same person — dedup per event.
+                    row_recipient_ids = {rid for rid in (row["assigned_to"], row["created_by"]) if rid}
+                    for recipient_id in row_recipient_ids:
+                        try:
+                            user = users_by_id.get(recipient_id)
+                            if not user or not should_send(user, "calendar_event_due"):
+                                continue
+                            await email_service.send_calendar_event_due_email(
+                                to=user.email,
+                                name=user.full_name,
+                                event_title=row["title"],
+                                matter_title=row["matter_title"],
+                                starts_at=row["starts_at"].isoformat(),
+                                calendar_url=f"{settings.frontend_url}/#/calendar",
+                                location=row["location"] or "",
+                            )
+                        except Exception:
+                            pass
+            except Exception:
+                pass  # One org's failure shouldn't block the others
+
+
 # ─── Invoice overdue sweep ────────────────────────────────────────────────────
 
 

@@ -1,7 +1,9 @@
 # backend/app/services/email_service.py
 import asyncio
 import html as _html
+import smtplib
 import resend
+from email.mime.text import MIMEText
 from pathlib import Path
 
 from app.core.config import settings
@@ -30,22 +32,55 @@ def _render(template_name: str, **kwargs) -> str:
     return _load_template(template_name).format(**safe_kwargs)
 
 
+def _smtp_configured() -> bool:
+    return bool(settings.smtp_host and settings.smtp_user and settings.smtp_password)
+
+
 def _is_configured() -> bool:
-    return bool(settings.resend_api_key)
+    return _smtp_configured() or bool(settings.resend_api_key)
 
 
-async def _send(*, to: str, subject: str, html: str) -> None:
-    """Resend's Python SDK is sync-only — offload it so it doesn't block the event loop."""
+def _send_via_smtp(*, to: str, subject: str, html: str) -> None:
+    """Blocking SMTP send — call through asyncio.to_thread, never directly."""
+    message = MIMEText(html, "html")
+    message["Subject"] = subject
+    message["From"] = f"{settings.emails_from_name} <{settings.emails_from_address or settings.smtp_user}>"
+    message["To"] = to
+
+    if settings.smtp_port == 465:
+        with smtplib.SMTP_SSL(settings.smtp_host, settings.smtp_port) as server:
+            server.login(settings.smtp_user, settings.smtp_password)
+            server.send_message(message)
+    else:
+        with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as server:
+            server.starttls()
+            server.login(settings.smtp_user, settings.smtp_password)
+            server.send_message(message)
+
+
+def _send_via_resend(*, to: str, subject: str, html: str) -> None:
     resend.api_key = settings.resend_api_key
-    await asyncio.to_thread(
-        resend.Emails.send,
+    resend.Emails.send(
         {
             "from": f"{settings.emails_from_name} <{settings.emails_from_address}>",
             "to": [to],
             "subject": subject,
             "html": html,
-        },
+        }
     )
+
+
+async def _send(*, to: str, subject: str, html: str) -> None:
+    """Both the smtplib and Resend clients are sync-only — offload so the event loop isn't blocked.
+
+    SMTP is preferred when configured (e.g. a Gmail App Password for local/dev
+    testing); Resend is used otherwise. Switching providers later is just an
+    env var change, no code change.
+    """
+    if _smtp_configured():
+        await asyncio.to_thread(_send_via_smtp, to=to, subject=subject, html=html)
+    else:
+        await asyncio.to_thread(_send_via_resend, to=to, subject=subject, html=html)
 
 
 # ---------------------------------------------------------------------------
@@ -61,7 +96,7 @@ async def send_invite_email(
     invite_url: str,
 ) -> None:
     if not _is_configured():
-        print(f"[EMAIL] Resend not configured — skipping invite email to {to}")
+        print(f"[EMAIL] No email backend configured — skipping invite email to {to}")
         print(f"[EMAIL] Invite URL: {invite_url}")
         return
 
@@ -87,7 +122,7 @@ async def send_password_reset_email(
     reset_url: str,
 ) -> None:
     if not _is_configured():
-        print(f"[EMAIL] Resend not configured — skipping password reset email to {to}")
+        print(f"[EMAIL] No email backend configured — skipping password reset email to {to}")
         print(f"[EMAIL] Reset URL: {reset_url}")
         return
 
@@ -114,7 +149,7 @@ async def send_matter_update_email(
     matter_url: str,
 ) -> None:
     if not _is_configured():
-        print(f"[EMAIL] Resend not configured — skipping matter update email to {to}")
+        print(f"[EMAIL] No email backend configured — skipping matter update email to {to}")
         return
 
     html = _render(
@@ -144,7 +179,7 @@ async def send_task_assigned_email(
     task_url: str,
 ) -> None:
     if not _is_configured():
-        print(f"[EMAIL] Resend not configured — skipping task assigned email to {to}")
+        print(f"[EMAIL] No email backend configured — skipping task assigned email to {to}")
         return
 
     html = _render(
@@ -176,7 +211,7 @@ async def send_document_shared_email(
     version_label: str = "",
 ) -> None:
     if not _is_configured():
-        print(f"[EMAIL] Resend not configured — skipping document shared email to {to}")
+        print(f"[EMAIL] No email backend configured — skipping document shared email to {to}")
         return
 
     html = _render(
@@ -209,7 +244,7 @@ async def send_task_due_soon_email(
     matter_url: str,
 ) -> None:
     if not _is_configured():
-        print(f"[EMAIL] Resend not configured — skipping task due soon email to {to}")
+        print(f"[EMAIL] No email backend configured — skipping task due soon email to {to}")
         return
 
     html = _render(
@@ -224,6 +259,41 @@ async def send_task_due_soon_email(
     )
     await _send(to=to, subject=f"Task due soon: {task_title}", html=html)
     print(f"[EMAIL] Task due soon sent to {to}")
+
+
+# ---------------------------------------------------------------------------
+# Calendar event due-soon email
+# ---------------------------------------------------------------------------
+
+async def send_calendar_event_due_email(
+    *,
+    to: str,
+    name: str,
+    event_title: str,
+    matter_title: str,
+    starts_at: str,
+    calendar_url: str,
+    location: str = "",
+) -> None:
+    if not _is_configured():
+        print(f"[EMAIL] No email backend configured — skipping calendar event email to {to}")
+        return
+
+    location_line = (
+        f'<p style="margin:0;font-size:13px;color:#7c5c47;">Location: <strong>{_html.escape(location)}</strong></p>'
+        if location
+        else ""
+    )
+    html = _load_template("calendar_event_due.html").format(
+        recipient_name=_html.escape(name or to),
+        event_title=_html.escape(event_title),
+        matter_title=_html.escape(matter_title),
+        starts_at=_html.escape(starts_at),
+        location_line=location_line,
+        calendar_url=_html.escape(calendar_url),
+    )
+    await _send(to=to, subject=f"Upcoming: {event_title}", html=html)
+    print(f"[EMAIL] Calendar event reminder sent to {to}")
 
 
 # ---------------------------------------------------------------------------
@@ -275,7 +345,7 @@ async def send_weekly_digest_email(
     tasks_url: str,
 ) -> None:
     if not _is_configured():
-        print(f"[EMAIL] Resend not configured — skipping weekly digest email to {to}")
+        print(f"[EMAIL] No email backend configured — skipping weekly digest email to {to}")
         return
 
     html = _load_template("weekly_digest.html").format(

@@ -377,6 +377,7 @@ export function UserSettingsPage() {
                   { key: 'matter_updates', label: 'Matter updates', desc: 'When a matter status changes or is updated' },
                   { key: 'task_assigned', label: 'Task assigned to me', desc: 'When a new task is assigned to you' },
                   { key: 'task_due_soon', label: 'Task due soon', desc: 'When a task deadline is approaching' },
+                  { key: 'calendar_event_due', label: 'Calendar event reminder', desc: 'When a calendar event starts within 24 hours' },
                   { key: 'document_shared', label: 'Document shared', desc: 'When a document is shared with you' },
                   { key: 'weekly_digest', label: 'Weekly digest', desc: 'Summary of weekly activity via email' },
                   { key: 'marketing_emails', label: 'Marketing emails', desc: 'Product updates and new features' },

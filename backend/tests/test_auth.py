@@ -213,6 +213,7 @@ async def test_get_notification_preferences_defaults(client: AsyncClient):
         "matter_updates": True,
         "task_assigned": True,
         "task_due_soon": True,
+        "calendar_event_due": True,
         "document_shared": True,
         "weekly_digest": False,
         "marketing_emails": False,

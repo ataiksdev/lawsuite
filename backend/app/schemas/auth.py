@@ -92,6 +92,7 @@ class NotificationPreferences(BaseModel):
     matter_updates: bool
     task_assigned: bool
     task_due_soon: bool
+    calendar_event_due: bool
     document_shared: bool
     weekly_digest: bool
     marketing_emails: bool
@@ -101,6 +102,7 @@ class UpdateNotificationPreferencesRequest(BaseModel):
     matter_updates: bool | None = None
     task_assigned: bool | None = None
     task_due_soon: bool | None = None
+    calendar_event_due: bool | None = None
     document_shared: bool | None = None
     weekly_digest: bool | None = None
     marketing_emails: bool | None = None

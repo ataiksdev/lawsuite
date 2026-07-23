@@ -13,6 +13,7 @@ DEFAULT_EMAIL_PREFERENCES: dict[str, bool] = {
     "matter_updates": True,
     "task_assigned": True,
     "task_due_soon": True,
+    "calendar_event_due": True,
     "document_shared": True,
     "weekly_digest": False,
     "marketing_emails": False,

@@ -47,3 +47,6 @@ backend/celerybeat-schedule-wal
 
 #supabase
 supabase/.temp
+
+# local-only db utility script (reads creds from env vars, but keep it out of the repo entirely)
+backend/copy_dbs.py

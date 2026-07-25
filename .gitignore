@@ -44,3 +44,6 @@ backend/celerybeat-schedule-wal
 
 # Claude Code local config — machine-specific, not for the team repo
 .claude/
+
+#supabase
+supabase/.temp

@@ -139,13 +139,16 @@ class GoogleSignInService:
             # Existing user has no org — treat as new for onboarding
             is_new = True
 
+        org = None
         if membership:
             org = (
                 await self.db.execute(select(Organisation).where(Organisation.id == membership.organisation_id))
-            ).scalar_one()
+            ).scalar_one_or_none()
+
+        if org:
             role = membership.role
         else:
-            # New user — no org yet. Return a provisional token with no org_id.
+            # User has no valid active org — return a provisional token with no org_id.
             # Frontend will POST /auth/google/complete-signup to create the org.
             await self.db.commit()
             provisional_token = TokenResponse(

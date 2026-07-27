@@ -170,6 +170,325 @@
 }
 
 /* ============================================================================
+   High-Contrast Boost — Flat "Bauhaus" (black / white / red / blue / yellow)
+   This is a toggle (Settings > Preferences), NOT a third theme — it stacks
+   on top of whichever of light/dark is active via next-themes. The block
+   below is the light-mode variant; `.dark.high-contrast` further down
+   overrides it for dark mode. Aimed at elderly / low-vision users: no
+   shadows, sharp corners, bold borders, and a deliberately small,
+   high-contrast color vocabulary instead of the app's usual soft pastel
+   badge palette.
+   ============================================================================ */
+
+.high-contrast {
+  --radius: 0px;
+  --background: #ffffff;
+  --foreground: #000000;
+  --card: #ffffff;
+  --card-foreground: #000000;
+  --popover: #ffffff;
+  --popover-foreground: #000000;
+  --primary: #0047ab;
+  --primary-foreground: #ffffff;
+  --secondary: #f9c80e;
+  --secondary-foreground: #000000;
+  --muted: #f2f2f2;
+  --muted-foreground: #000000;
+  --accent: #fff3b0;
+  --accent-foreground: #000000;
+  --destructive: #e30613;
+  --border: #000000;
+  --input: #000000;
+  --ring: #0047ab;
+  --chart-1: #0047ab;
+  --chart-2: #e30613;
+  --chart-3: #f9c80e;
+  --chart-4: #0a7d34;
+  --chart-5: #000000;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #000000;
+  --sidebar-primary: #0047ab;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #fff3b0;
+  --sidebar-accent-foreground: #000000;
+  --sidebar-border: #000000;
+  --sidebar-ring: #0047ab;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --radius-2xl: 0px;
+  --radius-3xl: 0px;
+  font-weight: 500;
+}
+
+/* High-contrast + dark: same flat/no-shadow/sharp-corner treatment, but
+   inverted to black ground / white ink with brighter accents so contrast
+   stays high against a dark background instead of relighting it to white. */
+.dark.high-contrast {
+  --background: #000000;
+  --foreground: #ffffff;
+  --card: #000000;
+  --card-foreground: #ffffff;
+  --popover: #000000;
+  --popover-foreground: #ffffff;
+  --primary: #4f92de;
+  --primary-foreground: #000000;
+  --secondary: #f9c80e;
+  --secondary-foreground: #000000;
+  --muted: #1a1a1a;
+  --muted-foreground: #ffffff;
+  --accent: #003172;
+  --accent-foreground: #ffffff;
+  --destructive: #ea3a2a;
+  --border: #ffffff;
+  --input: #ffffff;
+  --ring: #4f92de;
+  --chart-1: #4f92de;
+  --chart-2: #ea3a2a;
+  --chart-3: #f9c80e;
+  --chart-4: #4fc177;
+  --chart-5: #ffffff;
+  --sidebar: #000000;
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #4f92de;
+  --sidebar-primary-foreground: #000000;
+  --sidebar-accent: #003172;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #ffffff;
+  --sidebar-ring: #4f92de;
+}
+
+.high-contrast {
+  /* Four Bauhaus-anchored ramps that every Tailwind color family below maps
+     onto, instead of keeping 14+ distinct low-contrast pastel hues. */
+  --hc-neutral-50: #ffffff;  --hc-neutral-100: #f2f2f2; --hc-neutral-200: #dddddd;
+  --hc-neutral-300: #bfbfbf; --hc-neutral-400: #999999; --hc-neutral-500: #707070;
+  --hc-neutral-600: #4d4d4d; --hc-neutral-700: #333333; --hc-neutral-800: #1a1a1a;
+  --hc-neutral-900: #0d0d0d; --hc-neutral-950: #000000;
+
+  --hc-red-50: #fdeceb;  --hc-red-100: #fad0cc; --hc-red-200: #f2a099;
+  --hc-red-300: #e87066; --hc-red-400: #ea3a2a; --hc-red-500: #e30613;
+  --hc-red-600: #c40510; --hc-red-700: #a3040d; --hc-red-800: #7a030a;
+  --hc-red-900: #520207; --hc-red-950: #2e0104;
+
+  --hc-blue-50: #e8f0fb;  --hc-blue-100: #c4dbf5; --hc-blue-200: #8bb7ea;
+  --hc-blue-300: #4f92de; --hc-blue-400: #1c68c2; --hc-blue-500: #0047ab;
+  --hc-blue-600: #003f99; --hc-blue-700: #003172; --hc-blue-800: #00234f;
+  --hc-blue-900: #00162f; --hc-blue-950: #000c1a;
+
+  --hc-yellow-50: #fffbe8;  --hc-yellow-100: #fef3bd; --hc-yellow-200: #fde585;
+  --hc-yellow-300: #fbd94f; --hc-yellow-400: #fad02c; --hc-yellow-500: #f9c80e;
+  --hc-yellow-600: #dcb100; --hc-yellow-700: #a88900; --hc-yellow-800: #755f00;
+  --hc-yellow-900: #4a3d00; --hc-yellow-950: #2b2300;
+
+  --hc-green-50: #e8f7ec;  --hc-green-100: #c3ecce; --hc-green-200: #8ad9a2;
+  --hc-green-300: #4fc177; --hc-green-400: #279f56; --hc-green-500: #0a7d34;
+  --hc-green-600: #086b2c; --hc-green-700: #065423; --hc-green-800: #043c19;
+  --hc-green-900: #03270f; --hc-green-950: #011409;
+
+  /* Neutral families (ink/paper ramp + stone/gray/zinc/neutral) */
+  --color-slate-50: var(--hc-neutral-50);   --color-slate-100: var(--hc-neutral-100);
+  --color-slate-200: var(--hc-neutral-200); --color-slate-300: var(--hc-neutral-300);
+  --color-slate-400: var(--hc-neutral-400); --color-slate-500: var(--hc-neutral-500);
+  --color-slate-600: var(--hc-neutral-600); --color-slate-700: var(--hc-neutral-700);
+  --color-slate-800: var(--hc-neutral-800); --color-slate-900: var(--hc-neutral-900);
+  --color-slate-950: var(--hc-neutral-950);
+
+  --color-stone-50: var(--hc-neutral-50);   --color-stone-100: var(--hc-neutral-100);
+  --color-stone-200: var(--hc-neutral-200); --color-stone-300: var(--hc-neutral-300);
+  --color-stone-400: var(--hc-neutral-400); --color-stone-500: var(--hc-neutral-500);
+  --color-stone-600: var(--hc-neutral-600); --color-stone-700: var(--hc-neutral-700);
+  --color-stone-800: var(--hc-neutral-800); --color-stone-900: var(--hc-neutral-900);
+  --color-stone-950: var(--hc-neutral-950);
+
+  --color-gray-50: var(--hc-neutral-50);   --color-gray-100: var(--hc-neutral-100);
+  --color-gray-200: var(--hc-neutral-200); --color-gray-300: var(--hc-neutral-300);
+  --color-gray-400: var(--hc-neutral-400); --color-gray-500: var(--hc-neutral-500);
+  --color-gray-600: var(--hc-neutral-600); --color-gray-700: var(--hc-neutral-700);
+  --color-gray-800: var(--hc-neutral-800); --color-gray-900: var(--hc-neutral-900);
+  --color-gray-950: var(--hc-neutral-950);
+
+  --color-zinc-50: var(--hc-neutral-50);   --color-zinc-100: var(--hc-neutral-100);
+  --color-zinc-200: var(--hc-neutral-200); --color-zinc-300: var(--hc-neutral-300);
+  --color-zinc-400: var(--hc-neutral-400); --color-zinc-500: var(--hc-neutral-500);
+  --color-zinc-600: var(--hc-neutral-600); --color-zinc-700: var(--hc-neutral-700);
+  --color-zinc-800: var(--hc-neutral-800); --color-zinc-900: var(--hc-neutral-900);
+  --color-zinc-950: var(--hc-neutral-950);
+
+  --color-neutral-50: var(--hc-neutral-50);   --color-neutral-100: var(--hc-neutral-100);
+  --color-neutral-200: var(--hc-neutral-200); --color-neutral-300: var(--hc-neutral-300);
+  --color-neutral-400: var(--hc-neutral-400); --color-neutral-500: var(--hc-neutral-500);
+  --color-neutral-600: var(--hc-neutral-600); --color-neutral-700: var(--hc-neutral-700);
+  --color-neutral-800: var(--hc-neutral-800); --color-neutral-900: var(--hc-neutral-900);
+  --color-neutral-950: var(--hc-neutral-950);
+
+  /* Blue family — primary accent: emerald (this app's primary/action color),
+     plus every other "cool" hue used for info/active badges */
+  --color-emerald-50: var(--hc-blue-50);   --color-emerald-100: var(--hc-blue-100);
+  --color-emerald-200: var(--hc-blue-200); --color-emerald-300: var(--hc-blue-300);
+  --color-emerald-400: var(--hc-blue-400); --color-emerald-500: var(--hc-blue-500);
+  --color-emerald-600: var(--hc-blue-600); --color-emerald-700: var(--hc-blue-700);
+  --color-emerald-800: var(--hc-blue-800); --color-emerald-900: var(--hc-blue-900);
+  --color-emerald-950: var(--hc-blue-950);
+
+  --color-blue-50: var(--hc-blue-50);   --color-blue-100: var(--hc-blue-100);
+  --color-blue-200: var(--hc-blue-200); --color-blue-300: var(--hc-blue-300);
+  --color-blue-400: var(--hc-blue-400); --color-blue-500: var(--hc-blue-500);
+  --color-blue-600: var(--hc-blue-600); --color-blue-700: var(--hc-blue-700);
+  --color-blue-800: var(--hc-blue-800); --color-blue-900: var(--hc-blue-900);
+  --color-blue-950: var(--hc-blue-950);
+
+  --color-sky-50: var(--hc-blue-50);   --color-sky-100: var(--hc-blue-100);
+  --color-sky-200: var(--hc-blue-200); --color-sky-300: var(--hc-blue-300);
+  --color-sky-400: var(--hc-blue-400); --color-sky-500: var(--hc-blue-500);
+  --color-sky-600: var(--hc-blue-600); --color-sky-700: var(--hc-blue-700);
+  --color-sky-800: var(--hc-blue-800); --color-sky-900: var(--hc-blue-900);
+  --color-sky-950: var(--hc-blue-950);
+
+  --color-cyan-50: var(--hc-blue-50);   --color-cyan-100: var(--hc-blue-100);
+  --color-cyan-200: var(--hc-blue-200); --color-cyan-300: var(--hc-blue-300);
+  --color-cyan-400: var(--hc-blue-400); --color-cyan-500: var(--hc-blue-500);
+  --color-cyan-600: var(--hc-blue-600); --color-cyan-700: var(--hc-blue-700);
+  --color-cyan-800: var(--hc-blue-800); --color-cyan-900: var(--hc-blue-900);
+  --color-cyan-950: var(--hc-blue-950);
+
+  --color-indigo-50: var(--hc-blue-50);   --color-indigo-100: var(--hc-blue-100);
+  --color-indigo-200: var(--hc-blue-200); --color-indigo-300: var(--hc-blue-300);
+  --color-indigo-400: var(--hc-blue-400); --color-indigo-500: var(--hc-blue-500);
+  --color-indigo-600: var(--hc-blue-600); --color-indigo-700: var(--hc-blue-700);
+  --color-indigo-800: var(--hc-blue-800); --color-indigo-900: var(--hc-blue-900);
+  --color-indigo-950: var(--hc-blue-950);
+
+  --color-violet-50: var(--hc-blue-50);   --color-violet-100: var(--hc-blue-100);
+  --color-violet-200: var(--hc-blue-200); --color-violet-300: var(--hc-blue-300);
+  --color-violet-400: var(--hc-blue-400); --color-violet-500: var(--hc-blue-500);
+  --color-violet-600: var(--hc-blue-600); --color-violet-700: var(--hc-blue-700);
+  --color-violet-800: var(--hc-blue-800); --color-violet-900: var(--hc-blue-900);
+  --color-violet-950: var(--hc-blue-950);
+
+  --color-purple-50: var(--hc-blue-50);   --color-purple-100: var(--hc-blue-100);
+  --color-purple-200: var(--hc-blue-200); --color-purple-300: var(--hc-blue-300);
+  --color-purple-400: var(--hc-blue-400); --color-purple-500: var(--hc-blue-500);
+  --color-purple-600: var(--hc-blue-600); --color-purple-700: var(--hc-blue-700);
+  --color-purple-800: var(--hc-blue-800); --color-purple-900: var(--hc-blue-900);
+  --color-purple-950: var(--hc-blue-950);
+
+  --color-teal-50: var(--hc-blue-50);   --color-teal-100: var(--hc-blue-100);
+  --color-teal-200: var(--hc-blue-200); --color-teal-300: var(--hc-blue-300);
+  --color-teal-400: var(--hc-blue-400); --color-teal-500: var(--hc-blue-500);
+  --color-teal-600: var(--hc-blue-600); --color-teal-700: var(--hc-blue-700);
+  --color-teal-800: var(--hc-blue-800); --color-teal-900: var(--hc-blue-900);
+  --color-teal-950: var(--hc-blue-950);
+
+  /* Red family — destructive/error/high-priority/litigation */
+  --color-red-50: var(--hc-red-50);   --color-red-100: var(--hc-red-100);
+  --color-red-200: var(--hc-red-200); --color-red-300: var(--hc-red-300);
+  --color-red-400: var(--hc-red-400); --color-red-500: var(--hc-red-500);
+  --color-red-600: var(--hc-red-600); --color-red-700: var(--hc-red-700);
+  --color-red-800: var(--hc-red-800); --color-red-900: var(--hc-red-900);
+  --color-red-950: var(--hc-red-950);
+
+  --color-rose-50: var(--hc-red-50);   --color-rose-100: var(--hc-red-100);
+  --color-rose-200: var(--hc-red-200); --color-rose-300: var(--hc-red-300);
+  --color-rose-400: var(--hc-red-400); --color-rose-500: var(--hc-red-500);
+  --color-rose-600: var(--hc-red-600); --color-rose-700: var(--hc-red-700);
+  --color-rose-800: var(--hc-red-800); --color-rose-900: var(--hc-red-900);
+  --color-rose-950: var(--hc-red-950);
+
+  --color-pink-50: var(--hc-red-50);   --color-pink-100: var(--hc-red-100);
+  --color-pink-200: var(--hc-red-200); --color-pink-300: var(--hc-red-300);
+  --color-pink-400: var(--hc-red-400); --color-pink-500: var(--hc-red-500);
+  --color-pink-600: var(--hc-red-600); --color-pink-700: var(--hc-red-700);
+  --color-pink-800: var(--hc-red-800); --color-pink-900: var(--hc-red-900);
+  --color-pink-950: var(--hc-red-950);
+
+  /* Yellow family — warning/pending highlights */
+  --color-amber-50: var(--hc-yellow-50);   --color-amber-100: var(--hc-yellow-100);
+  --color-amber-200: var(--hc-yellow-200); --color-amber-300: var(--hc-yellow-300);
+  --color-amber-400: var(--hc-yellow-400); --color-amber-500: var(--hc-yellow-500);
+  --color-amber-600: var(--hc-yellow-600); --color-amber-700: var(--hc-yellow-700);
+  --color-amber-800: var(--hc-yellow-800); --color-amber-900: var(--hc-yellow-900);
+  --color-amber-950: var(--hc-yellow-950);
+
+  --color-orange-50: var(--hc-yellow-50);   --color-orange-100: var(--hc-yellow-100);
+  --color-orange-200: var(--hc-yellow-200); --color-orange-300: var(--hc-yellow-300);
+  --color-orange-400: var(--hc-yellow-400); --color-orange-500: var(--hc-yellow-500);
+  --color-orange-600: var(--hc-yellow-600); --color-orange-700: var(--hc-yellow-700);
+  --color-orange-800: var(--hc-yellow-800); --color-orange-900: var(--hc-yellow-900);
+  --color-orange-950: var(--hc-yellow-950);
+
+  --color-yellow-50: var(--hc-yellow-50);   --color-yellow-100: var(--hc-yellow-100);
+  --color-yellow-200: var(--hc-yellow-200); --color-yellow-300: var(--hc-yellow-300);
+  --color-yellow-400: var(--hc-yellow-400); --color-yellow-500: var(--hc-yellow-500);
+  --color-yellow-600: var(--hc-yellow-600); --color-yellow-700: var(--hc-yellow-700);
+  --color-yellow-800: var(--hc-yellow-800); --color-yellow-900: var(--hc-yellow-900);
+  --color-yellow-950: var(--hc-yellow-950);
+
+  /* Green family — kept as a distinct functional "success/done" accent;
+     collapsing it into blue would remove that meaning elsewhere in the app */
+  --color-green-50: var(--hc-green-50);   --color-green-100: var(--hc-green-100);
+  --color-green-200: var(--hc-green-200); --color-green-300: var(--hc-green-300);
+  --color-green-400: var(--hc-green-400); --color-green-500: var(--hc-green-500);
+  --color-green-600: var(--hc-green-600); --color-green-700: var(--hc-green-700);
+  --color-green-800: var(--hc-green-800); --color-green-900: var(--hc-green-900);
+  --color-green-950: var(--hc-green-950);
+
+  --color-lime-50: var(--hc-green-50);   --color-lime-100: var(--hc-green-100);
+  --color-lime-200: var(--hc-green-200); --color-lime-300: var(--hc-green-300);
+  --color-lime-400: var(--hc-green-400); --color-lime-500: var(--hc-green-500);
+  --color-lime-600: var(--hc-green-600); --color-lime-700: var(--hc-green-700);
+  --color-lime-800: var(--hc-green-800); --color-lime-900: var(--hc-green-900);
+  --color-lime-950: var(--hc-green-950);
+}
+
+/* Flat, geometric look: no drop shadows (focus rings are implemented via
+   box-shadow too, so we target decorative shadow utilities/classes
+   specifically rather than killing box-shadow everywhere). */
+.high-contrast [class*="shadow-"] {
+  box-shadow: none !important;
+}
+
+.high-contrast .card-legal:hover,
+.high-contrast .stat-card:hover,
+.high-contrast .task-card-dragging {
+  box-shadow: none !important;
+}
+
+.high-contrast .legal-gradient {
+  background: var(--hc-blue-500, #0047ab);
+}
+
+.high-contrast .legal-gradient-subtle {
+  background: var(--hc-yellow-100, #fef3bd);
+}
+
+/* Bolder structural borders on the elements that always render one anyway
+   (buttons only get this when they already carry the `border` utility —
+   ghost/link/icon buttons stay borderless) */
+.high-contrast [data-slot="card"],
+.high-contrast [data-slot="input"],
+.high-contrast [data-slot="badge"],
+.high-contrast [data-slot="button"].border,
+.high-contrast table,
+.high-contrast th,
+.high-contrast td {
+  border-width: 2px;
+}
+
+.high-contrast ::-webkit-scrollbar-thumb {
+  background: #000000;
+}
+
+.high-contrast ::-webkit-scrollbar-thumb:hover {
+  background: #333333;
+}
+
+.high-contrast * {
+  scrollbar-color: #000000 transparent;
+}
+
+/* ============================================================================
    Base Styles
    ============================================================================ */
 

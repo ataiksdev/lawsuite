@@ -4,6 +4,7 @@ import "./globals.css";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "sonner";
 import { Analytics } from "@vercel/analytics/next";
+import { HighContrastEffect } from "@/components/shared/high-contrast-effect";
 
 const sourceSerif = Source_Serif_4({
   variable: "--font-serif",
@@ -38,6 +39,7 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
+          <HighContrastEffect />
           {children}
           <Toaster position="top-right" richColors />
         </ThemeProvider>

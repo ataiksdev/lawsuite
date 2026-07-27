@@ -9,6 +9,7 @@ import {
   Eye,
   Moon,
   Sun,
+  Contrast,
   Key,
   Monitor,
   Smartphone,
@@ -20,6 +21,7 @@ import { useAuthStore } from '@/lib/auth-store';
 import { NotificationPreferences, UserRole } from '@/lib/types';
 import { useTheme } from 'next-themes';
 import apiClient, { ApiClientError } from '@/lib/api-client';
+import { useHighContrastStore } from '@/lib/high-contrast-store';
 import { MfaSettingsPage } from './mfa-settings-page';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -83,6 +85,7 @@ const mockSessions: Session[] = [
 export function UserSettingsPage() {
   const { user } = useAuthStore();
   const { theme, setTheme } = useTheme();
+  const { enabled: highContrast, toggle: toggleHighContrast } = useHighContrastStore();
 
   const [firstName, setFirstName] = useState(user?.first_name || '');
   const [lastName, setLastName] = useState(user?.last_name || '');
@@ -364,6 +367,22 @@ export function UserSettingsPage() {
                 System
               </Button>
             </div>
+          </div>
+
+          <Separator />
+
+          {/* High Contrast — a boost on top of light/dark, not a separate theme */}
+          <div className="flex items-center justify-between gap-3">
+            <div className="space-y-0.5">
+              <Label className="text-sm font-medium flex items-center gap-1.5">
+                <Contrast className="h-4 w-4" />
+                High Contrast
+              </Label>
+              <p className="text-xs text-slate-500">
+                Bolder borders, sharper colors, and no shadows for easier reading. Applies on top of your light or dark mode.
+              </p>
+            </div>
+            <Switch checked={highContrast} onCheckedChange={() => toggleHighContrast()} />
           </div>
 
           <Separator />

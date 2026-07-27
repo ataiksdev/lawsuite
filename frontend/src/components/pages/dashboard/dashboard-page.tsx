@@ -129,7 +129,7 @@ function StatCard({
   return (
     <Card
       className={cn(
-        'transition-all',
+        'border-2 transition-all',
         onClick && 'cursor-pointer hover:border-primary/40'
       )}
       onClick={onClick}

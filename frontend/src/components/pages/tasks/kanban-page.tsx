@@ -1204,7 +1204,7 @@ function TaskFormDialog({
 
 function StatCard({ label, value, accent }: { label: string; value: number; accent?: string }) {
   return (
-    <Card className="border-slate-200/80 dark:border-slate-700/80">
+    <Card className="border-2 border-slate-200/80 dark:border-slate-700/80">
       <CardContent className="p-4">
         <p className="text-xs text-slate-500">{label}</p>
         <p className={cn('mt-1 text-2xl font-bold tabular-nums text-slate-900 dark:text-slate-50', accent)}>{value}</p>

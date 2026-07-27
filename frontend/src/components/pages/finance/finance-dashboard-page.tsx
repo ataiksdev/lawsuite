@@ -1,19 +1,20 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Plus, ShieldAlert, Loader2, ArrowRight } from 'lucide-react';
+import { Plus, ShieldAlert, Loader2, ArrowRight, RotateCw } from 'lucide-react';
 import { navigate } from '@/lib/router';
-import { formatNaira } from '@/lib/utils';
+import { cn, formatNaira } from '@/lib/utils';
 import { useAuthStore } from '@/lib/auth-store';
 import { UserRole } from '@/lib/types';
 import { handleApiError } from '@/lib/error-utils';
 import {
-  getDashboardSummary, type InvoiceDashboardSummary, type BackendInvoice,
+  getDashboardSummary, type InvoiceDashboardSummary, type BackendInvoice, type SummaryPeriod,
 } from '@/lib/api/invoices';
 import { listClients, type BackendClient } from '@/lib/api/clients';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 import { NewInvoiceDialog } from '../invoices/components/new-invoice-dialog';
@@ -23,11 +24,46 @@ const STATUS_ORDER: (keyof typeof STATUS_LABELS)[] = [
   'draft', 'sent', 'part_paid', 'overdue', 'paid', 'void', 'written_off',
 ];
 
-function SummaryCard({ label, amountKobo, tone }: { label: string; amountKobo: number; tone?: 'amber' | 'red' }) {
+// Click-to-cycle period, used by the two time-scoped summary cards (Paid,
+// Professional Fee Income). Each card owns its own period independently.
+const PERIOD_ORDER: SummaryPeriod[] = ['month', 'quarter', 'year'];
+const PERIOD_LABELS: Record<SummaryPeriod, string> = { month: 'Month', quarter: 'Quarter', year: 'Year' };
+function nextPeriod(period: SummaryPeriod): SummaryPeriod {
+  return PERIOD_ORDER[(PERIOD_ORDER.indexOf(period) + 1) % PERIOD_ORDER.length];
+}
+
+function PeriodBadge({ period }: { period: SummaryPeriod }) {
   return (
-    <Card className="shadow-sm">
+    <span className="flex shrink-0 items-center gap-1 text-[10px] font-medium text-slate-400">
+      <RotateCw className="h-3 w-3" />
+      {PERIOD_LABELS[period]}
+    </span>
+  );
+}
+
+function SummaryCard({
+  label,
+  amountKobo,
+  tone,
+  period,
+  onClick,
+}: {
+  label: string;
+  amountKobo: number;
+  tone?: 'amber' | 'red';
+  period?: SummaryPeriod;
+  onClick?: () => void;
+}) {
+  return (
+    <Card
+      className={cn('border-2 shadow-sm', onClick && 'cursor-pointer transition-colors hover:border-primary/40')}
+      onClick={onClick}
+    >
       <CardContent className="p-5">
-        <p className="text-xs font-medium uppercase tracking-wider text-slate-400">{label}</p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs font-medium uppercase tracking-wider text-slate-400">{label}</p>
+          {period && <PeriodBadge period={period} />}
+        </div>
         <p
           className={
             tone === 'red'
@@ -44,6 +80,42 @@ function SummaryCard({ label, amountKobo, tone }: { label: string; amountKobo: n
   );
 }
 
+// Professional-fee-only income for the selected period. "Expected" is what's
+// been billed in professional_fee line items in that period; "received" is
+// the portion of that already collected (a payment against a mixed invoice
+// is prorated by its professional-fee share — see backend InvoiceService).
+function ProfessionalFeeIncomeCard({
+  receivedKobo,
+  expectedKobo,
+  period,
+  onClick,
+}: {
+  receivedKobo: number;
+  expectedKobo: number;
+  period: SummaryPeriod;
+  onClick: () => void;
+}) {
+  const received = receivedKobo ?? 0;
+  const expected = expectedKobo ?? 0;
+  const pct = expected > 0 ? Math.min(100, Math.round((received / expected) * 100)) : 0;
+
+  return (
+    <Card className="border-2 shadow-sm cursor-pointer transition-colors hover:border-primary/40" onClick={onClick}>
+      <CardContent className="p-5">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs font-medium uppercase tracking-wider text-slate-400">Professional Fee Income</p>
+          <PeriodBadge period={period} />
+        </div>
+        <p className="mt-1 text-2xl font-semibold tabular-nums text-slate-900 dark:text-slate-100">
+          {formatNaira(received)}
+        </p>
+        <p className="mt-0.5 text-xs text-slate-400">of {formatNaira(expected)} expected</p>
+        <Progress value={pct} className="mt-2 h-1.5" />
+      </CardContent>
+    </Card>
+  );
+}
+
 export function FinanceDashboardPage() {
   const { user } = useAuthStore();
   const isAdmin = user?.role === UserRole.ADMIN;
@@ -52,25 +124,30 @@ export function FinanceDashboardPage() {
   const [clients, setClients] = useState<BackendClient[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showNewInvoiceDialog, setShowNewInvoiceDialog] = useState(false);
+  const [paidPeriod, setPaidPeriod] = useState<SummaryPeriod>('month');
+  const [feesPeriod, setFeesPeriod] = useState<SummaryPeriod>('month');
 
-  const load = React.useCallback(async () => {
+  const loadSummary = React.useCallback(async () => {
     if (!isAdmin) { setIsLoading(false); return; }
     setIsLoading(true);
     try {
-      const [summaryRes, clientsRes] = await Promise.all([
-        getDashboardSummary(),
-        listClients({ include_inactive: true, page_size: 100 }),
-      ]);
+      const summaryRes = await getDashboardSummary({ paid_period: paidPeriod, fees_period: feesPeriod });
       setSummary(summaryRes);
-      setClients(clientsRes.items);
     } catch (err) {
       handleApiError(err, 'Unable to load the financial dashboard right now.');
     } finally {
       setIsLoading(false);
     }
-  }, [isAdmin]);
+  }, [isAdmin, paidPeriod, feesPeriod]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void loadSummary(); }, [loadSummary]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    listClients({ include_inactive: true, page_size: 100 })
+      .then((res) => setClients(res.items))
+      .catch((err) => handleApiError(err, 'Unable to load clients right now.'));
+  }, [isAdmin]);
 
   const clientNameById = React.useMemo(() => {
     const map = new Map<string, string>();
@@ -128,11 +205,22 @@ export function FinanceDashboardPage() {
         </Card>
       ) : (
         <>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
             <SummaryCard label="Outstanding" amountKobo={summary.outstanding_kobo} tone="amber" />
             <SummaryCard label="Overdue" amountKobo={summary.overdue_kobo} tone="red" />
             <SummaryCard label="Expected (Draft)" amountKobo={summary.expected_kobo} />
-            <SummaryCard label="Paid This Month" amountKobo={summary.paid_this_month_kobo} />
+            <SummaryCard
+              label="Paid"
+              amountKobo={summary.paid_period_kobo}
+              period={paidPeriod}
+              onClick={() => setPaidPeriod((p) => nextPeriod(p))}
+            />
+            <ProfessionalFeeIncomeCard
+              receivedKobo={summary.professional_fees_received_kobo}
+              expectedKobo={summary.professional_fees_expected_kobo}
+              period={feesPeriod}
+              onClick={() => setFeesPeriod((p) => nextPeriod(p))}
+            />
           </div>
 
           <Card className="shadow-sm">

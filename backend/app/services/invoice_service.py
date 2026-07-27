@@ -16,7 +16,7 @@ from io import BytesIO
 
 from fastapi import HTTPException, status
 from jinja2 import Environment, FileSystemLoader
-from sqlalchemy import func, select
+from sqlalchemy import Numeric, cast, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -333,7 +333,22 @@ class InvoiceService:
 
     _OUTSTANDING_STATUSES = (InvoiceStatus.sent, InvoiceStatus.part_paid, InvoiceStatus.overdue)
 
-    async def get_dashboard_summary(self, org_id: uuid.UUID) -> dict:
+    @staticmethod
+    def _period_start(period: str) -> datetime:
+        """UTC start-of-period boundary for "month" | "quarter" | "year"."""
+        today = date.today()
+        if period == "year":
+            start_date = date(today.year, 1, 1)
+        elif period == "quarter":
+            quarter_start_month = ((today.month - 1) // 3) * 3 + 1
+            start_date = date(today.year, quarter_start_month, 1)
+        else:
+            start_date = date(today.year, today.month, 1)
+        return datetime(start_date.year, start_date.month, start_date.day, tzinfo=timezone.utc)
+
+    async def get_dashboard_summary(
+        self, org_id: uuid.UUID, paid_period: str = "month", fees_period: str = "month"
+    ) -> dict:
         balance_expr = Invoice.net_payable_kobo - Invoice.amount_paid_kobo
 
         status_rows = await self.db.execute(
@@ -368,14 +383,19 @@ class InvoiceService:
             )
         ).scalar_one()
 
-        month_start = datetime(date.today().year, date.today().month, 1, tzinfo=timezone.utc)
-        paid_this_month_kobo = (
+        paid_period_start = self._period_start(paid_period)
+        paid_period_kobo = (
             await self.db.execute(
                 select(func.coalesce(func.sum(Payment.amount_kobo), 0)).where(
-                    Payment.organisation_id == org_id, Payment.paid_at >= month_start
+                    Payment.organisation_id == org_id, Payment.paid_at >= paid_period_start
                 )
             )
         ).scalar_one()
+
+        fees_period_start = self._period_start(fees_period)
+        professional_fees_expected_kobo, professional_fees_received_kobo = (
+            await self._get_professional_fee_income(org_id, fees_period_start)
+        )
 
         attention_rows = await self.db.execute(
             select(Invoice)
@@ -395,10 +415,72 @@ class InvoiceService:
             "outstanding_kobo": outstanding_kobo,
             "overdue_kobo": overdue_kobo,
             "expected_kobo": expected_kobo,
-            "paid_this_month_kobo": paid_this_month_kobo,
+            "paid_period_kobo": paid_period_kobo,
+            "professional_fees_expected_kobo": professional_fees_expected_kobo,
+            "professional_fees_received_kobo": professional_fees_received_kobo,
             "status_counts": status_counts,
             "attention_items": list(attention_rows.scalars().all()),
         }
+
+    async def _get_professional_fee_income(
+        self, org_id: uuid.UUID, period_start: datetime
+    ) -> tuple[int, int]:
+        """Professional-fee-only income since `period_start`: (expected, received).
+
+        "Expected" is the professional_fee portion of everything billed
+        since period_start (drafts included, void/written-off excluded —
+        those will never be collected). "Received" can't just sum Payment
+        rows, since a payment is recorded against a whole invoice that may
+        mix professional fees with disbursements/expenses — so each payment
+        is prorated by that invoice's professional-fee share.
+        """
+        period_start_date = period_start.date()
+        excluded_statuses = (InvoiceStatus.void, InvoiceStatus.written_off)
+
+        expected_kobo = (
+            await self.db.execute(
+                select(func.coalesce(func.sum(InvoiceLineItem.amount_kobo), 0))
+                .join(Invoice, InvoiceLineItem.invoice_id == Invoice.id)
+                .where(
+                    Invoice.organisation_id == org_id,
+                    Invoice.issue_date >= period_start_date,
+                    Invoice.status.notin_(excluded_statuses),
+                    InvoiceLineItem.kind == LineItemKind.professional_fee,
+                )
+            )
+        ).scalar_one()
+
+        fee_subtotal_subq = (
+            select(
+                InvoiceLineItem.invoice_id.label("invoice_id"),
+                func.sum(InvoiceLineItem.amount_kobo).label("fee_subtotal_kobo"),
+            )
+            .where(InvoiceLineItem.kind == LineItemKind.professional_fee)
+            .group_by(InvoiceLineItem.invoice_id)
+            .subquery()
+        )
+        # net_payable_kobo, not total_kobo, is what a Payment is actually
+        # collected against (see balance_expr above) — using it here means a
+        # fully-paid, 100%-fee invoice resolves to received == fee_subtotal
+        # exactly, regardless of that invoice's VAT/WHT specifics.
+        fee_share_expr = cast(fee_subtotal_subq.c.fee_subtotal_kobo, Numeric) / func.nullif(
+            Invoice.net_payable_kobo, 0
+        )
+        received_raw = (
+            await self.db.execute(
+                select(func.coalesce(func.sum(Payment.amount_kobo * fee_share_expr), 0))
+                .select_from(Payment)
+                .join(Invoice, Payment.invoice_id == Invoice.id)
+                .join(fee_subtotal_subq, fee_subtotal_subq.c.invoice_id == Invoice.id)
+                .where(
+                    Invoice.organisation_id == org_id,
+                    Payment.paid_at >= period_start,
+                    Invoice.status.notin_(excluded_statuses),
+                )
+            )
+        ).scalar_one()
+
+        return expected_kobo, int(round(received_raw or 0))
 
     # ── Line items ────────────────────────────────────────────────────────
 

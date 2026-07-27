@@ -1,10 +1,12 @@
 # backend/tests/test_invoices.py
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
+from unittest.mock import patch
 
 import pytest
 from httpx import AsyncClient
 
 from app.core.security import create_access_token
+from app.services.invoice_service import InvoiceService
 
 REGISTER = {
     "org_name": "Invoice Test Firm",
@@ -387,7 +389,7 @@ async def test_dashboard_summary_totals_and_attention_list(client: AsyncClient):
     sent_id = await create_invoice(2_000_000)
     sent_invoice = (await client.post(f"/invoices/{sent_id}/issue", headers=headers)).json()
 
-    # Sent, then fully paid today — contributes to paid_this_month_kobo, not outstanding.
+    # Sent, then fully paid today — contributes to paid_period_kobo, not outstanding.
     paid_id = await create_invoice(500_000)
     paid_invoice = (await client.post(f"/invoices/{paid_id}/issue", headers=headers)).json()
     await client.post(
@@ -410,9 +412,124 @@ async def test_dashboard_summary_totals_and_attention_list(client: AsyncClient):
 
     assert summary["expected_kobo"] >= draft_invoice["net_payable_kobo"]
     assert summary["outstanding_kobo"] >= sent_invoice["net_payable_kobo"]
-    assert summary["paid_this_month_kobo"] >= paid_invoice["net_payable_kobo"]
+    assert summary["paid_period_kobo"] >= paid_invoice["net_payable_kobo"]
 
     attention_ids = {item["id"] for item in summary["attention_items"]}
     assert sent_id in attention_ids
     assert draft_id not in attention_ids
     assert paid_id not in attention_ids
+
+
+@pytest.mark.asyncio
+async def test_professional_fee_income_this_month(client: AsyncClient):
+    """professional_fees_expected/received_kobo only ever count professional_fee
+    line items — disbursements on a mixed, fully-paid invoice must be excluded
+    from "received" even though the payment is recorded against the whole
+    invoice total (VAT/WHT included)."""
+    token, client_id, matter_a_id, _ = await setup_two_matters(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    async def pay_in_full(invoice: dict, reference: str) -> None:
+        await client.post(
+            "/invoice-payments",
+            json={
+                "invoice_id": invoice["id"],
+                "amount_kobo": invoice["net_payable_kobo"],
+                "method": "bank_transfer",
+                "paid_at": now_iso,
+                "reference": reference,
+            },
+            headers=headers,
+        )
+
+    # Pure fee invoice, fully paid this month.
+    fee_only = await client.post(
+        "/invoices",
+        json={
+            "client_id": client_id,
+            "line_items": [
+                {"kind": "professional_fee", "description": "Fee only", "unit_amount_kobo": 400_000, "matter_id": matter_a_id}
+            ],
+        },
+        headers=headers,
+    )
+    fee_only = (await client.post(f"/invoices/{fee_only.json()['id']}/issue", headers=headers)).json()
+    await pay_in_full(fee_only, "PFI-FEEONLY")
+
+    # Mixed fee + disbursement invoice, fully paid this month — only the fee
+    # share of the payment should count as received.
+    mixed = await client.post(
+        "/invoices",
+        json={
+            "client_id": client_id,
+            "line_items": [
+                {"kind": "professional_fee", "description": "Mixed fee", "unit_amount_kobo": 300_000, "matter_id": matter_a_id},
+                {"kind": "disbursement", "description": "Filing fee", "unit_amount_kobo": 150_000, "matter_id": matter_a_id},
+            ],
+        },
+        headers=headers,
+    )
+    mixed = (await client.post(f"/invoices/{mixed.json()['id']}/issue", headers=headers)).json()
+    await pay_in_full(mixed, "PFI-MIXED")
+
+    # Sent but unpaid — its fee line item counts toward expected, not received.
+    unpaid = await client.post(
+        "/invoices",
+        json={
+            "client_id": client_id,
+            "line_items": [
+                {"kind": "professional_fee", "description": "Unpaid fee", "unit_amount_kobo": 250_000, "matter_id": matter_a_id}
+            ],
+        },
+        headers=headers,
+    )
+    await client.post(f"/invoices/{unpaid.json()['id']}/issue", headers=headers)
+
+    # Draft — counts toward expected (not void/written-off), but never received.
+    await client.post(
+        "/invoices",
+        json={
+            "client_id": client_id,
+            "line_items": [
+                {"kind": "professional_fee", "description": "Draft fee", "unit_amount_kobo": 100_000, "matter_id": matter_a_id}
+            ],
+        },
+        headers=headers,
+    )
+
+    summary = (await client.get("/invoices/dashboard-summary", headers=headers)).json()
+
+    # A fully-paid invoice's fee share is exact regardless of VAT/WHT, since
+    # payment == net_payable_kobo and received = net_payable * (fee/net_payable).
+    assert summary["professional_fees_received_kobo"] == 400_000 + 300_000
+    assert summary["professional_fees_expected_kobo"] == 400_000 + 300_000 + 250_000 + 100_000
+
+
+@pytest.mark.parametrize(
+    "today, expected_month_start, expected_quarter_start, expected_year_start",
+    [
+        (date(2026, 2, 15), date(2026, 2, 1), date(2026, 1, 1), date(2026, 1, 1)),
+        (date(2026, 5, 5), date(2026, 5, 1), date(2026, 4, 1), date(2026, 1, 1)),
+        (date(2026, 8, 1), date(2026, 8, 1), date(2026, 7, 1), date(2026, 1, 1)),
+        (date(2026, 11, 30), date(2026, 11, 1), date(2026, 10, 1), date(2026, 1, 1)),
+    ],
+)
+def test_period_start_boundaries(today, expected_month_start, expected_quarter_start, expected_year_start):
+    """`_period_start` computes month/quarter/year boundaries (all as UTC-midnight
+    datetimes) that drive both the dashboard-summary period toggle and the
+    professional-fee income calculation — this pins down the calendar math
+    independent of whatever the real "today" happens to be at test time."""
+    with patch("app.services.invoice_service.date") as mock_date:
+        mock_date.today.return_value = today
+        mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+
+        assert InvoiceService._period_start("month") == datetime(
+            expected_month_start.year, expected_month_start.month, expected_month_start.day, tzinfo=timezone.utc
+        )
+        assert InvoiceService._period_start("quarter") == datetime(
+            expected_quarter_start.year, expected_quarter_start.month, expected_quarter_start.day, tzinfo=timezone.utc
+        )
+        assert InvoiceService._period_start("year") == datetime(
+            expected_year_start.year, expected_year_start.month, expected_year_start.day, tzinfo=timezone.utc
+        )

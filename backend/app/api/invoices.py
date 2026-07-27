@@ -7,7 +7,7 @@ column since one invoice can span multiple matters (see invoice_service.py).
 Routes:
   GET    /invoices                                       — list (matter_id/client_id/status filters)
   POST   /invoices                                        — create draft
-  GET    /invoices/dashboard-summary                       — outstanding/overdue/expected/paid totals + attention list
+  GET    /invoices/dashboard-summary                       — outstanding/overdue/expected/paid/professional-fee income totals + attention list
   GET    /invoices/{invoice_id}                           — get one
   PATCH  /invoices/{invoice_id}                           — edit draft
   POST   /invoices/{invoice_id}/issue                     — draft -> sent, assigns number
@@ -21,6 +21,7 @@ Routes:
 """
 import math
 import uuid
+from typing import Literal
 
 from fastapi import APIRouter, Query, Response, status
 
@@ -86,14 +87,21 @@ async def create_invoice(payload: InvoiceCreate, current_user: AdminUser, db: Sc
 
 
 @router.get("/dashboard-summary", response_model=InvoiceDashboardSummary)
-async def get_dashboard_summary(current_user: AdminUser, db: ScopedDB):
+async def get_dashboard_summary(
+    current_user: AdminUser,
+    db: ScopedDB,
+    paid_period: Literal["month", "quarter", "year"] = Query("month"),
+    fees_period: Literal["month", "quarter", "year"] = Query("month"),
+):
     service = InvoiceService(db)
-    summary = await service.get_dashboard_summary(current_user.org_id)
+    summary = await service.get_dashboard_summary(current_user.org_id, paid_period, fees_period)
     return InvoiceDashboardSummary(
         outstanding_kobo=summary["outstanding_kobo"],
         overdue_kobo=summary["overdue_kobo"],
         expected_kobo=summary["expected_kobo"],
-        paid_this_month_kobo=summary["paid_this_month_kobo"],
+        paid_period_kobo=summary["paid_period_kobo"],
+        professional_fees_expected_kobo=summary["professional_fees_expected_kobo"],
+        professional_fees_received_kobo=summary["professional_fees_received_kobo"],
         status_counts=summary["status_counts"],
         attention_items=[
             InvoiceAttentionItem(

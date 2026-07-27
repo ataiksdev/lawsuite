@@ -160,7 +160,7 @@ function StatCard({
   accent?: string;
 }) {
   return (
-    <Card className="border-slate-200/80 dark:border-slate-700/80">
+    <Card className="border-2 border-slate-200/80 dark:border-slate-700/80">
       <CardContent className="flex items-center gap-4 p-5">
         <div className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-xl', accent || 'bg-emerald-50 dark:bg-emerald-950/30')}>
           <Icon className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />

@@ -182,15 +182,19 @@ export interface InvoiceAttentionItem {
   balance_due_kobo: number;
 }
 
+export type SummaryPeriod = 'month' | 'quarter' | 'year';
+
 export interface InvoiceDashboardSummary {
   outstanding_kobo: number;
   overdue_kobo: number;
   expected_kobo: number;
-  paid_this_month_kobo: number;
+  paid_period_kobo: number;
+  professional_fees_expected_kobo: number;
+  professional_fees_received_kobo: number;
   status_counts: Record<string, number>;
   attention_items: InvoiceAttentionItem[];
 }
 
-export async function getDashboardSummary() {
-  return apiClient.get<InvoiceDashboardSummary>('/invoices/dashboard-summary');
+export async function getDashboardSummary(params: { paid_period?: SummaryPeriod; fees_period?: SummaryPeriod } = {}) {
+  return apiClient.get<InvoiceDashboardSummary>('/invoices/dashboard-summary', params);
 }

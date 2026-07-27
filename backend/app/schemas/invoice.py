@@ -170,6 +170,8 @@ class InvoiceDashboardSummary(BaseModel):
     outstanding_kobo: int
     overdue_kobo: int
     expected_kobo: int
-    paid_this_month_kobo: int
+    paid_period_kobo: int
+    professional_fees_expected_kobo: int
+    professional_fees_received_kobo: int
     status_counts: dict[str, int]
     attention_items: list[InvoiceAttentionItem]

@@ -67,9 +67,10 @@ export function LandingPage() {
       <header className="sticky top-0 z-50 bg-background border-b border-border">
         <div className="max-w-[1120px] mx-auto flex items-center gap-8 px-4 sm:px-8 py-4">
           <span
-            className="text-xl font-semibold tracking-tight cursor-pointer mr-auto"
+            className="flex items-center gap-2 text-xl font-semibold tracking-tight cursor-pointer mr-auto"
             onClick={() => navigate('/')}
           >
+            <img src="/logo.svg" alt="" className="h-7 w-7" />
             Lawmate
           </span>
 
@@ -355,7 +356,10 @@ export function LandingPage() {
 
         {/* ── Footer ── */}
         <footer className="border-t border-border py-8 flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
-          <span className="text-base font-semibold text-foreground cursor-pointer" onClick={() => navigate('/')}>Lawmate</span>
+          <span className="flex items-center gap-2 text-base font-semibold text-foreground cursor-pointer" onClick={() => navigate('/')}>
+            <img src="/logo.svg" alt="" className="h-5 w-5" />
+            Lawmate
+          </span>
           <nav className="flex flex-wrap justify-center gap-6">
             <button onClick={() => scrollToSection('features')} className="hover:text-primary transition-colors">Features</button>
             <button onClick={() => scrollToSection('impact')} className="hover:text-primary transition-colors">Impact</button>

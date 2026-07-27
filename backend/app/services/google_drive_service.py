@@ -63,7 +63,7 @@ class GoogleDriveService:
     ) -> tuple[str, str]:
         """
         Create the two-level folder hierarchy for a matter:
-          /LegalOps/
+          /Lawmate/
             /Clients/
               /{client_name}/
                 /{reference_no} — {matter_title}/   ← matter folder
@@ -75,16 +75,16 @@ class GoogleDriveService:
         safe_client = _safe_folder_name(client_name)
         safe_matter = _safe_folder_name(f"{reference_no} — {matter_title}")
 
-        # 1. LegalOps folder under root
-        legal_ops = await self._find_or_create_folder(
-            name="LegalOps",
+        # 1. Lawmate folder under root
+        lawmate_folder = await self._find_or_create_folder(
+            name="Lawmate",
             parent_id=root_folder_id,
         )
 
-        # 2. Clients folder under LegalOps
+        # 2. Clients folder under Lawmate
         clients_folder = await self._find_or_create_folder(
             name="Clients",
-            parent_id=legal_ops["id"],
+            parent_id=lawmate_folder["id"],
         )
 
         # 3. Client name folder under Clients

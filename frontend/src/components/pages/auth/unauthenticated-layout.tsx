@@ -6,7 +6,6 @@
 'use client';
 
 import React from 'react';
-import { Scale } from 'lucide-react';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 
 interface UnauthenticatedLayoutProps {
@@ -45,9 +44,7 @@ export function UnauthenticatedLayout({ children }: UnauthenticatedLayoutProps) 
       <div className="relative z-10 flex flex-col items-center w-full max-w-md">
         {/* Logo / Branding */}
         <div className="flex flex-col items-center mb-8">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-600 text-white shadow-lg shadow-emerald-600/25 mb-4">
-            <Scale className="h-8 w-8" />
-          </div>
+          <img src="/logo.svg" alt="Lawmate" className="h-16 w-16 mb-4 shadow-lg shadow-black/10 rounded-2xl" />
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50 tracking-tight">
             Lawmate
           </h1>

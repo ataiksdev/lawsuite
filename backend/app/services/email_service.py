@@ -94,6 +94,7 @@ async def send_invite_email(
     invited_by: str,
     role: str,
     invite_url: str,
+    org_name: str = "Lawmate",
 ) -> None:
     if not _is_configured():
         print(f"[EMAIL] No email backend configured — skipping invite email to {to}")
@@ -106,8 +107,9 @@ async def send_invite_email(
         invited_by=invited_by,
         role=role.capitalize(),
         invite_url=invite_url,
+        org_name=org_name,
     )
-    await _send(to=to, subject="You've been invited to LegalOps", html=html)
+    await _send(to=to, subject=f"You've been invited to join {org_name}", html=html)
     print(f"[EMAIL] Invite sent to {to}")
 
 
@@ -131,7 +133,7 @@ async def send_password_reset_email(
         name=name or to,
         reset_url=reset_url,
     )
-    await _send(to=to, subject="Reset your LegalOps password", html=html)
+    await _send(to=to, subject="Reset your Lawmate password", html=html)
     print(f"[EMAIL] Password reset sent to {to}")
 
 

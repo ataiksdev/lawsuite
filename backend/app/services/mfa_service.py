@@ -83,7 +83,7 @@ class MFAService:
 
         # Build the otpauth URI (compatible with Google Authenticator, Authy, etc.)
         totp = pyotp.TOTP(secret)
-        issuer = "LegalOps"
+        issuer = "Lawmate"
         uri = totp.provisioning_uri(name=user.email, issuer_name=issuer)
 
         # Generate SVG QR code (no external image service — rendered inline)

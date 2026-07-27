@@ -389,7 +389,7 @@ class BillingService:
         reference = event_data.get("reference")
 
         if not org_id_str or not plan or reference is None:
-            return  # Not a LegalOps subscription charge — ignore
+            return  # Not a Lawmate subscription charge — ignore
         try:
             org_id = uuid.UUID(org_id_str)
         except ValueError:

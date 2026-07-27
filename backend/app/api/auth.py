@@ -1,10 +1,12 @@
 # backend/app/api/auth.py
-from fastapi import APIRouter, status, Request
+from fastapi import APIRouter, status, Request, File, UploadFile, HTTPException
 import uuid
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from app.core.deps import AuthUser, AdminUser, DB
+from app.core.upload_validation import validate_upload
 from app.services.auth_service import AuthService
+from app.services.supabase_storage_service import SupabaseStorageService
 from app.schemas.auth import (
     RegisterRequest,
     RegisterResponse,
@@ -42,11 +44,7 @@ async def register(payload: RegisterRequest, db: DB):
             role="admin", is_active=user.is_active, is_verified=user.is_verified,
             created_at=user.created_at,
         ),
-        organisation=OrgResponse(
-            id=org.id, name=org.name, slug=org.slug,
-            plan=org.plan, is_active=org.is_active, created_at=org.created_at,
-            tin=org.tin, vat_reg_no=org.vat_reg_no,
-        ),
+        organisation=OrgResponse.model_validate(org),
         tokens=tokens,
     )
 
@@ -191,11 +189,7 @@ async def complete_google_signup(payload: CompleteGoogleSignupRequest, db: DB):
             role="admin", is_active=user.is_active, is_verified=user.is_verified,
             created_at=user.created_at,
         ),
-        organisation=OrgResponse(
-            id=org.id, name=org.name, slug=org.slug,
-            plan=org.plan, is_active=org.is_active, created_at=org.created_at,
-            tin=org.tin, vat_reg_no=org.vat_reg_no,
-        ),
+        organisation=OrgResponse.model_validate(org),
         tokens=tokens,
     )
 
@@ -381,11 +375,7 @@ async def get_organisation(current_user: AuthUser, db: DB):
     """Get the current organisation's profile."""
     service = AuthService(db)
     org = await service.get_organisation(current_user.org_id)
-    return OrgResponse(
-        id=org.id, name=org.name, slug=org.slug,
-        plan=org.plan, is_active=org.is_active, created_at=org.created_at,
-        tin=org.tin, vat_reg_no=org.vat_reg_no,
-    )
+    return OrgResponse.model_validate(org)
 
 
 @router.patch("/organisation", response_model=OrgResponse)
@@ -393,11 +383,53 @@ async def update_organisation(payload: UpdateOrgRequest, current_user: AdminUser
     """Update organisation name. Admin only."""
     service = AuthService(db)
     org = await service.update_organisation(current_user.org_id, payload)
-    return OrgResponse(
-        id=org.id, name=org.name, slug=org.slug,
-        plan=org.plan, is_active=org.is_active, created_at=org.created_at,
-        tin=org.tin, vat_reg_no=org.vat_reg_no,
+    return OrgResponse.model_validate(org)
+
+
+_LOGO_MAX_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB — a logo, not a document
+_LOGO_ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg"}
+
+
+@router.post("/organisation/logo", response_model=OrgResponse)
+async def upload_organisation_logo(
+    current_user: AdminUser,
+    db: DB,
+    file: UploadFile = File(...),
+):
+    """
+    Upload (or replace) the organisation's logo. Admin only.
+    Requires SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY to be configured —
+    returns 503 otherwise (see SupabaseStorageService).
+    """
+    file_bytes = await file.read()
+    if not file_bytes:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+    if len(file_bytes) > _LOGO_MAX_SIZE_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Logo exceeds maximum size of 5 MB (got {len(file_bytes) / 1024 / 1024:.1f} MB).",
+        )
+
+    filename = file.filename or ""
+    ext = "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    if ext not in _LOGO_ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail=f"Unsupported file type '{ext or 'unknown'}'. Allowed: .png, .jpg, .jpeg",
+        )
+    validate_upload(filename, file_bytes)
+
+    storage = SupabaseStorageService()
+    logo_url = await storage.upload_logo(
+        org_id=current_user.org_id,
+        file_bytes=file_bytes,
+        filename=filename,
+        mime_type=file.content_type or "image/png",
     )
+
+    service = AuthService(db)
+    org = await service.set_organisation_logo(current_user.org_id, logo_url)
+    return OrgResponse.model_validate(org)
 
 
 # ─── Member management ────────────────────────────────────────────────────────
@@ -482,11 +514,13 @@ async def remove_member(user_id: uuid.UUID, current_user: AdminUser, db: DB):
 async def invite_check(token: str, db: DB):
     """
     Check an invite token before accepting it.
-    Returns whether the invitee already has an active account (no password needed)
-    and their name/email for display.
+    Returns whether the invitee already has an active account (no password needed),
+    their name/email for display, and the inviting organisation's name/logo so the
+    accept-invite screen can show which firm they're joining.
     """
     from sqlalchemy import select
-    from app.models.user import User
+    from app.models.user import User, OrganisationMember
+    from app.models.organisation import Organisation
     from datetime import datetime, timezone
 
     result = await db.execute(select(User).where(User.invite_token == token))
@@ -500,10 +534,30 @@ async def invite_check(token: str, db: DB):
         from fastapi import HTTPException, status as http_status
         raise HTTPException(status_code=http_status.HTTP_410_GONE, detail="Invite token has expired")
 
+    # Same "most recently added membership" heuristic as accept_invite() uses
+    # to resolve which org this specific invite is for.
+    org_name: str | None = None
+    org_logo_url: str | None = None
+    membership_result = await db.execute(
+        select(OrganisationMember)
+        .where(OrganisationMember.user_id == user.id)
+        .order_by(OrganisationMember.joined_at.desc())
+        .limit(1)
+    )
+    membership = membership_result.scalar_one_or_none()
+    if membership:
+        org_result = await db.execute(select(Organisation).where(Organisation.id == membership.organisation_id))
+        org = org_result.scalar_one_or_none()
+        if org:
+            org_name = org.name
+            org_logo_url = org.logo_url
+
     return {
         "email": user.email,
         "full_name": user.full_name,
         "needs_password": not user.is_active,
+        "org_name": org_name,
+        "org_logo_url": org_logo_url,
     }
 
 

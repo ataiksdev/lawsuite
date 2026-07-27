@@ -7,8 +7,8 @@
 
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { Settings, Building2, Loader2, Save } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Settings, Building2, Loader2, Save, Upload, ImageOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/lib/auth-store';
 import apiClient, { ApiClientError } from '@/lib/api-client';
@@ -20,6 +20,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Textarea } from '@/components/ui/textarea';
 
 interface OrgDetails {
   id: string;
@@ -30,6 +31,31 @@ interface OrgDetails {
   created_at: string;
   tin?: string | null;
   vat_reg_no?: string | null;
+  logo_url?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  website?: string | null;
+}
+
+const LOGO_MAX_BYTES = 5 * 1024 * 1024;
+
+async function uploadOrganisationLogo(file: File): Promise<OrgDetails> {
+  const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  const token = localStorage.getItem('lawsuite_access_token');
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await fetch(`${BASE_URL}/auth/organisation/logo`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new ApiClientError(response.status, body?.detail || 'Unable to upload logo.');
+  }
+  return response.json() as Promise<OrgDetails>;
 }
 
 export function AdminSettingsPage() {
@@ -38,9 +64,14 @@ export function AdminSettingsPage() {
   const [orgName, setOrgName] = useState('');
   const [orgTin, setOrgTin] = useState('');
   const [orgVatRegNo, setOrgVatRegNo] = useState('');
+  const [orgAddress, setOrgAddress] = useState('');
+  const [orgPhone, setOrgPhone] = useState('');
+  const [orgWebsite, setOrgWebsite] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [error, setError] = useState('');
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   // Only admins should see this page
   if (user?.role !== UserRole.ADMIN) {
@@ -62,6 +93,9 @@ export function AdminSettingsPage() {
         setOrgName(data.name);
         setOrgTin(data.tin || '');
         setOrgVatRegNo(data.vat_reg_no || '');
+        setOrgAddress(data.address || '');
+        setOrgPhone(data.phone || '');
+        setOrgWebsite(data.website || '');
       } catch {
         // Use store data as fallback
         if (organisation) {
@@ -77,7 +111,31 @@ export function AdminSettingsPage() {
   const hasChanges =
     orgName.trim() !== (orgDetails?.name ?? organisation?.name ?? '') ||
     orgTin.trim() !== (orgDetails?.tin ?? '') ||
-    orgVatRegNo.trim() !== (orgDetails?.vat_reg_no ?? '');
+    orgVatRegNo.trim() !== (orgDetails?.vat_reg_no ?? '') ||
+    orgAddress.trim() !== (orgDetails?.address ?? '') ||
+    orgPhone.trim() !== (orgDetails?.phone ?? '') ||
+    orgWebsite.trim() !== (orgDetails?.website ?? '');
+
+  const applyUpdatedOrg = (updated: OrgDetails) => {
+    setOrgDetails(updated);
+    setOrgName(updated.name);
+    setOrgTin(updated.tin || '');
+    setOrgVatRegNo(updated.vat_reg_no || '');
+    setOrgAddress(updated.address || '');
+    setOrgPhone(updated.phone || '');
+    setOrgWebsite(updated.website || '');
+    // Update the auth store so the sidebar name/logo refresh immediately
+    if (organisation) {
+      setOrganisation({
+        ...organisation,
+        name: updated.name,
+        logo_url: updated.logo_url ?? undefined,
+        address: updated.address ?? undefined,
+        phone: updated.phone ?? undefined,
+        website: updated.website ?? undefined,
+      });
+    }
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,15 +155,11 @@ export function AdminSettingsPage() {
         name: trimmed,
         tin: orgTin.trim() || undefined,
         vat_reg_no: orgVatRegNo.trim() || undefined,
+        address: orgAddress.trim() || undefined,
+        phone: orgPhone.trim() || undefined,
+        website: orgWebsite.trim() || undefined,
       });
-      setOrgDetails(updated);
-      setOrgName(updated.name);
-      setOrgTin(updated.tin || '');
-      setOrgVatRegNo(updated.vat_reg_no || '');
-      // Update the auth store so the sidebar name refreshes
-      if (organisation) {
-        setOrganisation({ ...organisation, name: updated.name });
-      }
+      applyUpdatedOrg(updated);
       toast.success('Organisation details updated.');
     } catch (err) {
       const msg = err instanceof ApiClientError ? err.detail : 'Could not save changes.';
@@ -113,6 +167,33 @@ export function AdminSettingsPage() {
       toast.error(msg);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleLogoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-selecting the same file later
+    if (!file) return;
+
+    if (!['image/png', 'image/jpeg'].includes(file.type)) {
+      toast.error('Logo must be a PNG or JPEG image.');
+      return;
+    }
+    if (file.size > LOGO_MAX_BYTES) {
+      toast.error('Logo must be under 5 MB.');
+      return;
+    }
+
+    setIsUploadingLogo(true);
+    try {
+      const updated = await uploadOrganisationLogo(file);
+      applyUpdatedOrg(updated);
+      toast.success('Logo updated.');
+    } catch (err) {
+      const msg = err instanceof ApiClientError ? err.detail : 'Unable to upload logo.';
+      toast.error(msg);
+    } finally {
+      setIsUploadingLogo(false);
     }
   };
 
@@ -147,6 +228,46 @@ export function AdminSettingsPage() {
             </div>
           ) : (
             <form onSubmit={handleSave} className="space-y-5">
+              {/* Logo */}
+              <div className="flex items-center gap-4">
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900">
+                  {currentOrg?.logo_url ? (
+                    <img src={currentOrg.logo_url} alt="Organisation logo" className="h-full w-full object-contain" />
+                  ) : (
+                    <ImageOff className="h-6 w-6 text-slate-300" />
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500">Logo</Label>
+                  <div>
+                    <input
+                      ref={logoInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg"
+                      className="hidden"
+                      onChange={handleLogoFileChange}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={isUploadingLogo}
+                      onClick={() => logoInputRef.current?.click()}
+                    >
+                      {isUploadingLogo ? (
+                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Upload className="mr-1.5 h-3.5 w-3.5" />
+                      )}
+                      {currentOrg?.logo_url ? 'Replace Logo' : 'Upload Logo'}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-slate-400">PNG or JPEG, up to 5 MB. Shown in the sidebar and on invoices.</p>
+                </div>
+              </div>
+
+              <Separator />
+
               {/* Read-only info */}
               <div className="grid grid-cols-1 gap-4 rounded-lg bg-slate-50 p-4 dark:bg-slate-900 sm:grid-cols-2">
                 <div>
@@ -201,6 +322,41 @@ export function AdminSettingsPage() {
                   This name is displayed across the platform and in reports.
                   The URL slug cannot be changed after creation.
                 </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500">Contact Details</Label>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label htmlFor="org-address">Address</Label>
+                    <Textarea
+                      id="org-address"
+                      value={orgAddress}
+                      onChange={(e) => setOrgAddress(e.target.value)}
+                      placeholder="e.g. 12 Broad Street, Lagos Island, Lagos"
+                      rows={2}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="org-phone">Phone</Label>
+                    <Input
+                      id="org-phone"
+                      value={orgPhone}
+                      onChange={(e) => setOrgPhone(e.target.value)}
+                      placeholder="+234 1 234 5678"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="org-website">Website</Label>
+                    <Input
+                      id="org-website"
+                      value={orgWebsite}
+                      onChange={(e) => setOrgWebsite(e.target.value)}
+                      placeholder="https://yourfirm.ng"
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-slate-400">Shown on invoice and report letterheads.</p>
               </div>
 
               <div className="space-y-2">

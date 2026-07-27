@@ -43,6 +43,7 @@ export const ROUTES: RouteDefinition[] = [
   { path: '/tasks', pattern: /^\/tasks\/?$/, name: 'Tasks', icon: 'check-square', parent: '/' },
   { path: '/documents', pattern: /^\/documents\/?$/, name: 'Documents', icon: 'file-text', parent: '/' },
   { path: '/reports', pattern: /^\/reports\/?$/, name: 'Reports', icon: 'bar-chart', parent: '/' },
+  { path: '/admin/settings', pattern: /^\/admin\/settings\/?$/, name: 'Organisation', icon: 'building', parent: '/' },
   { path: '/admin/team', pattern: /^\/admin\/team\/?$/, name: 'Team Management', parent: '/' },
   { path: '/admin/integrations', pattern: /^\/admin\/integrations\/?$/, name: 'Integrations', parent: '/' },
   { path: '/admin/billing', pattern: /^\/admin\/billing\/?$/, name: 'Billing', parent: '/' },

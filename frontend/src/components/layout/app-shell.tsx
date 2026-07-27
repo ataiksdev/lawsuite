@@ -223,6 +223,7 @@ const mainNavItems: NavItem[] = [
 ];
 
 const adminNavItems: NavItem[] = [
+  { label: 'Organisation', path: '/admin/settings',     icon: Building2,  adminOnly: true },
   { label: 'Team',         path: '/admin/team',         icon: UsersRound, adminOnly: true },
   { label: 'Integrations', path: '/admin/integrations', icon: Puzzle,     adminOnly: true },
   { label: 'Billing',      path: '/admin/billing',      icon: CreditCard, adminOnly: true },
@@ -329,8 +330,12 @@ function OrgSwitcher({ collapsed }: { collapsed: boolean }) {
         collapsed && 'justify-center px-0'
       )}
     >
-      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-primary/10">
-        <Building2 className="h-3.5 w-3.5 text-primary" />
+      <div className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded bg-primary/10">
+        {organisation?.logo_url ? (
+          <img src={organisation.logo_url} alt="" className="h-full w-full object-contain" />
+        ) : (
+          <Building2 className="h-3.5 w-3.5 text-primary" />
+        )}
       </div>
       {!collapsed && (
         <>
@@ -426,19 +431,30 @@ function SidebarContent({
           )}
         >
           {!collapsed && (
-            <div className="flex flex-col min-w-0 flex-1 gap-1">
-              <div>
-                <span className="text-xl font-semibold text-foreground tracking-tight truncate block">
-                  Lawmate
-                </span>
-                <span className="text-xs text-muted-foreground truncate block mt-0.5">
-                  {organisation?.name || mockOrganisation.name}
-                </span>
+            <div className="flex min-w-0 flex-1 gap-2">
+              <img src="/logo.svg" alt="" className="h-8 w-8 shrink-0" />
+              <div className="flex min-w-0 flex-col gap-1">
+                <div>
+                  <span className="text-xl font-semibold text-foreground tracking-tight truncate block">
+                    Lawmate
+                  </span>
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground truncate mt-0.5">
+                    {organisation?.logo_url && (
+                      <img src={organisation.logo_url} alt="" className="h-3.5 w-3.5 shrink-0 rounded-sm object-contain" />
+                    )}
+                    <span className="truncate">{organisation?.name || mockOrganisation.name}</span>
+                  </span>
+                </div>
+                <OrgSwitcher collapsed={false} />
               </div>
-              <OrgSwitcher collapsed={false} />
             </div>
           )}
-          {collapsed && <OrgSwitcher collapsed={true} />}
+          {collapsed && (
+            <div className="flex flex-col items-center gap-2">
+              <img src="/logo.svg" alt="" className="h-6 w-6 shrink-0" />
+              <OrgSwitcher collapsed={true} />
+            </div>
+          )}
           <Tooltip>
             <TooltipTrigger asChild>
               <Button

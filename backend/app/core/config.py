@@ -75,7 +75,7 @@ class Settings(BaseSettings):
     # Email (Resend — https://resend.com)
     resend_api_key: str = ""
     emails_from_address: str = ""
-    emails_from_name: str = "LegalOps"
+    emails_from_name: str = "Lawmate"
 
     # App
     app_env: str = "development"
@@ -90,6 +90,17 @@ class Settings(BaseSettings):
     # Platform admin — your own org's UUID (the SaaS operator)
     # Set this after you register your own account
     platform_admin_org_id: str = ""
+
+    # Supabase Storage — organisation logo uploads only (the app's primary
+    # DB connection is plain Postgres via DATABASE_URL, not necessarily this
+    # same Supabase project). Logo upload is disabled until both are set.
+    supabase_url: str = ""
+    supabase_service_role_key: str = ""
+    supabase_logos_bucket: str = "org-logos"
+
+    @property
+    def is_supabase_storage_configured(self) -> bool:
+        return bool(self.supabase_url and self.supabase_service_role_key)
 
     @property
     def is_production(self) -> bool:

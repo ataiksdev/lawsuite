@@ -147,6 +147,9 @@ class UpdateOrgRequest(BaseModel):
     name: str | None = Field(None, min_length=2, max_length=255)
     tin: str | None = Field(None, max_length=50)
     vat_reg_no: str | None = Field(None, max_length=50)
+    address: str | None = None
+    phone: str | None = Field(None, max_length=50)
+    website: str | None = Field(None, max_length=255)
 
 
 # ─── Responses ───────────────────────────────────────────────────────────────
@@ -185,6 +188,10 @@ class OrgResponse(BaseModel):
     is_active: bool
     tin: str | None = None
     vat_reg_no: str | None = None
+    logo_url: str | None = None
+    address: str | None = None
+    phone: str | None = None
+    website: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

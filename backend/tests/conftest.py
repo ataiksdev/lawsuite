@@ -39,6 +39,20 @@ def force_resend_backend(monkeypatch):
     monkeypatch.setattr(settings, "smtp_password", "")
     monkeypatch.setattr(settings, "resend_api_key", "test-resend-key")
 
+
+@pytest_asyncio.fixture(autouse=True)
+def force_supabase_storage_unconfigured(monkeypatch):
+    """
+    Same reasoning as force_resend_backend: a dev with real
+    SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY in their local .env would
+    otherwise silently flip logo-upload tests from "storage not configured"
+    to real (or malformed) outbound requests. Tests that need storage to
+    look configured patch these back within their own `with patch(...)`
+    block, which overrides this for their duration only.
+    """
+    monkeypatch.setattr(settings, "supabase_url", "")
+    monkeypatch.setattr(settings, "supabase_service_role_key", "")
+
 # Separate test database. Built from database_url_sync (the admin/owner role
 # Alembic uses) rather than database_url (the app's least-privilege runtime
 # role) because this fixture does a full drop_all/create_all per test --

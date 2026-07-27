@@ -272,10 +272,13 @@ class AuthService:
 
         invite_url = f"{settings.frontend_url}/#/accept-invite?token={invite_token}"
 
-        # Look up inviter's name for the email
+        # Look up inviter's name and org name for the email
         inviter_result = await self.db.execute(select(User).where(User.id == invited_by))
         inviter = inviter_result.scalar_one_or_none()
         inviter_name = inviter.full_name if inviter else "Your team"
+
+        org_result = await self.db.execute(select(Organisation).where(Organisation.id == org_id))
+        org = org_result.scalar_one_or_none()
 
         from app.services.email_service import send_invite_email
         await send_invite_email(
@@ -284,6 +287,7 @@ class AuthService:
             invited_by=inviter_name,
             role=data.role,
             invite_url=invite_url,
+            org_name=org.name if org else "Lawmate",
         )
         return user, invite_url
 
@@ -316,6 +320,9 @@ class AuthService:
 
         invite_url = f"{settings.frontend_url}/#/accept-invite?token={invite_token}"
 
+        org_result = await self.db.execute(select(Organisation).where(Organisation.id == org_id))
+        org = org_result.scalar_one_or_none()
+
         from app.services.email_service import send_invite_email
         await send_invite_email(
             to=user.email,
@@ -323,6 +330,7 @@ class AuthService:
             invited_by="Your team",
             role="member",
             invite_url=invite_url,
+            org_name=org.name if org else "Lawmate",
         )
         return user, invite_url
 
@@ -594,7 +602,24 @@ class AuthService:
             org.tin = data.tin
         if data.vat_reg_no is not None:
             org.vat_reg_no = data.vat_reg_no
+        if data.address is not None:
+            org.address = data.address
+        if data.phone is not None:
+            org.phone = data.phone
+        if data.website is not None:
+            org.website = data.website
 
+        await self.db.commit()
+        await self.db.refresh(org)
+        return org
+
+    async def set_organisation_logo(self, org_id: uuid.UUID, logo_url: str) -> Organisation:
+        result = await self.db.execute(select(Organisation).where(Organisation.id == org_id))
+        org = result.scalar_one_or_none()
+        if not org:
+            raise HTTPException(status_code=404, detail="Organisation not found")
+
+        org.logo_url = logo_url
         await self.db.commit()
         await self.db.refresh(org)
         return org

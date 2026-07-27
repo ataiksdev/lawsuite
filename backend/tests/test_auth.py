@@ -1,4 +1,6 @@
 # backend/tests/api/test_auth.py
+from unittest.mock import AsyncMock, patch
+
 import pytest
 from httpx import AsyncClient
 
@@ -254,3 +256,203 @@ async def test_update_notification_preferences_partial(client: AsyncClient):
     # Reflected on a fresh GET too
     resp3 = await client.get("/auth/me/notification-preferences", headers=headers)
     assert resp3.json() == body2
+
+
+# ─── Organisation profile ──────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_get_organisation_profile_defaults_new_branding_fields_to_none(client: AsyncClient):
+    reg = await client.post("/auth/register", json=REGISTER_PAYLOAD)
+    token = reg.json()["tokens"]["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    resp = await client.get("/auth/organisation", headers=headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["name"] == "Test Law Firm"
+    assert body["logo_url"] is None
+    assert body["address"] is None
+    assert body["phone"] is None
+    assert body["website"] is None
+
+
+@pytest.mark.asyncio
+async def test_update_organisation_profile_sets_branding_fields(client: AsyncClient):
+    reg = await client.post("/auth/register", json=REGISTER_PAYLOAD)
+    token = reg.json()["tokens"]["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    resp = await client.patch(
+        "/auth/organisation",
+        json={
+            "address": "12 Broad Street, Lagos",
+            "phone": "+234 1 234 5678",
+            "website": "https://testlawfirm.ng",
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["address"] == "12 Broad Street, Lagos"
+    assert body["phone"] == "+234 1 234 5678"
+    assert body["website"] == "https://testlawfirm.ng"
+    # Untouched fields (name, tin) are unaffected by a partial update
+    assert body["name"] == "Test Law Firm"
+
+    # Persisted, not just echoed back
+    fresh = await client.get("/auth/organisation", headers=headers)
+    assert fresh.json()["address"] == "12 Broad Street, Lagos"
+
+
+@pytest.mark.asyncio
+async def test_update_organisation_profile_requires_admin(client: AsyncClient):
+    reg = await client.post("/auth/register", json=REGISTER_PAYLOAD)
+    admin_token = reg.json()["tokens"]["access_token"]
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+
+    invite = await client.post(
+        "/auth/invite",
+        json={"email": "member@testlaw.ng", "full_name": "Member One", "role": "member"},
+        headers=admin_headers,
+    )
+    invite_token = invite.json()["invite_url"].split("token=")[1]
+    accept = await client.post(
+        "/auth/accept-invite",
+        json={"token": invite_token, "password": "MemberPass123"},
+    )
+    member_token = accept.json()["access_token"]
+
+    resp = await client.patch(
+        "/auth/organisation",
+        json={"phone": "+234 1 111 1111"},
+        headers={"Authorization": f"Bearer {member_token}"},
+    )
+    assert resp.status_code == 403
+
+
+_PNG_BYTES = b"\x89PNG\r\n\x1a\n" + b"0" * 20
+
+
+@pytest.mark.asyncio
+async def test_upload_organisation_logo_disabled_without_supabase_config(client: AsyncClient):
+    reg = await client.post("/auth/register", json=REGISTER_PAYLOAD)
+    token = reg.json()["tokens"]["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # No SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY set in the test environment.
+    resp = await client.post(
+        "/auth/organisation/logo",
+        files={"file": ("logo.png", _PNG_BYTES, "image/png")},
+        headers=headers,
+    )
+    assert resp.status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_upload_organisation_logo_success(client: AsyncClient):
+    reg = await client.post("/auth/register", json=REGISTER_PAYLOAD)
+    token = reg.json()["tokens"]["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+    fake_url = "https://test.supabase.co/storage/v1/object/public/org-logos/org-id/logo.png?v=1"
+
+    with (
+        patch("app.core.config.settings.supabase_url", "https://test.supabase.co"),
+        patch("app.core.config.settings.supabase_service_role_key", "fake-service-role-key"),
+        patch(
+            "app.services.supabase_storage_service.SupabaseStorageService.upload_logo",
+            new_callable=AsyncMock,
+            return_value=fake_url,
+        ),
+    ):
+        resp = await client.post(
+            "/auth/organisation/logo",
+            files={"file": ("logo.png", _PNG_BYTES, "image/png")},
+            headers=headers,
+        )
+
+    assert resp.status_code == 200
+    assert resp.json()["logo_url"] == fake_url
+
+    # Persisted, not just echoed back
+    fresh = await client.get("/auth/organisation", headers=headers)
+    assert fresh.json()["logo_url"] == fake_url
+
+
+@pytest.mark.asyncio
+async def test_upload_organisation_logo_rejects_non_image_extension(client: AsyncClient):
+    reg = await client.post("/auth/register", json=REGISTER_PAYLOAD)
+    token = reg.json()["tokens"]["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    with (
+        patch("app.core.config.settings.supabase_url", "https://test.supabase.co"),
+        patch("app.core.config.settings.supabase_service_role_key", "fake-service-role-key"),
+    ):
+        resp = await client.post(
+            "/auth/organisation/logo",
+            files={"file": ("logo.pdf", b"%PDF-1.4 fake", "application/pdf")},
+            headers=headers,
+        )
+
+    assert resp.status_code == 415
+
+
+# ─── Invite-check shows the inviting firm's identity ───────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_invite_check_includes_inviting_org_name_and_logo(client: AsyncClient):
+    reg = await client.post("/auth/register", json=REGISTER_PAYLOAD)
+    admin_token = reg.json()["tokens"]["access_token"]
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+
+    fake_url = "https://test.supabase.co/storage/v1/object/public/org-logos/org-id/logo.png?v=1"
+    with (
+        patch("app.core.config.settings.supabase_url", "https://test.supabase.co"),
+        patch("app.core.config.settings.supabase_service_role_key", "fake-service-role-key"),
+        patch(
+            "app.services.supabase_storage_service.SupabaseStorageService.upload_logo",
+            new_callable=AsyncMock,
+            return_value=fake_url,
+        ),
+    ):
+        await client.post(
+            "/auth/organisation/logo",
+            files={"file": ("logo.png", _PNG_BYTES, "image/png")},
+            headers=admin_headers,
+        )
+
+    invite = await client.post(
+        "/auth/invite",
+        json={"email": "newbie@testlaw.ng", "full_name": "New Member", "role": "member"},
+        headers=admin_headers,
+    )
+    invite_token = invite.json()["invite_url"].split("token=")[1]
+
+    resp = await client.get(f"/auth/invite-check?token={invite_token}")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["email"] == "newbie@testlaw.ng"
+    assert body["org_name"] == "Test Law Firm"
+    assert body["org_logo_url"] == fake_url
+
+
+@pytest.mark.asyncio
+async def test_invite_check_org_name_present_without_logo(client: AsyncClient):
+    reg = await client.post("/auth/register", json=REGISTER_PAYLOAD)
+    admin_token = reg.json()["tokens"]["access_token"]
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+
+    invite = await client.post(
+        "/auth/invite",
+        json={"email": "newbie2@testlaw.ng", "full_name": "New Member Two", "role": "member"},
+        headers=admin_headers,
+    )
+    invite_token = invite.json()["invite_url"].split("token=")[1]
+
+    resp = await client.get(f"/auth/invite-check?token={invite_token}")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["org_name"] == "Test Law Firm"
+    assert body["org_logo_url"] is None

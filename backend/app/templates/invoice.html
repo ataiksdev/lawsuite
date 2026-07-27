@@ -36,7 +36,23 @@
   <table class="header-table">
     <tr>
       <td style="width: 55%;">
+        {% if organisation.logo_url %}
+        <table style="margin-bottom: 6px;">
+          <tr>
+            <td style="width: 48px; vertical-align: middle;">
+              <img src="{{ organisation.logo_url }}" style="max-width: 44px; max-height: 44px;" />
+            </td>
+            <td style="vertical-align: middle;">
+              <h1 style="margin: 0;">{{ organisation.name }}</h1>
+            </td>
+          </tr>
+        </table>
+        {% else %}
         <h1>{{ organisation.name }}</h1>
+        {% endif %}
+        {% if organisation.address %}<p class="muted" style="margin: 2px 0;">{{ organisation.address }}</p>{% endif %}
+        {% if organisation.phone %}<p class="muted" style="margin: 2px 0;">Tel: {{ organisation.phone }}</p>{% endif %}
+        {% if organisation.website %}<p class="muted" style="margin: 2px 0;">{{ organisation.website }}</p>{% endif %}
         {% if organisation.tin %}<p class="muted" style="margin: 2px 0;">TIN: {{ organisation.tin }}</p>{% endif %}
         {% if organisation.vat_reg_no %}<p class="muted" style="margin: 2px 0;">VAT Reg. No: {{ organisation.vat_reg_no }}</p>{% endif %}
       </td>

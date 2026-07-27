@@ -51,6 +51,10 @@ interface BackendAuthOrganisation {
   slug: string;
   plan: 'free' | 'pro' | 'agency';
   is_active: boolean;
+  logo_url?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  website?: string | null;
   created_at: string;
 }
 
@@ -87,6 +91,10 @@ function mapBackendOrganisation(org: BackendAuthOrganisation): OrgResponse {
     name: org.name,
     slug: org.slug,
     plan: org.plan,
+    logo_url: org.logo_url ?? undefined,
+    address: org.address ?? undefined,
+    phone: org.phone ?? undefined,
+    website: org.website ?? undefined,
     created_at: org.created_at,
   };
 }

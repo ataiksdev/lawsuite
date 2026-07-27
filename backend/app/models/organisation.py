@@ -43,6 +43,14 @@ class Organisation(Base):
     tin: Mapped[str | None] = mapped_column(String(50))
     vat_reg_no: Mapped[str | None] = mapped_column(String(50))
 
+    # Branding — shown on the invoice/report letterhead, invite emails, and
+    # in-app (sidebar, org switcher). logo_url points at a Supabase Storage
+    # object (see LogoService); nullable everywhere, no default look.
+    logo_url: Mapped[str | None] = mapped_column(String(500))
+    address: Mapped[str | None] = mapped_column(Text)
+    phone: Mapped[str | None] = mapped_column(String(50))
+    website: Mapped[str | None] = mapped_column(String(255))
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False

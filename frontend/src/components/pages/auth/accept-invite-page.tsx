@@ -23,6 +23,8 @@ interface InviteInfo {
   email: string;
   full_name: string;
   needs_password: boolean;
+  org_name?: string | null;
+  org_logo_url?: string | null;
 }
 
 interface PasswordChecks {
@@ -194,12 +196,35 @@ export function AcceptInvitePage() {
             {inviteInfo.needs_password ? 'Accept Invitation' : 'Join Organisation'}
           </CardTitle>
           <CardDescription>
-            {inviteInfo.needs_password
-              ? 'Set your password to activate your account'
-              : 'You already have an account — click below to join'}
+            {inviteInfo.org_name ? (
+              <>You&apos;ve been invited to join <strong>{inviteInfo.org_name}</strong></>
+            ) : inviteInfo.needs_password ? (
+              'Set your password to activate your account'
+            ) : (
+              'You already have an account — click below to join'
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {/* Which firm this invite is for */}
+          {inviteInfo.org_name && (
+            <div className="flex items-center gap-3 mb-4 pb-4 border-b border-slate-100 dark:border-slate-800">
+              <div className="h-9 w-9 shrink-0 overflow-hidden rounded-md border border-slate-200 bg-slate-50 flex items-center justify-center dark:border-slate-700 dark:bg-slate-900">
+                {inviteInfo.org_logo_url ? (
+                  <img src={inviteInfo.org_logo_url} alt="" className="h-full w-full object-contain" />
+                ) : (
+                  <Building2 className="h-4 w-4 text-slate-400" />
+                )}
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] uppercase tracking-wide text-slate-400">You&apos;re joining</p>
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
+                  {inviteInfo.org_name}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Invitee info banner */}
           <div className="rounded-lg bg-primary/5 border border-primary/10 p-4 mb-6">
             <div className="flex items-center gap-3">

@@ -82,6 +82,12 @@ export interface GenerateFromTemplatePayload {
   extra_substitutions?: Record<string, string>;
 }
 
+export interface TemplateVariable {
+  key: string;
+  label: string;
+  default: string;
+}
+
 export async function listDocuments(matterId: string) {
   return apiClient.get<BackendDocument[]>(`/matters/${matterId}/documents`);
 }
@@ -124,6 +130,14 @@ export async function listDriveFiles(matterId: string) {
 
 export async function listTemplates(matterId: string) {
   return apiClient.get<TemplateFileResponse[]>(`/matters/${matterId}/templates`);
+}
+
+export async function getTemplateVariables(matterId: string, templateFileId: string) {
+  return apiClient
+    .get<{ variables: TemplateVariable[] }>(
+      `/matters/${matterId}/templates/${templateFileId}/variables`
+    )
+    .then((res) => res.variables);
 }
 
 export async function listFirmTemplates() {

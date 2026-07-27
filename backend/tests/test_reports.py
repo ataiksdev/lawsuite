@@ -1,9 +1,13 @@
 # backend/tests/api/test_reports.py
-from datetime import date, timedelta
+import uuid
+from datetime import date, datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import AsyncClient
+
+from app.schemas.report import ClientActivity, DocumentSummary, MatterActivity, ReportData, TaskSummary
+from app.services.report_service import _build_doc_requests, _matter_type_label, _report_title
 
 REGISTER = {
     "org_name": "Report Test Firm",
@@ -460,3 +464,168 @@ async def test_report_access_blocked_after_downgrade(client: AsyncClient, db_ses
 
     resp = await client.get(f"/reports/{report_id}/download?format=html", headers=headers)
     assert resp.status_code == 402
+
+
+# ─── Filter-aware report titles ────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_report_title_uses_org_name_when_unfiltered(client: AsyncClient):
+    token = await setup_with_data(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    resp = await client.post(
+        "/reports/generate",
+        json={"period_type": "monthly", "export_to_drive": False},
+        headers=headers,
+    )
+    body = resp.json()
+    assert body["data"]["subject_label"] == "Report Test Firm"
+    assert body["report"]["title"] == f"Report Test Firm Report for {body['report']['period_label']}"
+
+
+@pytest.mark.asyncio
+async def test_report_title_uses_client_name_when_filtered(client: AsyncClient):
+    token = await setup_with_data(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    cl2 = await client.post("/clients/", json={"name": "Zenith Holdings"}, headers=headers)
+    client_id_2 = cl2.json()["id"]
+
+    resp = await client.post(
+        "/reports/generate",
+        json={
+            "period_type": "monthly",
+            "export_to_drive": False,
+            "client_id": client_id_2,
+        },
+        headers=headers,
+    )
+    body = resp.json()
+    assert body["data"]["subject_label"] == "Zenith Holdings"
+    assert body["report"]["title"] == f"Zenith Holdings Report for {body['report']['period_label']}"
+
+
+@pytest.mark.asyncio
+async def test_report_title_uses_matter_name_when_filtered(client: AsyncClient):
+    token = await setup_with_data(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # setup_with_data already created "Tax Compliance Matter" — fetch its id.
+    matters = await client.get("/matters/", headers=headers)
+    matter_id = matters.json()["items"][0]["id"]
+
+    resp = await client.post(
+        "/reports/generate",
+        json={
+            "period_type": "monthly",
+            "export_to_drive": False,
+            "matter_id": matter_id,
+        },
+        headers=headers,
+    )
+    body = resp.json()
+    assert body["data"]["subject_label"] == "Tax Compliance Matter"
+
+
+@pytest.mark.asyncio
+async def test_report_title_uses_category_when_filtered(client: AsyncClient):
+    token = await setup_with_data(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    resp = await client.post(
+        "/reports/generate",
+        json={
+            "period_type": "monthly",
+            "export_to_drive": False,
+            "matter_type": "compliance",
+        },
+        headers=headers,
+    )
+    body = resp.json()
+    assert body["data"]["subject_label"] == "Compliance"
+
+
+def test_matter_type_label_formats_and_special_cases_adr():
+    assert _matter_type_label("compliance") == "Compliance"
+    assert _matter_type_label("intellectual_property") == "Intellectual Property"
+    assert _matter_type_label("adr") == "ADR"
+
+
+# ─── Styled Google Doc export (pure function, no live Docs API call) ─────────
+
+
+def _sample_report_data(**overrides) -> ReportData:
+    defaults = dict(
+        org_id=uuid.uuid4(),
+        org_name="Adewale & Co.",
+        subject_label="Acme Corp",
+        period_label="Q3 2026",
+        date_from=date(2026, 7, 1),
+        date_to=date(2026, 9, 30),
+        generated_at=datetime.now(timezone.utc),
+        total_events=42,
+        matters_active=1,
+        matters_opened=1,
+        matters_closed=0,
+        clients=[
+            ClientActivity(
+                client_id=uuid.uuid4(),
+                client_name="Acme Corp",
+                matter_count=1,
+                matters=[
+                    MatterActivity(
+                        matter_id=uuid.uuid4(),
+                        matter_title="Loan Recovery",
+                        reference_no="REF-001",
+                        status="in_review",
+                        event_count=10,
+                        events_by_type={},
+                        tasks=TaskSummary(total=4, completed=2, overdue=1),
+                        documents=DocumentSummary(added=3, versioned=1, signed=1),
+                    )
+                ],
+            )
+        ],
+    )
+    defaults.update(overrides)
+    return ReportData(**defaults)
+
+
+def test_report_title_helper_combines_subject_and_period():
+    data = _sample_report_data()
+    assert _report_title(data) == "Acme Corp Report for Q3 2026"
+
+
+def test_build_doc_requests_inserts_title_and_styles_matter_bullets():
+    data = _sample_report_data()
+    requests = _build_doc_requests(data)
+
+    insert = requests[0]["insertText"]
+    assert insert["location"]["index"] == 1
+    full_text = insert["text"]
+    assert _report_title(data) in full_text
+
+    bullet_requests = [r["createParagraphBullets"] for r in requests if "createParagraphBullets" in r]
+    assert len(bullet_requests) == 1  # one matter in the sample data
+    start, end = bullet_requests[0]["range"]["startIndex"], bullet_requests[0]["range"]["endIndex"]
+    bulleted_text = full_text[start - 1 : end - 1]
+    assert "Events this period: 10" in bulleted_text
+    assert "Tasks: 2/4 completed, 1 overdue" in bulleted_text
+    assert "Documents: 3 added, 1 signed" in bulleted_text
+
+    heading_styles = [
+        r["updateParagraphStyle"]["paragraphStyle"]["namedStyleType"]
+        for r in requests
+        if "updateParagraphStyle" in r
+    ]
+    assert heading_styles.count("HEADING_1") == 1  # the title
+    assert heading_styles.count("HEADING_2") == 2  # "Summary" + the one client section
+
+
+def test_build_doc_requests_handles_no_activity():
+    data = _sample_report_data(clients=[], matters_active=0, matters_opened=0, matters_closed=0)
+    requests = _build_doc_requests(data)
+    full_text = requests[0]["insertText"]["text"]
+    assert "No activity recorded for this period." in full_text
+    assert not [r for r in requests if "createParagraphBullets" in r]

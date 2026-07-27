@@ -1,4 +1,5 @@
 # backend/tests/api/test_docs.py
+import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -155,3 +156,49 @@ async def test_list_templates(client: AsyncClient):
     assert templates[1]["name"] == "NDA Template"
     assert "file_id" in templates[0]
     assert "web_view_link" in templates[0]
+
+
+# ─── Template variables ────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_get_template_variables_detects_placeholders_and_fills_known_defaults(client: AsyncClient):
+    token, matter_id = await setup(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    mock_google_creds()
+
+    with patch(
+        "app.services.google_docs_service.GoogleDocsService.extract_template_variables",
+        new_callable=AsyncMock,
+        return_value=["client_name", "matter_title", "lawyer_name", "signatory_title"],
+    ):
+        resp = await client.get(
+            f"/matters/{matter_id}/templates/template-file-id-abc/variables",
+            headers=headers,
+        )
+
+    assert resp.status_code == 200
+    variables = {v["key"]: v for v in resp.json()["variables"]}
+    assert set(variables) == {"client_name", "matter_title", "lawyer_name", "signatory_title"}
+
+    # Known fields come pre-filled from the matter/client — unknown ones are blank.
+    assert variables["client_name"]["default"] == "Docs Client"
+    assert variables["matter_title"]["default"] == "Docs Matter"
+    assert variables["lawyer_name"]["default"] == ""
+    assert variables["signatory_title"]["default"] == ""
+
+    # Labels are humanised for display.
+    assert variables["signatory_title"]["label"] == "Signatory Title"
+
+
+@pytest.mark.asyncio
+async def test_get_template_variables_matter_not_found(client: AsyncClient):
+    token, _matter_id = await setup(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    mock_google_creds()
+
+    resp = await client.get(
+        f"/matters/{uuid.uuid4()}/templates/template-file-id-abc/variables",
+        headers=headers,
+    )
+    assert resp.status_code == 404

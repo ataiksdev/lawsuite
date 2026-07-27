@@ -48,6 +48,19 @@ class TemplateFileResponse(BaseModel):
     modified_time: str | None = None
 
 
+class TemplateVariable(BaseModel):
+    """One {{variable}} found in a template, with a default value where
+    we can auto-fill it (client name, matter reference, etc.)."""
+
+    key: str  # bare name, no braces — e.g. "lawyer_name"
+    label: str  # e.g. "Lawyer Name"
+    default: str = ""
+
+
+class TemplateVariablesResponse(BaseModel):
+    variables: list[TemplateVariable]
+
+
 # ─── Document responses ───────────────────────────────────────────────────────
 
 

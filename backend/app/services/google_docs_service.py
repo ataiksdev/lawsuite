@@ -1,9 +1,33 @@
 # backend/app/services/google_docs_service.py
+import re
+
 from fastapi import HTTPException, status
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaIoBaseUpload
+
+_VARIABLE_PATTERN = re.compile(r"\{\{\s*([a-zA-Z0-9_]+)\s*\}\}")
+
+
+def _extract_doc_text(content: list[dict]) -> str:
+    """Recursively concatenate every text run in a Docs API body.content
+    structure, including inside tables, so template variables inside a
+    table cell are found just like ones in a plain paragraph."""
+    parts: list[str] = []
+    for element in content:
+        if "paragraph" in element:
+            for run in element["paragraph"].get("elements", []):
+                text_run = run.get("textRun")
+                if text_run:
+                    parts.append(text_run.get("content", ""))
+        elif "table" in element:
+            for row in element["table"].get("tableRows", []):
+                for cell in row.get("tableCells", []):
+                    parts.append(_extract_doc_text(cell.get("content", [])))
+        elif "tableOfContents" in element:
+            parts.append(_extract_doc_text(element["tableOfContents"].get("content", [])))
+    return "".join(parts)
 
 
 class GoogleDocsService:
@@ -118,6 +142,30 @@ class GoogleDocsService:
             "title": new_title,
         }
 
+    async def extract_template_variables(self, file_id: str) -> list[str]:
+        """
+        Read a template's full text and return the unique {{variable}} names
+        it contains (braces stripped), in first-appearance order — drives
+        the per-template variable form on the frontend instead of a
+        freeform substitutions textarea.
+        """
+        try:
+            doc = self.docs.documents().get(documentId=file_id).execute()
+        except HttpError as e:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Failed to read template: {e.reason}",
+            )
+
+        full_text = _extract_doc_text(doc.get("body", {}).get("content", []))
+
+        seen: list[str] = []
+        for match in _VARIABLE_PATTERN.finditer(full_text):
+            name = match.group(1)
+            if name not in seen:
+                seen.append(name)
+        return seen
+
     async def list_templates(self, templates_folder_id: str) -> list[dict]:
         """
         List all Google Docs files in the org's templates folder.
@@ -203,16 +251,32 @@ class GoogleDocsService:
 
     async def get_or_create_templates_folder(self, org_name: str) -> str:
         """
-        Find or create the LegalOps Templates folder for this org.
+        Find or create the Lawmate Templates folder for this org.
         Returns the folder_id.
         """
-        folder_name = f"LegalOps Templates — {org_name}"
+        folder_name = f"Lawmate Templates — {org_name}"
         query = f"name='{folder_name}' " f"and mimeType='application/vnd.google-apps.folder' " f"and trashed=false"
         try:
             results = self.drive.files().list(q=query, fields="files(id)", pageSize=1).execute()
             files = results.get("files", [])
             if files:
                 return files[0]["id"]
+
+            # Pre-rebrand orgs have their templates under the old "LegalOps"
+            # name -- rename that folder in place instead of creating an
+            # empty duplicate and orphaning their existing templates.
+            legacy_name = f"LegalOps Templates — {org_name}"
+            legacy_query = (
+                f"name='{legacy_name}' "
+                f"and mimeType='application/vnd.google-apps.folder' "
+                f"and trashed=false"
+            )
+            legacy_results = self.drive.files().list(q=legacy_query, fields="files(id)", pageSize=1).execute()
+            legacy_files = legacy_results.get("files", [])
+            if legacy_files:
+                folder_id = legacy_files[0]["id"]
+                self.drive.files().update(fileId=folder_id, body={"name": folder_name}).execute()
+                return folder_id
 
             # Create it
             folder = (

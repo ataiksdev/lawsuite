@@ -50,6 +50,7 @@ import {
   deleteDocument,
   generateDocumentFromTemplate,
   getDocumentVersions,
+  getTemplateVariables,
   listDocuments,
   listDriveFiles,
   listTemplates,
@@ -60,6 +61,7 @@ import {
   type BackendDocumentVersion,
   type DriveFileResponse,
   type TemplateFileResponse,
+  type TemplateVariable,
 } from '@/lib/api/documents';
 
 import { Button } from '@/components/ui/button';
@@ -92,7 +94,6 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import {
   Collapsible,
   CollapsibleContent,
@@ -582,8 +583,10 @@ function GenerateTemplateDialog({
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [documentName, setDocumentName] = useState('');
   const [documentType, setDocumentType] = useState<BackendDocumentType>('other');
-  const [extraSubstitutions, setExtraSubstitutions] = useState('');
+  const [variables, setVariables] = useState<TemplateVariable[]>([]);
+  const [variableValues, setVariableValues] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  const [variablesLoading, setVariablesLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -593,7 +596,8 @@ function GenerateTemplateDialog({
       setSelectedTemplateId('');
       setDocumentName('');
       setDocumentType('other');
-      setExtraSubstitutions('');
+      setVariables([]);
+      setVariableValues({});
       setError(null);
       return;
     }
@@ -627,31 +631,64 @@ function GenerateTemplateDialog({
     };
   }, [matterId, open]);
 
+  // Whenever the selected template changes, detect its {{variables}} and
+  // pre-fill the ones we already know (client name, matter ref, etc.).
+  useEffect(() => {
+    if (!selectedTemplateId) {
+      setVariables([]);
+      setVariableValues({});
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadVariables() {
+      setVariablesLoading(true);
+      try {
+        const detected = await getTemplateVariables(matterId, selectedTemplateId);
+        if (!cancelled) {
+          setVariables(detected);
+          setVariableValues(Object.fromEntries(detected.map((v) => [v.key, v.default])));
+        }
+      } catch (err) {
+        if (!cancelled) {
+          handleApiError(err, 'Unable to read this template’s placeholders.');
+          setVariables([]);
+          setVariableValues({});
+        }
+      } finally {
+        if (!cancelled) {
+          setVariablesLoading(false);
+        }
+      }
+    }
+
+    void loadVariables();
+    return () => {
+      cancelled = true;
+    };
+  }, [matterId, selectedTemplateId]);
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setSaving(true);
 
     try {
-      const parsedExtraSubstitutions = extraSubstitutions.trim()
-        ? (JSON.parse(extraSubstitutions) as Record<string, string>)
-        : {};
+      const extraSubstitutions = Object.fromEntries(
+        Object.entries(variableValues).map(([key, value]) => [`{{${key}}}`, value])
+      );
 
       const response = await generateDocumentFromTemplate(matterId, {
         template_file_id: selectedTemplateId,
         document_name: documentName.trim(),
         doc_type: documentType,
-        extra_substitutions: parsedExtraSubstitutions,
+        extra_substitutions: extraSubstitutions,
       });
       onSaved(response);
       toast.success(`Generated "${response.name}" from template.`);
       onOpenChange(false);
     } catch (error) {
-      // SyntaxError means the extra substitutions JSON was malformed — show as-is
-      if (error instanceof SyntaxError) {
-        handleApiError(new Error('Extra substitutions must be valid JSON.'), 'Invalid JSON.');
-      } else {
-        handleApiError(error, 'Unable to generate document from template.');
-      }
+      handleApiError(error, 'Unable to generate document from template.');
     } finally {
       setSaving(false);
     }
@@ -722,19 +759,42 @@ function GenerateTemplateDialog({
                   </Select>
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="extra-substitutions">Extra Substitutions</Label>
-                <Textarea
-                  id="extra-substitutions"
-                  value={extraSubstitutions}
-                  onChange={(event) => setExtraSubstitutions(event.target.value)}
-                  placeholder={'{"{{lawyer_name}}":"Ada Obi","{{signatory_title}}":"Partner"}'}
-                  rows={5}
-                />
-                <p className="text-xs text-slate-500">
-                  Use JSON to add placeholders beyond the standard backend substitutions.
-                </p>
-              </div>
+              {selectedTemplateId && (
+                <div className="space-y-2">
+                  <Label>Template Fields</Label>
+                  {variablesLoading ? (
+                    <div className="flex items-center gap-2 text-xs text-slate-500">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Reading placeholders from this template...
+                    </div>
+                  ) : variables.length === 0 ? (
+                    <p className="text-xs text-slate-500">
+                      This template has no {'{{placeholders}}'} to fill in.
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      {variables.map((variable) => (
+                        <div key={variable.key} className="space-y-1.5">
+                          <Label htmlFor={`template-var-${variable.key}`} className="text-xs text-slate-500">
+                            {variable.label}
+                          </Label>
+                          <Input
+                            id={`template-var-${variable.key}`}
+                            value={variableValues[variable.key] ?? ''}
+                            onChange={(event) =>
+                              setVariableValues((current) => ({
+                                ...current,
+                                [variable.key]: event.target.value,
+                              }))
+                            }
+                            placeholder={`{{${variable.key}}}`}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </>
           )}
           <DialogFooter>

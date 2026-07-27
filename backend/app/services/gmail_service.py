@@ -8,6 +8,8 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
+from app.services.email_service import _render
+
 
 class GmailService:
     """
@@ -182,32 +184,21 @@ class GmailService:
     async def send_report_email(
         self,
         recipient: str,
-        report_title: str,
+        title: str,
         doc_url: str,
-        period: str,
     ) -> dict:
         """
         Convenience wrapper for sending a periodic report notification email.
-        Called by the Celery beat task in Phase 9.
+        `title` is the report's full, already-composed title (e.g. "Acme Corp
+        Report for Q3 2026") — see ReportService.generate().
         """
-        subject = f"LegalOps Report: {report_title} — {period}"
-        body_html = f"""
-        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #1a1a18;">Your LegalOps Activity Report is Ready</h2>
-          <p>Your <strong>{period}</strong> activity report has been generated.</p>
-          <p>
-            <a href="{doc_url}"
-               style="background: #1D9E75; color: white; padding: 10px 20px;
-                      text-decoration: none; border-radius: 6px; display: inline-block;">
-              View Report in Google Docs
-            </a>
-          </p>
-          <p style="color: #888; font-size: 13px; margin-top: 24px;">
-            LegalOps — {report_title}
-          </p>
-        </div>
-        """
-        body_text = f"Your {period} LegalOps activity report is ready.\n\n" f"View it here: {doc_url}"
+        subject = f"Lawmate: {title}"
+        body_html = _render(
+            "report_ready.html",
+            title=title,
+            doc_url=doc_url,
+        )
+        body_text = f"Your report, {title}, is ready.\n\n" f"View it here: {doc_url}"
         return await self.send_email(
             to=recipient,
             subject=subject,

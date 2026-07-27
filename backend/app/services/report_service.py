@@ -25,6 +25,18 @@ from app.schemas.report import (
 )
 
 
+def _matter_type_label(matter_type: str) -> str:
+    """Human-readable matter category, e.g. 'intellectual_property' -> 'Intellectual Property'."""
+    if matter_type == "adr":
+        return "ADR"
+    return matter_type.replace("_", " ").title()
+
+
+def _report_title(data: ReportData) -> str:
+    """The one title used everywhere: saved Report record, Google Doc, HTML masthead, email."""
+    return f"{data.subject_label} Report for {data.period_label}"
+
+
 def _resolve_period(
     req: ReportGenerateRequest,
 ) -> tuple[date, date, str]:
@@ -94,6 +106,23 @@ class ReportService:
         # ── Org name ──────────────────────────────────────────────────────
         org_result = await self.db.execute(select(Organisation).where(Organisation.id == org_id))
         org = org_result.scalar_one()
+
+        # ── Subject label: what this report is "about" ──────────────────────
+        # Most-specific filter wins: a single matter > a single client > a
+        # category > (no filter) the organisation itself.
+        subject_label = org.name
+        if matter_type:
+            subject_label = _matter_type_label(matter_type)
+        if client_id:
+            client_result = await self.db.execute(select(Client).where(Client.id == client_id))
+            filtered_client = client_result.scalar_one_or_none()
+            if filtered_client:
+                subject_label = filtered_client.name
+        if matter_id:
+            matter_result = await self.db.execute(select(Matter).where(Matter.id == matter_id))
+            filtered_matter = matter_result.scalar_one_or_none()
+            if filtered_matter:
+                subject_label = filtered_matter.title
 
         # ── All matters active in period ───────────────────────────────────
         # A matter is "active" if it was open at any point during the period
@@ -208,6 +237,8 @@ class ReportService:
         return ReportData(
             org_id=org_id,
             org_name=org.name,
+            org_logo_url=org.logo_url,
+            subject_label=subject_label,
             period_label="",  # filled by caller
             date_from=date_from,
             date_to=date_to,
@@ -273,7 +304,7 @@ class ReportService:
         docs = build("docs", "v1", credentials=credentials)
 
         # Create a blank Google Doc
-        title = f"LegalOps Report — {data.period_label}"
+        title = _report_title(data)
         doc = (
             drive.files()
             .create(
@@ -403,18 +434,18 @@ class ReportService:
                 credentials=credentials,
             )
 
+        title = _report_title(data)
+
         if req.send_email and req.recipient_email and drive_url and credentials:
             from app.services.gmail_service import GmailService
 
             gmail = GmailService(credentials)
             await gmail.send_report_email(
                 recipient=req.recipient_email,
-                report_title=f"{data.org_name} Activity Report",
+                title=title,
                 doc_url=drive_url,
-                period=period_label,
             )
 
-        title = f"{data.org_name} — {period_label}"
         report = await self.save_report(
             org_id=org_id,
             user_id=user_id,
@@ -434,63 +465,152 @@ class ReportService:
 
 # ── Doc content builder ───────────────────────────────────────────────────────
 
+# Brand colors (see frontend/src/app/globals.css "Broadsheet" palette) —
+# kept in sync manually since the Docs API has no access to that stylesheet.
+_DOC_ACCENT = "#8a5c1e"
+_DOC_MUTED = "#5e5a56"
+
+# Text-style presets applied over a range via updateTextStyle. Dict keys
+# double as the Docs API field names, so the "fields" mask is just their
+# comma-joined keys — see _style_requests_for_range.
+_TEXT_STYLES: dict[str, dict] = {
+    "EYEBROW": {
+        "bold": True,
+        "fontSize": {"magnitude": 9, "unit": "PT"},
+        "foregroundColor": None,  # filled in below (avoids repeating _hex_color calls)
+    },
+    "META": {
+        "italic": True,
+        "fontSize": {"magnitude": 9, "unit": "PT"},
+        "foregroundColor": None,
+    },
+    "BOLD": {"bold": True},
+}
+
+
+def _hex_color(hex_str: str) -> dict:
+    """Convert '#8a5c1e' into a Docs API OptionalColor object (0-1 RGB floats)."""
+    h = hex_str.lstrip("#")
+    r, g, b = (int(h[i : i + 2], 16) / 255 for i in (0, 2, 4))
+    return {"color": {"rgbColor": {"red": r, "green": g, "blue": b}}}
+
+
+_TEXT_STYLES["EYEBROW"]["foregroundColor"] = _hex_color(_DOC_ACCENT)
+_TEXT_STYLES["META"]["foregroundColor"] = _hex_color(_DOC_MUTED)
+
+_PARAGRAPH_STYLES: dict[str, str] = {
+    "TITLE": "HEADING_1",
+    "HEADING2": "HEADING_2",
+}
+
 
 def _build_doc_requests(data: ReportData) -> list[dict]:
     """
-    Build a sequence of Docs API batchUpdate insertText requests
-    that populate the report document.
+    Build Docs API batchUpdate requests that both populate AND style the
+    report: an accent-colored eyebrow line, a heading title carrying the
+    report's subject (filtered client/matter/category, or the org name),
+    an italic meta line, a bold summary block, and per-client sections
+    with bold matter headers and bulleted detail lines.
 
-    The Docs API inserts text at a given index. We build the content
-    as a plain string first then convert to insert requests.
-    Since we're inserting at index 1 (after the document title),
-    we build the body text in reverse order.
+    All content is inserted as a single string in one insertText request
+    (mirroring the previous implementation) — every subsequent style
+    request's range is computed from string lengths *before* any request
+    is sent, so there's no risk of index drift between requests the way
+    there would be if we tried to style paragraphs one insert at a time.
     """
-    lines = []
+    full_text_parts: list[str] = []
+    style_ranges: list[tuple[int, int, str]] = []
+    bullet_ranges: list[tuple[int, int]] = []
+    cursor = 1  # Docs body content starts at index 1 (index 0 is invalid)
 
-    lines.append(f"LegalOps Activity Report — {data.period_label}\n")
-    lines.append(f"Organisation: {data.org_name}\n")
-    lines.append(f"Period: {data.date_from.strftime('%d %b %Y')} to {data.date_to.strftime('%d %b %Y')}\n")
-    lines.append(f"Generated: {data.generated_at.strftime('%d %b %Y %H:%M UTC')}\n")
-    lines.append("\n")
+    def emit(text: str, style: str | None = None) -> None:
+        nonlocal cursor
+        start = cursor
+        full_text_parts.append(text)
+        cursor += len(text)
+        if style:
+            style_ranges.append((start, cursor, style))
 
-    lines.append("SUMMARY\n")
-    lines.append(f"Total activity events:  {data.total_events}\n")
-    lines.append(f"Active matters:         {data.matters_active}\n")
-    lines.append(f"Matters opened:         {data.matters_opened}\n")
-    lines.append(f"Matters closed:         {data.matters_closed}\n")
-    lines.append("\n")
+    emit("LAWMATE · ACTIVITY REPORT\n", "EYEBROW")
+    emit(f"{_report_title(data)}\n", "TITLE")
+    emit(
+        f"Organisation: {data.org_name}   |   "
+        f"Period: {data.date_from.strftime('%d %b %Y')} – {data.date_to.strftime('%d %b %Y')}   |   "
+        f"Generated: {data.generated_at.strftime('%d %b %Y %H:%M UTC')}\n",
+        "META",
+    )
+    emit("\n")
+
+    emit("Summary\n", "HEADING2")
+    emit(f"Total activity events: {data.total_events}\n", "BOLD")
+    emit(f"Active matters: {data.matters_active}\n", "BOLD")
+    emit(f"Matters opened: {data.matters_opened}\n", "BOLD")
+    emit(f"Matters closed: {data.matters_closed}\n", "BOLD")
+    emit("\n")
+
+    if not data.clients:
+        emit("No activity recorded for this period.\n")
 
     for client in data.clients:
-        lines.append(f"CLIENT: {client.client_name}\n")
-        lines.append(f"Matters: {client.matter_count}\n")
-        lines.append("\n")
+        emit(f"{client.client_name}\n", "HEADING2")
+        total_client_events = sum(m.event_count for m in client.matters)
+        emit(f"{client.matter_count} matters · {total_client_events} events this period\n", "META")
 
         for matter in client.matters:
-            lines.append(f"  {matter.reference_no} — {matter.matter_title}\n")
-            lines.append(f"  Status: {matter.status.replace('_', ' ').title()}\n")
-            lines.append(f"  Events this period: {matter.event_count}\n")
+            status_label = matter.status.replace("_", " ").title()
+            emit(f"{matter.reference_no} — {matter.matter_title} ({status_label})\n", "BOLD")
 
-            if matter.events_by_type:
-                for event_type, count in sorted(matter.events_by_type.items()):
-                    readable = event_type.replace("_", " ").title()
-                    lines.append(f"    - {readable}: {count}\n")
-
+            detail_start = cursor
+            emit(f"Events this period: {matter.event_count}\n")
             t = matter.tasks
-            lines.append(f"  Tasks: {t.total} total, {t.completed} completed, {t.overdue} overdue\n")
+            emit(f"Tasks: {t.completed}/{t.total} completed, {t.overdue} overdue\n")
             d = matter.documents
-            lines.append(f"  Documents: {d.added} added, {d.signed} signed\n")
-            lines.append("\n")
+            emit(f"Documents: {d.added} added, {d.signed} signed\n")
+            bullet_ranges.append((detail_start, cursor))
 
-        lines.append("\n")
+        emit("\n")
 
-    full_text = "".join(lines)
+    emit(
+        f"Privileged & confidential — prepared for internal use of {data.org_name}. Generated by Lawmate.\n",
+        "META",
+    )
 
-    # Single insertText request — insert all content at index 1
-    return [
-        {
-            "insertText": {
-                "location": {"index": 1},
-                "text": full_text,
-            }
-        }
+    requests: list[dict] = [
+        {"insertText": {"location": {"index": 1}, "text": "".join(full_text_parts)}}
     ]
+
+    for start, end, style in style_ranges:
+        rng = {"startIndex": start, "endIndex": end}
+        if style in _PARAGRAPH_STYLES:
+            requests.append(
+                {
+                    "updateParagraphStyle": {
+                        "range": rng,
+                        "paragraphStyle": {"namedStyleType": _PARAGRAPH_STYLES[style]},
+                        "fields": "namedStyleType",
+                    }
+                }
+            )
+        if style in _TEXT_STYLES:
+            text_style = _TEXT_STYLES[style]
+            requests.append(
+                {
+                    "updateTextStyle": {
+                        "range": rng,
+                        "textStyle": text_style,
+                        "fields": ",".join(text_style.keys()),
+                    }
+                }
+            )
+
+    for start, end in bullet_ranges:
+        requests.append(
+            {
+                "createParagraphBullets": {
+                    "range": {"startIndex": start, "endIndex": end},
+                    "bulletPreset": "BULLET_DISC_CIRCLE_SQUARE",
+                }
+            }
+        )
+
+    return requests

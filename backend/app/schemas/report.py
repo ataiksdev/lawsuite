@@ -58,6 +58,12 @@ class ClientActivity(BaseModel):
 class ReportData(BaseModel):
     org_id: uuid.UUID
     org_name: str
+    org_logo_url: str | None = None
+    # What this report is "about": the filtered client/matter/category name,
+    # or the organisation's own name when no filter was applied. Drives the
+    # title shown in the HTML report, the Google Doc, the notification
+    # email, and the saved Report record — see ReportService.aggregate().
+    subject_label: str
     period_label: str
     date_from: date
     date_to: date

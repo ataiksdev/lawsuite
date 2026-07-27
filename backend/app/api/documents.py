@@ -22,6 +22,8 @@ from app.schemas.document import (
     DriveFileResponse,
     GenerateFromTemplateRequest,
     TemplateFileResponse,
+    TemplateVariable,
+    TemplateVariablesResponse,
 )
 from app.services.document_service import DocumentService
 from app.services.google_docs_service import GoogleDocsService
@@ -305,6 +307,23 @@ async def upload_document(
 # ─── Phase 7: Generate document from template ─────────────────────────────────
 
 
+def _standard_substitutions(matter: Matter, client: Client | None) -> dict[str, str]:
+    """
+    Bare-name (no braces) standard template variables — shared by
+    generate_from_template (which needs the values) and get_template_variables
+    (which needs them as defaults for the dynamic variable form), so the two
+    can't drift apart.
+    """
+    return {
+        "client_name": client.name if client else "",
+        "matter_ref": matter.reference_no,
+        "matter_title": matter.title,
+        "matter_type": matter.matter_type.value.replace("_", " ").title(),
+        "date": date.today().strftime("%d %B %Y"),
+        "lawyer_name": "",  # filled from user profile in future
+    }
+
+
 @router.post(
     "/{matter_id}/documents/from-template",
     response_model=DocumentResponse,
@@ -327,7 +346,9 @@ async def generate_from_template(
     Standard substitutions always injected:
       {{client_name}}, {{matter_ref}}, {{matter_title}},
       {{matter_type}}, {{date}}
-    Pass extra_substitutions for any additional custom variables.
+    Pass extra_substitutions for any additional custom variables — see
+    GET .../templates/{template_file_id}/variables to discover which ones
+    a given template actually uses.
     """
     # Fetch matter + client
     matter_result = await db.execute(
@@ -344,14 +365,7 @@ async def generate_from_template(
     client = client_result.scalar_one_or_none()
 
     # Build standard substitutions
-    substitutions = {
-        "{{client_name}}": client.name if client else "",
-        "{{matter_ref}}": matter.reference_no,
-        "{{matter_title}}": matter.title,
-        "{{matter_type}}": matter.matter_type.value.replace("_", " ").title(),
-        "{{date}}": date.today().strftime("%d %B %Y"),
-        "{{lawyer_name}}": "",  # filled from user profile in future
-    }
+    substitutions = {f"{{{{{key}}}}}": value for key, value in _standard_substitutions(matter, client).items()}
     substitutions.update(payload.extra_substitutions)
 
     # Generate the doc
@@ -412,6 +426,53 @@ async def list_templates(
         }
         for t in templates
     ]
+
+
+@router.get(
+    "/{matter_id}/templates/{template_file_id}/variables",
+    response_model=TemplateVariablesResponse,
+)
+async def get_template_variables(
+    matter_id: uuid.UUID,
+    template_file_id: str,
+    current_user: AuthUser,
+    google_creds: GoogleCreds,
+    db: ScopedDB,
+):
+    """
+    Detect the {{variable}} placeholders used by a template and return one
+    entry per variable, pre-filled with a default value for the ones we can
+    auto-fill (client name, matter reference/title/type, today's date) —
+    lets the frontend render a labeled input per variable instead of a
+    freeform substitutions textarea.
+    """
+    matter_result = await db.execute(
+        select(Matter).where(
+            Matter.id == matter_id,
+            Matter.organisation_id == current_user.org_id,
+        )
+    )
+    matter = matter_result.scalar_one_or_none()
+    if not matter:
+        raise fastapi.HTTPException(status_code=404, detail="Matter not found")
+
+    client_result = await db.execute(select(Client).where(Client.id == matter.client_id))
+    client = client_result.scalar_one_or_none()
+    defaults = _standard_substitutions(matter, client)
+
+    docs_service = GoogleDocsService(google_creds)
+    variable_names = await docs_service.extract_template_variables(template_file_id)
+
+    return TemplateVariablesResponse(
+        variables=[
+            TemplateVariable(
+                key=name,
+                label=name.replace("_", " ").title(),
+                default=defaults.get(name, ""),
+            )
+            for name in variable_names
+        ]
+    )
 
 
 async def _get_templates_folder_id(db: ScopedDB, org_id: uuid.UUID, google_creds: GoogleCreds) -> str:

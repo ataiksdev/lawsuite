@@ -1,0 +1,45 @@
+appId: com.lawmate.desktop
+productName: Lawmate
+directories:
+  output: dist
+  buildResources: build
+
+# No custom icon.ico shipped yet — electron-builder falls back to its own
+# default icon. Drop a real one at build/icon.ico and add `icon: build/icon.ico`
+# under `win:` before distributing to real clients.
+
+files:
+  - dist-src/**/*.js
+  - shared/**/*.json
+
+extraResources:
+  - from: resources/python
+    to: python
+  - from: resources/postgres
+    to: postgres
+    filter:
+      - "**/*"
+      - "!share/locale/**"
+      - "!share/man/**"
+      - "!doc/**"
+      - "!symbols/**"
+  - from: resources/node
+    to: node
+  - from: resources/backend
+    to: backend
+    filter:
+      - "**/*"
+      - "!**/__pycache__/**"
+      - "!**/*.pyc"
+  - from: resources/frontend
+    to: frontend
+
+win:
+  target: nsis
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  artifactName: "Lawmate-Setup-${version}.exe"

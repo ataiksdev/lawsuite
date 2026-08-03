@@ -1,0 +1,112 @@
+# Lawmate Desktop (Windows)
+
+Packages the existing Lawmate web app (`frontend/` + `backend/`) into an
+installable Windows desktop app. Each install runs entirely on the client's
+own machine: its own local Postgres database, its own local backend — no
+shared/cloud database, one firm per install. Cloud integrations (Google
+Workspace, Paystack, Resend/SMTP email, Supabase Storage for logos) stay
+available but optional, exactly as they already behave for any org today —
+they just need the client's own internet connection and credentials,
+entered via the app's existing Settings screens.
+
+This directory is self-contained: it does not change how `frontend/` or
+`backend/` are built or deployed normally (Vercel/Render), and building it
+requires nothing installed in those directories beyond their existing
+`npm`/`poetry` setups.
+
+## Prerequisites (build machine only — clients need nothing but the installer)
+
+- Windows (the whole pipeline shells out to Windows-only tools: PowerShell's
+  `Expand-Archive`, Windows Postgres/Python/Node binaries).
+- Node.js 22+ and npm.
+- Poetry, resolvable at `backend/.venv/Scripts/poetry.exe` (this project's
+  convention — `poetry` isn't expected to be on the global PATH, matching
+  how `pytest`/`alembic`/etc. are also only run from the activated backend
+  venv) or on PATH as a fallback. `poetry export` is used to generate the
+  dependency list for the bundled Python — no `poetry install` needed in
+  `backend/` itself beyond having the venv already set up. **Poetry 2.x
+  removed `export` as a built-in command** — if it fails with "The
+  requested command export does not exist", run (with the backend venv
+  activated) `poetry self add poetry-plugin-export` once first.
+- Internet access on the build machine (downloads Postgres, Python, and
+  Node runtime distributions on first build; cached under `.cache/`
+  afterwards).
+
+## Building
+
+```
+cd desktop
+npm install
+npm run dist
+```
+
+This runs the full pipeline: builds the frontend with the desktop env baked
+in, stages an embeddable Python with backend dependencies installed into
+it, stages Postgres and Node runtimes, stages the backend source, compiles
+the Electron main process, then runs `electron-builder` to produce
+`desktop/dist/Lawmate-Setup-<version>.exe`.
+
+Run `npm run stage` instead to do everything except the final
+`electron-builder` packaging step (useful for iterating on
+`src/bootstrap/*.ts` — after staging once, `npm start` launches Electron
+directly against the staged `resources/` without repackaging).
+
+## How it works
+
+On first launch, the Electron main process (`src/main.ts`):
+1. Generates and persists (`%APPDATA%\lawmate-desktop\config\runtime.json`)
+   a `JWT_SECRET`, a Fernet `ENCRYPTION_KEY`, and a random Postgres
+   superuser password. These must never be regenerated after first run —
+   `ENCRYPTION_KEY` in particular decrypts stored OAuth tokens; rotating it
+   silently orphans any connected integration.
+2. Runs `initdb` into `%APPDATA%\lawmate-desktop\pgdata`, starts Postgres
+   via `pg_ctl`, creates the `lawmate` database.
+3. Runs `alembic upgrade head`, then starts `uvicorn` — the same boot
+   sequence `render.yaml` uses in production.
+4. Starts the bundled Next.js standalone server.
+5. Waits for both to answer health checks, then opens the app window.
+
+On every later launch, steps 2-4 just start the already-initialized
+Postgres/backend/frontend rather than re-initializing anything. On quit,
+child processes are stopped in reverse order (frontend → backend →
+Postgres) before Electron exits.
+
+There's no custom first-run seeding — a client's first launch shows the
+same registration/onboarding screen the hosted product already has
+(`POST /auth/register`). `backend/scripts/seed.py` (demo data) is
+deliberately excluded from the desktop bundle.
+
+## Known v1 limitations
+
+- **No background jobs.** Celery/Redis (`backend/app/workers/`) aren't
+  bundled — Redis has no clean Windows story. Scheduled email reminders,
+  the weekly digest, and the overdue-invoice sweep don't run automatically
+  in the desktop build. Everything else (matters, clients, tasks, invoices,
+  documents, reports) works fully. This was a deliberate scope decision,
+  not an oversight — revisit with an in-process scheduler if it's needed
+  later.
+- **No code signing.** The installer is unsigned, so Windows SmartScreen
+  will show "Windows protected your PC" on first run — clients need to
+  click "More info" → "Run anyway". Not a blocker for v1, just something to
+  tell clients about up front.
+- **No auto-update.** New versions require re-running the installer over
+  the existing install (NSIS upgrades in place); there's no background
+  update check.
+- **No custom icon yet** — `electron-builder.yml` doesn't reference
+  `build/icon.ico` because one doesn't exist. Add a real `.ico` and wire it
+  in before distributing to real clients.
+- **Google OAuth redirect URIs**: enabling Google Workspace integration for
+  desktop use requires adding `http://127.0.0.1:8734/integrations/google/callback`
+  and the sign-in equivalent as Authorized redirect URIs on the existing
+  Google Cloud OAuth client. This is a one-time addition (the port is fixed
+  across every desktop install), not something per client.
+- **No RLS role separation.** The backend connects as the Postgres
+  superuser `initdb` creates, so Row-Level Security policies
+  (`backend/app/models/rls.py`) are inert (Postgres bypasses RLS for
+  superusers/table owners unconditionally). This is fine here — each
+  install is single-tenant, so there's no cross-org data to isolate — but
+  don't assume RLS is doing anything in this mode.
+- **Fixed local ports** — Postgres `5433`, backend `8734`, frontend `4830`
+  (`desktop/shared/ports.json`). No dynamic fallback in v1; if something
+  else on the client's machine already holds one of these ports, the app
+  will fail its startup health check.

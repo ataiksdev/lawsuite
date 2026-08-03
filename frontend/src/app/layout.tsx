@@ -25,6 +25,11 @@ export const metadata: Metadata = {
   },
 };
 
+// The desktop build runs on a client's own machine with no Vercel hosting
+// behind it — there's nothing for Vercel Analytics to report to, and a
+// locally-installed app shouldn't phone home by default.
+const isDesktopBuild = process.env.NEXT_PUBLIC_DESKTOP_BUILD === "1";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -43,7 +48,7 @@ export default function RootLayout({
           {children}
           <Toaster position="top-right" richColors />
         </ThemeProvider>
-        <Analytics />
+        {!isDesktopBuild && <Analytics />}
       </body>
     </html>
   );

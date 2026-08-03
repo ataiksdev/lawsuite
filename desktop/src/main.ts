@@ -1,5 +1,6 @@
 import { app, BrowserWindow, dialog } from "electron";
 import path from "node:path";
+import { readFileSync } from "node:fs";
 import { loadOrCreateRuntimeConfig, writeRuntimeConfig } from "./bootstrap/secrets";
 import { initPostgresIfNeeded, startPostgres, stopPostgres, createAppDatabaseIfNeeded } from "./bootstrap/postgres";
 import { runAlembicMigrations, startBackend, stopBackend } from "./bootstrap/backend";
@@ -7,6 +8,7 @@ import { startFrontend, stopFrontend } from "./bootstrap/frontend";
 import { waitForHttpOk } from "./bootstrap/health";
 import { ports } from "./bootstrap/ports";
 import { logBootstrap } from "./bootstrap/logger";
+import { logsDir } from "./bootstrap/paths";
 
 // Chromium's GPU process can fail to initialize on machines with limited or
 // problematic graphics drivers (common on VMs and some laptops) — when it
@@ -68,7 +70,7 @@ async function bootstrap(): Promise<void> {
   setSplashStatus("Updating database schema…");
   await runAlembicMigrations(config);
 
-  setSplashStatus("Starting Lawmate…");
+  setSplashStatus("Starting Lawmate… (first launch can take a minute)");
   startBackend(config);
   startFrontend();
 
@@ -104,6 +106,15 @@ async function shutdown(): Promise<void> {
   await stopPostgres();
 }
 
+function readLogTail(filename: string, lines = 15): string {
+  try {
+    const content = readFileSync(path.join(logsDir, filename), "utf-8");
+    return content.split("\n").filter(Boolean).slice(-lines).join("\n");
+  } catch {
+    return "(not written yet)";
+  }
+}
+
 app.whenReady().then(async () => {
   try {
     await bootstrap();
@@ -112,7 +123,10 @@ app.whenReady().then(async () => {
     logBootstrap(`FATAL: bootstrap failed: ${String(err)}`);
     dialog.showErrorBox(
       "Lawmate failed to start",
-      `Something went wrong while starting Lawmate:\n\n${String(err)}\n\nLogs: ${app.getPath("userData")}\\logs`
+      `Something went wrong while starting Lawmate:\n\n${String(err)}\n\n` +
+        `--- backend.log (last lines) ---\n${readLogTail("backend.log")}\n\n` +
+        `--- postgres.log (last lines) ---\n${readLogTail("postgres.log")}\n\n` +
+        `Full logs: ${app.getPath("userData")}\\logs`
     );
     await shutdown();
     app.exit(1);

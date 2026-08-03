@@ -9,7 +9,8 @@ let frontendProcess: ChildProcess | null = null;
 
 export function startFrontend(): ChildProcess {
   logBootstrap("frontend: starting Next.js standalone server");
-  const logStream = createWriteStream(path.join(logsDir, "frontend.log"), { flags: "a" });
+  // Truncate per launch — see the same note in backend.ts.
+  const logStream = createWriteStream(path.join(logsDir, "frontend.log"), { flags: "w" });
   const child = spawn(nodeExe, [frontendServerJs], {
     cwd: frontendCwd,
     env: {

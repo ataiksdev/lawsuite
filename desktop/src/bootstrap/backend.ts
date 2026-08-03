@@ -50,7 +50,11 @@ let backendProcess: ChildProcess | null = null;
 
 export function startBackend(config: RuntimeConfig): ChildProcess {
   logBootstrap("backend: starting uvicorn");
-  const logStream = createWriteStream(path.join(logsDir, "backend.log"), { flags: "a" });
+  // Truncate per launch — backend.log has no per-line timestamps, so an
+  // appended file spanning many launches makes it impossible to tell which
+  // run a given line belongs to. bootstrap.log (timestamped) keeps the
+  // cross-run history.
+  const logStream = createWriteStream(path.join(logsDir, "backend.log"), { flags: "w" });
   const child = spawn(
     pythonExe,
     ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", String(ports.backend)],

@@ -20,10 +20,12 @@ from app.models.user import OrganisationMember, User, UserRole
 from app.schemas.auth import (
     AcceptInviteRequest,
     ChangePasswordRequest,
+    ForgotPasswordRequest,
     InviteRequest,
     LoginRequest,
     RefreshRequest,
     RegisterRequest,
+    ResetPasswordRequest,
     TokenResponse,
     UpdateMemberRoleRequest,
     UpdateOrgRequest,

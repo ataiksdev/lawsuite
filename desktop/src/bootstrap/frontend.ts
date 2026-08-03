@@ -3,10 +3,12 @@ import { createWriteStream } from "node:fs";
 import path from "node:path";
 import { nodeExe, frontendServerJs, frontendCwd, logsDir } from "./paths";
 import { ports } from "./ports";
+import { logBootstrap } from "./logger";
 
 let frontendProcess: ChildProcess | null = null;
 
 export function startFrontend(): ChildProcess {
+  logBootstrap("frontend: starting Next.js standalone server");
   const logStream = createWriteStream(path.join(logsDir, "frontend.log"), { flags: "a" });
   const child = spawn(nodeExe, [frontendServerJs], {
     cwd: frontendCwd,

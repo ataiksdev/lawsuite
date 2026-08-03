@@ -6,6 +6,7 @@ import { runAlembicMigrations, startBackend, stopBackend } from "./bootstrap/bac
 import { startFrontend, stopFrontend } from "./bootstrap/frontend";
 import { waitForHttpOk } from "./bootstrap/health";
 import { ports } from "./bootstrap/ports";
+import { logBootstrap } from "./bootstrap/logger";
 
 let mainWindow: BrowserWindow | null = null;
 let splashWindow: BrowserWindow | null = null;
@@ -25,16 +26,30 @@ function createSplashWindow(): BrowserWindow {
   return win;
 }
 
+// Best-effort UI feedback so a slow-but-working first launch (antivirus
+// scanning each freshly-installed .exe can genuinely take a while) doesn't
+// look identical to a hung one. Failures here are non-fatal — the splash
+// window may not have finished loading yet on the very first call.
+function setSplashStatus(text: string): void {
+  splashWindow?.webContents
+    .executeJavaScript(`document.getElementById('label') && (document.getElementById('label').textContent = ${JSON.stringify(text)})`)
+    .catch(() => {});
+}
+
 async function bootstrap(): Promise<void> {
   splashWindow = createSplashWindow();
 
-  const { config } = loadOrCreateRuntimeConfig();
+  const { config } = await loadOrCreateRuntimeConfig();
 
-  initPostgresIfNeeded(config.pgSuperuserPassword);
-  startPostgres();
-  createAppDatabaseIfNeeded(config.pgSuperuserPassword);
+  setSplashStatus("Preparing local database…");
+  await initPostgresIfNeeded(config.pgSuperuserPassword);
+  await startPostgres();
+  await createAppDatabaseIfNeeded(config.pgSuperuserPassword);
 
-  runAlembicMigrations(config);
+  setSplashStatus("Updating database schema…");
+  await runAlembicMigrations(config);
+
+  setSplashStatus("Starting Lawmate…");
   startBackend(config);
   startFrontend();
 
@@ -64,10 +79,10 @@ async function bootstrap(): Promise<void> {
 async function shutdown(): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;
-  console.log("[main] shutting down child processes...");
+  logBootstrap("shutting down child processes...");
   await stopFrontend();
   await stopBackend();
-  stopPostgres();
+  await stopPostgres();
 }
 
 app.whenReady().then(async () => {
@@ -75,6 +90,7 @@ app.whenReady().then(async () => {
     await bootstrap();
   } catch (err) {
     console.error("[main] bootstrap failed:", err);
+    logBootstrap(`FATAL: bootstrap failed: ${String(err)}`);
     dialog.showErrorBox(
       "Lawmate failed to start",
       `Something went wrong while starting Lawmate:\n\n${String(err)}\n\nLogs: ${app.getPath("userData")}\\logs`

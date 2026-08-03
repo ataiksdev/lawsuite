@@ -1,8 +1,10 @@
-import { spawn, spawnSync, ChildProcess } from "node:child_process";
+import { spawn, ChildProcess } from "node:child_process";
 import { createWriteStream, mkdirSync } from "node:fs";
 import path from "node:path";
 import { pythonExe, backendDir, logsDir } from "./paths";
 import { ports } from "./ports";
+import { runAsync } from "./proc";
+import { logBootstrap } from "./logger";
 import type { RuntimeConfig } from "./secrets";
 
 function buildBackendEnv(config: RuntimeConfig): NodeJS.ProcessEnv {
@@ -31,22 +33,23 @@ function buildBackendEnv(config: RuntimeConfig): NodeJS.ProcessEnv {
 
 // Mirrors render.yaml's production boot sequence exactly:
 // `alembic upgrade head && uvicorn app.main:app ...`.
-export function runAlembicMigrations(config: RuntimeConfig): void {
+export async function runAlembicMigrations(config: RuntimeConfig): Promise<void> {
   mkdirSync(logsDir, { recursive: true });
-  console.log("[backend] running alembic upgrade head");
-  const result = spawnSync(pythonExe, ["-m", "alembic", "upgrade", "head"], {
+  logBootstrap("backend: running alembic upgrade head");
+  const result = await runAsync(pythonExe, ["-m", "alembic", "upgrade", "head"], {
     cwd: backendDir, // alembic.ini's script_location is a relative path
     env: buildBackendEnv(config),
-    encoding: "utf-8",
   });
   if (result.status !== 0) {
     throw new Error(`alembic upgrade head failed:\n${result.stdout}\n${result.stderr}`);
   }
+  logBootstrap("backend: migrations complete");
 }
 
 let backendProcess: ChildProcess | null = null;
 
 export function startBackend(config: RuntimeConfig): ChildProcess {
+  logBootstrap("backend: starting uvicorn");
   const logStream = createWriteStream(path.join(logsDir, "backend.log"), { flags: "a" });
   const child = spawn(
     pythonExe,

@@ -1,19 +1,19 @@
-import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, writeFileSync, unlinkSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { postgresBinDir, pgDataDir, pgPasswordFile, logsDir } from "./paths";
 import { ports } from "./ports";
+import { runAsync } from "./proc";
+import { logBootstrap } from "./logger";
 
-function pg(binary: string, args: string[]) {
+async function pg(binary: string, args: string[], env?: NodeJS.ProcessEnv): Promise<void> {
   const exe = path.join(postgresBinDir, binary);
-  console.log(`[postgres] ${binary} ${args.join(" ")}`);
-  const result = spawnSync(exe, args, { encoding: "utf-8" });
+  logBootstrap(`postgres: running ${binary} ${args.join(" ")}`);
+  const result = await runAsync(exe, args, { env: env ?? process.env });
   if (result.status !== 0) {
     throw new Error(
       `${binary} failed (exit ${result.status}):\n${result.stdout}\n${result.stderr}`
     );
   }
-  return result;
 }
 
 function isInitialized(): boolean {
@@ -23,15 +23,18 @@ function isInitialized(): boolean {
   return existsSync(path.join(pgDataDir, "PG_VERSION"));
 }
 
-export function initPostgresIfNeeded(pgSuperuserPassword: string): void {
-  if (isInitialized()) return;
+export async function initPostgresIfNeeded(pgSuperuserPassword: string): Promise<void> {
+  if (isInitialized()) {
+    logBootstrap("postgres: data directory already initialized, skipping initdb");
+    return;
+  }
 
   mkdirSync(pgDataDir, { recursive: true });
   mkdirSync(logsDir, { recursive: true });
 
   writeFileSync(pgPasswordFile, pgSuperuserPassword, "utf-8");
   try {
-    pg("initdb.exe", [
+    await pg("initdb.exe", [
       "-D",
       pgDataDir,
       "-U",
@@ -54,10 +57,11 @@ export function initPostgresIfNeeded(pgSuperuserPassword: string): void {
     .replace(/^#?port\s*=.*$/m, `port = ${ports.postgres}`)
     .replace(/^#?listen_addresses\s*=.*$/m, `listen_addresses = '127.0.0.1'`);
   writeFileSync(confPath, patched, "utf-8");
+  logBootstrap("postgres: initdb complete");
 }
 
-export function startPostgres(): void {
-  pg("pg_ctl.exe", [
+export async function startPostgres(): Promise<void> {
+  await pg("pg_ctl.exe", [
     "-D",
     pgDataDir,
     "-l",
@@ -65,20 +69,24 @@ export function startPostgres(): void {
     "-w",
     "start",
   ]);
+  logBootstrap("postgres: started, accepting connections");
 }
 
-export function stopPostgres(): void {
+export async function stopPostgres(): Promise<void> {
   if (!isInitialized()) return;
   try {
-    pg("pg_ctl.exe", ["-D", pgDataDir, "-m", "fast", "stop"]);
+    await pg("pg_ctl.exe", ["-D", pgDataDir, "-m", "fast", "stop"]);
   } catch (err) {
     // Best-effort on shutdown — don't block app quit over this.
     console.error("[postgres] stop failed:", err);
   }
 }
 
-export function createAppDatabaseIfNeeded(pgSuperuserPassword: string): void {
-  const check = spawnSync(path.join(postgresBinDir, "psql.exe"), [
+export async function createAppDatabaseIfNeeded(pgSuperuserPassword: string): Promise<void> {
+  const env = { ...process.env, PGPASSWORD: pgSuperuserPassword };
+
+  logBootstrap("postgres: checking whether the lawmate database exists");
+  const check = await runAsync(path.join(postgresBinDir, "psql.exe"), [
     "-h",
     "127.0.0.1",
     "-p",
@@ -87,16 +95,19 @@ export function createAppDatabaseIfNeeded(pgSuperuserPassword: string): void {
     "postgres",
     "-tAc",
     "SELECT 1 FROM pg_database WHERE datname='lawmate'",
-  ], { encoding: "utf-8", env: { ...process.env, PGPASSWORD: pgSuperuserPassword } });
+  ], { env });
 
-  if (check.stdout?.trim() === "1") return;
+  if (check.stdout?.trim() === "1") {
+    logBootstrap("postgres: lawmate database already exists");
+    return;
+  }
 
-  const exe = path.join(postgresBinDir, "createdb.exe");
-  const result = spawnSync(exe, ["-h", "127.0.0.1", "-p", String(ports.postgres), "-U", "postgres", "lawmate"], {
-    encoding: "utf-8",
-    env: { ...process.env, PGPASSWORD: pgSuperuserPassword },
-  });
+  logBootstrap("postgres: creating lawmate database");
+  const result = await runAsync(path.join(postgresBinDir, "createdb.exe"), [
+    "-h", "127.0.0.1", "-p", String(ports.postgres), "-U", "postgres", "lawmate",
+  ], { env });
   if (result.status !== 0) {
     throw new Error(`createdb failed:\n${result.stdout}\n${result.stderr}`);
   }
+  logBootstrap("postgres: lawmate database created");
 }

@@ -23,6 +23,12 @@ extraResources:
       - "!share/man/**"
       - "!doc/**"
       - "!symbols/**"
+      # GUI/dev-only tooling the app never launches — pgAdmin 4 alone bundles
+      # a whole separate Python environment duplicating packages the app's
+      # own backend/resources/python already has.
+      - "!pgAdmin 4/**"
+      - "!StackBuilder/**"
+      - "!include/**"
   - from: resources/node
     to: node
   - from: resources/backend

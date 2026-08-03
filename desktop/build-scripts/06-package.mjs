@@ -14,7 +14,7 @@ run("node", ["build-scripts/04-fetch-node-runtime.mjs"], { cwd: desktopDir });
 run("node", ["build-scripts/05-stage-backend.mjs"], { cwd: desktopDir });
 
 console.log("== Compiling Electron main process ==");
-run("npx", ["tsc", "-p", "tsconfig.json"], { cwd: desktopDir });
+run("npm", ["run", "build:src"], { cwd: desktopDir });
 
 if (stageOnly) {
   console.log("=== Staging complete (--stage-only, skipping electron-builder) ===");

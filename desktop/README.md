@@ -76,6 +76,21 @@ same registration/onboarding screen the hosted product already has
 (`POST /auth/register`). `backend/scripts/seed.py` (demo data) is
 deliberately excluded from the desktop bundle.
 
+## GPU/sandbox flags (`src/main.ts`)
+
+On some machines (VMs, restricted/managed environments, certain graphics
+driver setups) Chromium's GPU process and/or sandboxed child processes fail
+to initialize entirely — the app would otherwise crash within milliseconds
+of launch with no visible error (`GPU process isn't usable. Goodbye.` /
+`ERR_FAILED` loading the app window, visible only by launching the installed
+`.exe` from a terminal instead of double-clicking, since Electron GUI apps
+have no attached console otherwise). `main.ts` calls
+`app.disableHardwareAcceleration()`, `--in-process-gpu`, and `--no-sandbox`
+before `app.whenReady()` to work around this. Note `--no-sandbox` does
+reduce Chromium's defense-in-depth against malicious web content — accepted
+here because the app only ever loads its own bundled backend on localhost,
+never arbitrary remote URLs.
+
 ## Known v1 limitations
 
 - **No background jobs.** Celery/Redis (`backend/app/workers/`) aren't

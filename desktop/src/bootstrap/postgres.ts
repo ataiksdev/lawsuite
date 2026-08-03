@@ -5,10 +5,19 @@ import { ports } from "./ports";
 import { runAsync } from "./proc";
 import { logBootstrap } from "./logger";
 
-async function pg(binary: string, args: string[], env?: NodeJS.ProcessEnv): Promise<void> {
+async function pg(binary: string, args: string[], opts: { env?: NodeJS.ProcessEnv; ignoreStdio?: boolean } = {}): Promise<void> {
   const exe = path.join(postgresBinDir, binary);
   logBootstrap(`postgres: running ${binary} ${args.join(" ")}`);
-  const result = await runAsync(exe, args, { env: env ?? process.env });
+  const result = await runAsync(exe, args, {
+    env: opts.env ?? process.env,
+    // "start" launches postgres.exe as a long-running background process
+    // that can inherit piped stdout/stderr handles on Windows — Node then
+    // waits for ALL processes sharing those pipes to close before firing
+    // this call's own 'close' event, which never happens while postgres
+    // keeps running for the rest of the app's lifetime. Postgres already
+    // logs its own output to postgres.log via -l, so nothing is lost.
+    stdio: opts.ignoreStdio ? "ignore" : undefined,
+  });
   if (result.status !== 0) {
     throw new Error(
       `${binary} failed (exit ${result.status}):\n${result.stdout}\n${result.stderr}`
@@ -60,7 +69,25 @@ export async function initPostgresIfNeeded(pgSuperuserPassword: string): Promise
   logBootstrap("postgres: initdb complete");
 }
 
+async function isAlreadyRunning(): Promise<boolean> {
+  const result = await runAsync(path.join(postgresBinDir, "pg_isready.exe"), [
+    "-h", "127.0.0.1", "-p", String(ports.postgres),
+  ]);
+  return result.status === 0;
+}
+
 export async function startPostgres(): Promise<void> {
+  // A previous launch that crashed or was force-killed (Task Manager, a
+  // Windows update forcing a reboot, ...) can leave its postgres.exe still
+  // holding the port and data directory — pg_ctl start would then fail with
+  // a misleading error instead of a clear "already running" one. Detect
+  // that up front and just reuse the existing instance instead of treating
+  // it as a startup failure.
+  if (await isAlreadyRunning()) {
+    logBootstrap("postgres: already running (reusing existing instance)");
+    return;
+  }
+
   await pg("pg_ctl.exe", [
     "-D",
     pgDataDir,
@@ -68,7 +95,7 @@ export async function startPostgres(): Promise<void> {
     path.join(logsDir, "postgres.log"),
     "-w",
     "start",
-  ]);
+  ], { ignoreStdio: true });
   logBootstrap("postgres: started, accepting connections");
 }
 

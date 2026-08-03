@@ -5,7 +5,7 @@
   "description": "Windows desktop packaging for Lawmate — bundles the Next.js frontend, FastAPI backend, and a local Postgres instance into a single installable app.",
   "main": "dist-src/main.js",
   "scripts": {
-    "build:src": "tsc -p tsconfig.json",
+    "build:src": "tsc -p tsconfig.json && node -e \"require('fs').cpSync('src/windows', 'dist-src/windows', {recursive:true, filter:(f)=>!f.endsWith('.ts')})\"",
     "stage": "node build-scripts/06-package.mjs --stage-only",
     "dist": "node build-scripts/06-package.mjs",
     "start": "npm run build:src && electron ."

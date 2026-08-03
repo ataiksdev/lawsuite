@@ -8,6 +8,25 @@ import { waitForHttpOk } from "./bootstrap/health";
 import { ports } from "./bootstrap/ports";
 import { logBootstrap } from "./bootstrap/logger";
 
+// Chromium's GPU process can fail to initialize on machines with limited or
+// problematic graphics drivers (common on VMs and some laptops) — when it
+// does, Electron treats it as fatal and the whole app terminates silently
+// within milliseconds, before any of our own code (or its logging) has a
+// chance to run further. disableHardwareAcceleration() alone still lets
+// Chromium try to launch a GPU process for compositing (just without real
+// hardware); these switches go further and avoid needing a GPU process at
+// all. Must all be set before app.whenReady().
+app.disableHardwareAcceleration();
+app.commandLine.appendSwitch("in-process-gpu");
+// Chromium's OS-level sandbox for child processes (GPU, renderer, network
+// service) can fail to initialize on restricted/virtualized machines —
+// the standard fix, also required for e.g. running Chromium in Docker/CI.
+app.commandLine.appendSwitch("no-sandbox");
+// --no-sandbox doesn't reliably cover the network service's own sandbox on
+// this environment (observed as repeated "Network service crashed,
+// restarting service" loops) — this flag targets it explicitly.
+app.commandLine.appendSwitch("disable-features", "NetworkServiceSandbox");
+
 let mainWindow: BrowserWindow | null = null;
 let splashWindow: BrowserWindow | null = null;
 let shuttingDown = false;

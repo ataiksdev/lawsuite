@@ -94,6 +94,16 @@ export function startBackend(config: RuntimeConfig): ChildProcess {
   );
   child.stdout?.pipe(logStream);
   child.stderr?.pipe(logStream);
+  // Without these, a spawn() failure (bad path, permissions, ...) or an
+  // early crash is completely silent — nothing in any log — until the
+  // health check eventually times out with a generic "fetch failed" that
+  // gives no hint anything actually went wrong at the process level.
+  child.on("error", (err) => {
+    logBootstrap(`backend: FAILED TO SPAWN: ${err.message}`);
+  });
+  child.on("exit", (code, signal) => {
+    logBootstrap(`backend: process exited (code=${code}, signal=${signal})`);
+  });
   backendProcess = child;
   return child;
 }

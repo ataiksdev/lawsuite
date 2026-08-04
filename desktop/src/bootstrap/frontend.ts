@@ -22,6 +22,14 @@ export function startFrontend(): ChildProcess {
   });
   child.stdout?.pipe(logStream);
   child.stderr?.pipe(logStream);
+  // See the matching note in backend.ts — without these, a spawn failure or
+  // early crash is silent until the health check eventually times out.
+  child.on("error", (err) => {
+    logBootstrap(`frontend: FAILED TO SPAWN: ${err.message}`);
+  });
+  child.on("exit", (code, signal) => {
+    logBootstrap(`frontend: process exited (code=${code}, signal=${signal})`);
+  });
   frontendProcess = child;
   return child;
 }

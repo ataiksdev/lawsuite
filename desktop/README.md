@@ -115,11 +115,24 @@ never arbitrary remote URLs.
 - **No custom icon yet** — `electron-builder.yml` doesn't reference
   `build/icon.ico` because one doesn't exist. Add a real `.ico` and wire it
   in before distributing to real clients.
-- **Google OAuth redirect URIs**: enabling Google Workspace integration for
-  desktop use requires adding `http://127.0.0.1:8734/integrations/google/callback`
-  and the sign-in equivalent as Authorized redirect URIs on the existing
-  Google Cloud OAuth client. This is a one-time addition (the port is fixed
-  across every desktop install), not something per client.
+- **Google OAuth credentials and redirect URIs**: `GOOGLE_CLIENT_ID`/
+  `GOOGLE_CLIENT_SECRET` come from an optional, gitignored
+  `desktop/.env.desktop` file (two lines, `KEY=VALUE`) — staged into
+  `resources/.env.desktop` at build time (see `05-stage-backend.mjs`) and
+  read by `src/bootstrap/backend.ts`'s `loadDesktopEnvOverrides()`. Without
+  that file, Google integration just stays unavailable, same as the hosted
+  app's default. `GOOGLE_REDIRECT_URI`/`GOOGLE_SIGNIN_REDIRECT_URI` are
+  always set to `http://127.0.0.1:8734/integrations/google/callback` and
+  `http://127.0.0.1:8734/auth/google/callback` — these must be added as
+  Authorized redirect URIs on that OAuth client in Google Cloud Console.
+  One-time addition (the port is fixed across every desktop install), not
+  per-client. **Real client distribution note**: this reuses one OAuth
+  client's credentials across every install — fine for a developer's own
+  builds, but shipping a real "Web application"-type client secret inside
+  a binary handed to multiple law firms is a genuine exposure (anyone can
+  extract it from `app.asar`). Revisit before distributing to actual
+  clients — e.g. a "Desktop app" OAuth client type or a PKCE-only flow
+  that doesn't require a secret at all.
 - **No RLS role separation.** The backend connects as the Postgres
   superuser `initdb` creates, so Row-Level Security policies
   (`backend/app/models/rls.py`) are inert (Postgres bypasses RLS for

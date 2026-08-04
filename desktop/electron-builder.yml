@@ -40,6 +40,13 @@ extraResources:
       - "!**/*.pyc"
   - from: resources/frontend
     to: frontend
+  # Optional — only present for developer-local builds with Google OAuth
+  # credentials configured (see desktop/.env.desktop). Filter matches
+  # nothing (no error) when the file wasn't staged.
+  - from: resources
+    to: .
+    filter:
+      - ".env.desktop"
 
 win:
   target: nsis

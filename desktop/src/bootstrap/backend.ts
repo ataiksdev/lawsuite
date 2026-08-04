@@ -1,14 +1,31 @@
 import { spawn, ChildProcess } from "node:child_process";
-import { createWriteStream, mkdirSync } from "node:fs";
+import { createWriteStream, mkdirSync, existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { pythonExe, backendDir, logsDir, localStorageDir } from "./paths";
+import { pythonExe, backendDir, logsDir, localStorageDir, desktopEnvFile } from "./paths";
 import { ports } from "./ports";
 import { runAsync } from "./proc";
 import { logBootstrap } from "./logger";
 import type { RuntimeConfig } from "./secrets";
 
+// Optional, gitignored developer-local overrides (currently just Google
+// OAuth credentials) — see desktop/.env.desktop. Simple KEY=VALUE parsing,
+// no need for a full dotenv dependency for two lines.
+function loadDesktopEnvOverrides(): Record<string, string> {
+  if (!existsSync(desktopEnvFile)) return {};
+  const overrides: Record<string, string> = {};
+  for (const line of readFileSync(desktopEnvFile, "utf-8").split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq === -1) continue;
+    overrides[trimmed.slice(0, eq).trim()] = trimmed.slice(eq + 1).trim();
+  }
+  return overrides;
+}
+
 function buildBackendEnv(config: RuntimeConfig): NodeJS.ProcessEnv {
   const databaseUrl = `postgresql://postgres:${config.pgSuperuserPassword}@127.0.0.1:${ports.postgres}/lawmate`;
+  const desktopOverrides = loadDesktopEnvOverrides();
   return {
     ...process.env,
     DATABASE_URL: databaseUrl,
@@ -32,6 +49,17 @@ function buildBackendEnv(config: RuntimeConfig): NodeJS.ProcessEnv {
     // instead of requiring Supabase Storage — see
     // backend/app/services/local_storage_service.py.
     LOCAL_STORAGE_DIR: localStorageDir,
+    // Google Workspace integration — GOOGLE_CLIENT_ID/SECRET come from the
+    // optional .env.desktop override (empty string if not present, same as
+    // the hosted app's default — integration just stays unavailable).
+    // These specific redirect URIs must be added as Authorized redirect
+    // URIs on that OAuth client in Google Cloud Console — the port is fixed
+    // across every desktop install, so this is a one-time addition, not
+    // per-client.
+    GOOGLE_CLIENT_ID: desktopOverrides.GOOGLE_CLIENT_ID ?? "",
+    GOOGLE_CLIENT_SECRET: desktopOverrides.GOOGLE_CLIENT_SECRET ?? "",
+    GOOGLE_REDIRECT_URI: `http://127.0.0.1:${ports.backend}/integrations/google/callback`,
+    GOOGLE_SIGNIN_REDIRECT_URI: `http://127.0.0.1:${ports.backend}/auth/google/callback`,
   };
 }
 

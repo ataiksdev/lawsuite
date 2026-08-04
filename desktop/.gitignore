@@ -4,3 +4,4 @@ dist-src/
 dist/
 *.zip
 .cache/
+.env.desktop

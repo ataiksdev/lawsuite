@@ -26,3 +26,8 @@ export const runtimeConfigPath = path.join(configDir, "runtime.json");
 export const pgPasswordFile = path.join(userDataDir, "pgdata-pwfile.tmp");
 // Org logo uploads — see backend/app/services/local_storage_service.py.
 export const localStorageDir = path.join(userDataDir, "uploads");
+
+// Optional, gitignored, developer-local Google OAuth credentials — see
+// desktop/.env.desktop and 05-stage-backend.mjs (which copies it here if
+// present). Not required for the app to run; only for Google integration.
+export const desktopEnvFile = path.join(resourcesRoot, ".env.desktop");

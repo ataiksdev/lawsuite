@@ -3,11 +3,16 @@
 Packages the existing Lawmate web app (`frontend/` + `backend/`) into an
 installable Windows desktop app. Each install runs entirely on the client's
 own machine: its own local Postgres database, its own local backend — no
-shared/cloud database, one firm per install. Cloud integrations (Google
-Workspace, Paystack, Resend/SMTP email, Supabase Storage for logos) stay
-available but optional, exactly as they already behave for any org today —
-they just need the client's own internet connection and credentials,
-entered via the app's existing Settings screens.
+shared/cloud database, one firm per install. Firm logos are saved to disk
+and served by the local backend itself (`LocalStorageService` — see
+`backend/app/services/local_storage_service.py`), not Supabase Storage,
+since there's no reason a single-tenant local install should depend on an
+external cloud service for something this small. Only actual documents go
+through Google Drive, and only when that org has connected it. Other cloud
+integrations (Google Workspace, Paystack, Resend/SMTP email) stay available
+but optional, exactly as they already behave for any org today — they just
+need the client's own internet connection and credentials, entered via the
+app's existing Settings screens.
 
 This directory is self-contained: it does not change how `frontend/` or
 `backend/` are built or deployed normally (Vercel/Render), and building it

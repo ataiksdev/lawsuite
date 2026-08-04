@@ -5,8 +5,10 @@ from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from app.core.deps import AuthUser, AdminUser, DB
 from app.core.upload_validation import validate_upload
+from app.core.config import settings
 from app.services.auth_service import AuthService
 from app.services.supabase_storage_service import SupabaseStorageService
+from app.services.local_storage_service import LocalStorageService
 from app.schemas.auth import (
     RegisterRequest,
     RegisterResponse,
@@ -398,8 +400,9 @@ async def upload_organisation_logo(
 ):
     """
     Upload (or replace) the organisation's logo. Admin only.
-    Requires SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY to be configured —
-    returns 503 otherwise (see SupabaseStorageService).
+    Uses local filesystem storage when LOCAL_STORAGE_DIR is set (desktop
+    build), otherwise Supabase Storage — returns 503 if neither is
+    configured (see LocalStorageService/SupabaseStorageService).
     """
     file_bytes = await file.read()
     if not file_bytes:
@@ -419,7 +422,7 @@ async def upload_organisation_logo(
         )
     validate_upload(filename, file_bytes)
 
-    storage = SupabaseStorageService()
+    storage = LocalStorageService() if settings.is_local_storage_configured else SupabaseStorageService()
     logo_url = await storage.upload_logo(
         org_id=current_user.org_id,
         file_bytes=file_bytes,

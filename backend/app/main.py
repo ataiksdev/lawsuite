@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
 
@@ -37,6 +38,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Serves logos uploaded via LocalStorageService (desktop build only — see
+# app/services/local_storage_service.py). Directory is created up front
+# since StaticFiles refuses to mount a path that doesn't exist yet.
+if settings.is_local_storage_configured:
+    os.makedirs(settings.local_storage_dir, exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory=settings.local_storage_dir), name="uploads")
 
 
 # ─── Health ───────────────────────────────────────────────────────────────────

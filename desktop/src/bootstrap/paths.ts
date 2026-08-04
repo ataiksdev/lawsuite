@@ -24,3 +24,5 @@ export const logsDir = path.join(userDataDir, "logs");
 export const configDir = path.join(userDataDir, "config");
 export const runtimeConfigPath = path.join(configDir, "runtime.json");
 export const pgPasswordFile = path.join(userDataDir, "pgdata-pwfile.tmp");
+// Org logo uploads — see backend/app/services/local_storage_service.py.
+export const localStorageDir = path.join(userDataDir, "uploads");

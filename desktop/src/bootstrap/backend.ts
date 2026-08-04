@@ -1,7 +1,7 @@
 import { spawn, ChildProcess } from "node:child_process";
 import { createWriteStream, mkdirSync } from "node:fs";
 import path from "node:path";
-import { pythonExe, backendDir, logsDir } from "./paths";
+import { pythonExe, backendDir, logsDir, localStorageDir } from "./paths";
 import { ports } from "./ports";
 import { runAsync } from "./proc";
 import { logBootstrap } from "./logger";
@@ -28,6 +28,10 @@ function buildBackendEnv(config: RuntimeConfig): NodeJS.ProcessEnv {
     // Google's oauthlib refuses non-HTTPS redirect URIs by default; this is
     // the standard escape hatch for a genuinely local, non-public callback.
     OAUTHLIB_INSECURE_TRANSPORT: "1",
+    // Firm logos are saved to disk and served back by this same backend
+    // instead of requiring Supabase Storage — see
+    // backend/app/services/local_storage_service.py.
+    LOCAL_STORAGE_DIR: localStorageDir,
   };
 }
 

@@ -102,6 +102,18 @@ class Settings(BaseSettings):
     def is_supabase_storage_configured(self) -> bool:
         return bool(self.supabase_url and self.supabase_service_role_key)
 
+    # Local filesystem storage for organisation logos — used instead of
+    # Supabase Storage when set (the desktop build points this at a
+    # directory under its own userData folder, since it's a single-tenant
+    # local install with no reason to depend on an external cloud service
+    # for something this small). Never set in the hosted environment:
+    # Render's filesystem is ephemeral, so uploads would be lost on deploy.
+    local_storage_dir: str = ""
+
+    @property
+    def is_local_storage_configured(self) -> bool:
+        return bool(self.local_storage_dir)
+
     @property
     def is_production(self) -> bool:
         return self.app_env == "production"

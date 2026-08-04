@@ -83,6 +83,22 @@ async function bootstrap(): Promise<void> {
     show: false,
     webPreferences: { contextIsolation: true, preload: path.join(__dirname, "preload.js") },
   });
+
+  // The app has no browser chrome (no back button, no address bar), so a
+  // stranded page — e.g. Google's own OAuth error screen after leaving
+  // the app's own frontend — has no way back without this. Alt+Left/Right
+  // are the standard Windows browser back/forward shortcuts.
+  mainWindow.webContents.on("before-input-event", (_event, input) => {
+    if (input.type !== "keyDown" || !input.alt) return;
+    const wc = mainWindow?.webContents;
+    if (!wc) return;
+    if (input.key === "ArrowLeft" && wc.navigationHistory.canGoBack()) {
+      wc.navigationHistory.goBack();
+    } else if (input.key === "ArrowRight" && wc.navigationHistory.canGoForward()) {
+      wc.navigationHistory.goForward();
+    }
+  });
+
   await mainWindow.loadURL(`http://127.0.0.1:${ports.frontend}`);
   mainWindow.show();
   mainWindow.on("closed", () => {

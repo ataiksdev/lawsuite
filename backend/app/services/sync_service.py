@@ -32,7 +32,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Select, and_, or_, select
+from sqlalchemy import DateTime, Select, and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import models
@@ -155,13 +155,13 @@ async def get_all_changes(db: AsyncSession, org_id: uuid.UUID, since: datetime |
 def _coerce_value(model: type, column_name: str, value: Any) -> Any:
     """
     Row values arrive as plain JSON-decoded Python types (str, int, float,
-    bool, None, dict/list). SQLAlchemy auto-converts a plain string into
-    the right type for most column types (UUID, datetime) when it's bound
-    as a query/insert parameter, but NOT for Enum columns assigned via
-    plain setattr — that leaves a raw str sitting where an Enum member is
-    expected, which breaks any code downstream that treats it as one
-    (e.g. InvoiceService._recompute_totals doing `item.kind.value`).
-    Convert explicitly wherever the column is an Enum.
+    bool, None, dict/list). asyncpg's bind processor accepts a plain str
+    for UUID columns, but NOT for Enum columns assigned via plain setattr
+    (leaves a raw str where an Enum member is expected, breaking downstream
+    code like InvoiceService._recompute_totals's `item.kind.value`) or for
+    DateTime columns (asyncpg raises DataError on a str instead of a real
+    datetime — confirmed by hand against a live apply, not assumed). Both
+    are converted explicitly here.
     """
     if value is None:
         return value
@@ -171,6 +171,8 @@ def _coerce_value(model: type, column_name: str, value: Any) -> Any:
     enum_class = getattr(column.type, "enum_class", None)
     if enum_class is not None and not isinstance(value, enum_class):
         return enum_class(value)
+    if isinstance(column.type, DateTime) and isinstance(value, str):
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
     return value
 
 

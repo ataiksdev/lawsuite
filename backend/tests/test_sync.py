@@ -114,6 +114,49 @@ async def test_apply_inserts_then_updates_same_row(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_apply_accepts_timestamps_as_fetched_from_changes(client: AsyncClient):
+    """
+    Regression test: a row round-tripped through GET /sync/changes (which
+    always includes created_at/updated_at as ISO strings, e.g.
+    "2026-08-06T20:36:38.234395Z") must be acceptable as-is to POST
+    /sync/apply on the other side -- that's the actual shape every real
+    sync exchanges. A hand-built payload that omits the timestamp fields
+    (as the insert/update test above does) never exercises this and
+    previously hid a bug where asyncpg rejected the ISO string outright.
+    """
+    source_token, _, source_org_id = await _register(client)
+    source_headers = {"Authorization": f"Bearer {source_token}"}
+    await client.post("/clients/", json={"name": "Timestamped Client"}, headers=source_headers)
+
+    changes = (await client.get("/sync/changes", headers=source_headers)).json()
+    fetched_row = next(c for c in changes["tables"]["clients"] if c["name"] == "Timestamped Client")
+    assert fetched_row["created_at"].endswith("Z")
+    assert fetched_row["updated_at"].endswith("Z")
+
+    dest_reg = await client.post(
+        "/auth/register",
+        json={
+            "org_name": "Sync Test Firm 2",
+            "full_name": "Amara Obi",
+            "email": "amara@synctest.ng",
+            "password": "TestPass123",
+        },
+    )
+    dest_body = dest_reg.json()
+    dest_headers = {"Authorization": f"Bearer {dest_body['tokens']['access_token']}"}
+    dest_org_id = dest_body["organisation"]["id"]
+    fetched_row["organisation_id"] = dest_org_id
+
+    resp = await client.post("/sync/apply", json={"tables": {"clients": [fetched_row]}}, headers=dest_headers)
+    assert resp.status_code == 200
+    assert resp.json()["written"]["clients"] == 1
+
+    get_resp = await client.get(f"/clients/{fetched_row['id']}", headers=dest_headers)
+    assert get_resp.status_code == 200
+    assert get_resp.json()["name"] == "Timestamped Client"
+
+
+@pytest.mark.asyncio
 async def test_apply_ignores_row_claiming_another_org(client: AsyncClient):
     token_a, _, org_a = await _register(client)
     headers_a = {"Authorization": f"Bearer {token_a}"}

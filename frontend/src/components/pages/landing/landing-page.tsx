@@ -13,34 +13,39 @@ import { ThemeToggle } from '@/components/ui/theme-toggle';
 const FEATURES = [
   {
     kicker: 'Matters',
-    title: 'Matter & Case Management',
-    body: 'Maintain complete control over every matter. Track case files, log structured notes, schedule court hearings, and monitor financial budgets in real time.',
-    meta: 'Notes · Calendar · Budgets',
-    span: true,
-  },
-  {
-    kicker: 'Clients',
-    title: 'Client Management & Intake',
-    body: 'Seamless client intake, communication logs, and secure client portals. Clients upload documents, review updates, and pay invoices instantly.',
-    meta: 'Secure portals · 256-bit encrypted',
-  },
-  {
-    kicker: 'Tasks',
-    title: 'Task Kanban & Workflows',
-    body: 'Visualise firm workflows with drag-and-drop Kanban boards. Assign tasks, set priorities, and never miss a court deadline.',
-    meta: 'Workflow engine · Automated reminders',
+    title: 'One home for every case',
+    body: 'Track status, deadlines, notes and documents for every matter — searchable and filterable across your whole firm.',
+    meta: 'Practice-area tags · Full case timeline',
   },
   {
     kicker: 'Documents',
-    title: 'Integrated Document Drive',
-    body: 'A centralised, cross-matter repository. Strict folder hierarchies, version history, and files linked to tasks and client records.',
-    meta: 'Google Drive synced',
+    title: 'Generate documents in minutes, not hours',
+    body: "Pick a template, fill in a few blanks, and Lawmate creates a properly formatted document — synced straight to your firm's Google Drive.",
+    meta: 'Google Drive-backed · Version history',
   },
   {
-    kicker: 'Billing',
-    title: 'Automated Billing & Invoicing',
-    body: 'Log billable hours, record matter expenses, and generate professional invoices instantly — with secure online payment via Paystack.',
-    meta: 'Paystack enabled',
+    kicker: 'Tasks',
+    title: "See exactly what's due, and what's late",
+    body: 'A drag-and-drop board for every case — assign work, leave comments, and get notified the moment something needs attention.',
+    meta: 'Kanban board · Comments & watchers',
+  },
+  {
+    kicker: 'Calendar',
+    title: 'Never miss a court date',
+    body: 'Track hearings, deadlines and meetings on one calendar, and push any event straight to Google Calendar.',
+    meta: 'Court dates · Google Calendar sync',
+  },
+  {
+    kicker: 'Invoicing',
+    title: 'Bill properly, the first time',
+    body: 'Generate invoices with VAT and withholding tax handled correctly, issue a formal Bill of Charges, and collect payment online via Paystack.',
+    meta: 'VAT & WHT · Paystack payments',
+  },
+  {
+    kicker: 'Reports',
+    title: 'Know what happened on every case, every month',
+    body: 'Generate an activity report for a client or period in one click — emailed to you or exported straight to Google Docs.',
+    meta: 'Client & period reports · Google Docs export',
   },
 ];
 
@@ -133,35 +138,28 @@ export function LandingPage() {
             className="flex flex-col items-start gap-4"
           >
             <Badge variant="outline" className="whitespace-normal text-left">
-              Practice management, built for Nigerian firms
+              Built for Nigerian law firms
             </Badge>
 
             <h1 className="text-4xl sm:text-5xl lg:text-[52px] font-semibold tracking-tight leading-[1.1] text-foreground">
-              Run your practice with efficiency, visibility and convenience
+              Keep every case, deadline and invoice in one place
             </h1>
 
             <p className="text-lg text-muted-foreground leading-relaxed max-w-xl">
-              Streamline matters, automate client intake, manage secure document drives, and track billable workflows — built for sole practitioners and ambitious Nigerian law firms.
+              Lawmate helps Nigerian law firms track matters, generate documents, hit deadlines, and get paid — without spreadsheets, WhatsApp reminders, or chasing paper files.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-3 pt-2">
               <Button size="lg" onClick={() => navigate('/register')}>Start Your 30-Day Free Trial</Button>
-              <Button size="lg" variant="secondary" onClick={() => scrollToSection('features')}>Explore Features</Button>
+              <Button size="lg" variant="secondary" onClick={() => scrollToSection('features')}>See How It Works</Button>
             </div>
 
-            <div className="flex items-center gap-4 sm:gap-8 pt-6 mt-2 border-t border-border w-full">
-              <div className="flex flex-col">
-                <span className="text-2xl font-semibold tabular-nums text-foreground">30%+</span>
-                <span className="text-[10px] uppercase tracking-wider text-muted-foreground mt-0.5">Billable hours saved</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-2xl font-semibold tabular-nums text-foreground">100%</span>
-                <span className="text-[10px] uppercase tracking-wider text-muted-foreground mt-0.5">Case compliance</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-2xl font-semibold tabular-nums text-foreground">Zero</span>
-                <span className="text-[10px] uppercase tracking-wider text-muted-foreground mt-0.5">Missed deadlines</span>
-              </div>
+            <div className="flex items-center gap-2 pt-6 mt-2 border-t border-border w-full text-xs uppercase tracking-wider text-muted-foreground">
+              <span>30-day free trial</span>
+              <span aria-hidden="true">·</span>
+              <span>Full access</span>
+              <span aria-hidden="true">·</span>
+              <span>Cancel anytime</span>
             </div>
           </motion.div>
 
@@ -195,8 +193,8 @@ export function LandingPage() {
                 <div className="h-px bg-border" />
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="text-[13px] font-semibold text-foreground truncate">Client Portal Active</p>
-                    <p className="text-[12.5px] text-muted-foreground">3 new documents uploaded by client</p>
+                    <p className="text-[13px] font-semibold text-foreground truncate">Court date reminder</p>
+                    <p className="text-[12.5px] text-muted-foreground">Hearing in 2 days · synced to calendar</p>
                   </div>
                   <Button variant="ghost" size="sm" onClick={() => navigate('/register')}>Open →</Button>
                 </div>
@@ -208,13 +206,13 @@ export function LandingPage() {
         {/* ── Features ── */}
         <section id="features" className="py-16 sm:py-20 border-t border-border">
           <div className="max-w-xl mb-10">
-            <span className="text-[11px] font-semibold uppercase tracking-widest text-primary">Everything you need</span>
-            <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-foreground mt-1">One workspace for your whole practice</h2>
-            <p className="text-muted-foreground mt-2">Lawmate integrates your critical legal workflows into a unified workspace, eliminating data silos and friction.</p>
+            <span className="text-[11px] font-semibold uppercase tracking-widest text-primary">What you can do</span>
+            <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-foreground mt-1">Everything you already do, just faster</h2>
+            <p className="text-muted-foreground mt-2">No new way of working to learn — Lawmate just takes the busywork out of running a practice.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {FEATURES.map((f) => (
-              <Card key={f.title} className={f.span ? 'md:col-span-2' : undefined}>
+              <Card key={f.title}>
                 <CardContent className="p-5">
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">{f.kicker}</p>
                   <h3 className="text-lg font-semibold text-foreground mt-1">{f.title}</h3>
@@ -229,26 +227,29 @@ export function LandingPage() {
         {/* ── Impact ── */}
         <section id="impact" className="py-16 sm:py-20 border-t border-border grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-start">
           <div>
-            <span className="text-[11px] font-semibold uppercase tracking-widest text-primary">Proven excellence</span>
-            <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-foreground mt-1">Empowering high-performing legal teams</h2>
-            <p className="text-muted-foreground mt-2 leading-relaxed">Lawmate eliminates administrative overhead so your team can focus on what truly matters: delivering exceptional legal counsel and winning cases.</p>
+            <span className="text-[11px] font-semibold uppercase tracking-widest text-primary">Built to be trusted with client work</span>
+            <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-foreground mt-1">Control who sees what, and know who did what</h2>
+            <p className="text-muted-foreground mt-2 leading-relaxed">Lawmate gives every firm real access control and a full record of who did what — not just a login screen.</p>
             <ul className="flex flex-col gap-2 mt-4 text-sm">
               <CheckItem>
-                <b className="text-foreground">Bank-grade security</b> — encrypted data at rest and in transit, with automated backups.
+                <b className="text-foreground">Role-based access</b> — give teammates Admin, Member, or Viewer access, so juniors can work without touching billing or firm settings.
               </CheckItem>
               <CheckItem>
-                <b className="text-foreground">Multi-organisation support</b> — manage multiple firm branches or corporate entities seamlessly.
+                <b className="text-foreground">Two-factor authentication</b> — turn on MFA for your whole firm, included on every plan.
+              </CheckItem>
+              <CheckItem>
+                <b className="text-foreground">A full audit trail</b> — every sensitive action is logged with who did it and when.
+              </CheckItem>
+              <CheckItem>
+                <b className="text-foreground">Multiple organisations, one login</b> — running more than one firm or branch? Switch between them without logging out.
               </CheckItem>
             </ul>
           </div>
           <Card>
             <CardContent className="p-6 sm:p-8">
-              <blockquote className="text-xl sm:text-2xl italic leading-snug text-foreground">
-                &ldquo;Lawmate completely transformed how our firm operates. We reduced our billing cycles by half and our clients love the secure document portal.&rdquo;
-              </blockquote>
-              <p className="text-sm mt-4">
-                <span className="font-semibold text-foreground">Olumide Akintunde</span>{' '}
-                <span className="text-muted-foreground">· Managing Partner, Apex Legal Partners</span>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">What firms are looking for</p>
+              <p className="text-xl sm:text-2xl leading-snug text-foreground mt-2">
+                Less time chasing paperwork and payments, more time on the actual legal work — that&rsquo;s what firms tell us they want most, and it&rsquo;s what Lawmate is built around.
               </p>
             </CardContent>
           </Card>
@@ -289,10 +290,9 @@ export function LandingPage() {
                   <p className="text-sm text-muted-foreground mt-2">Perfect for solo practitioners and independent legal consultants getting started.</p>
                 </div>
                 <ul className="flex flex-col gap-2 text-sm flex-1">
-                  <CheckItem>1 user account</CheckItem>
-                  <CheckItem>Up to 15 active matters</CheckItem>
-                  <CheckItem>Basic client intake</CheckItem>
-                  <CheckItem>5GB secure drive storage</CheckItem>
+                  <CheckItem>1 seat</CheckItem>
+                  <CheckItem>Up to 5 active matters</CheckItem>
+                  <CheckItem>Notes, tasks, calendar &amp; invoicing</CheckItem>
                 </ul>
                 <Button variant="secondary" className="w-full" onClick={() => navigate('/register')}>Get Started Free</Button>
               </CardContent>
@@ -309,14 +309,14 @@ export function LandingPage() {
                   <p className="text-[34px] font-semibold tabular-nums text-foreground">
                     {annualBilling ? '₦4,167' : '₦5,000'} <span className="text-[13px] font-normal text-muted-foreground">/ month</span>
                   </p>
-                  <p className="text-sm text-muted-foreground mt-2">Built for growing law firms requiring advanced workflows and secure client portals.</p>
+                  <p className="text-sm text-muted-foreground mt-2">Built for growing law firms that need documents, reports and real invoicing.</p>
                 </div>
                 <ul className="flex flex-col gap-2 text-sm flex-1">
-                  <CheckItem>Up to 10 team members</CheckItem>
+                  <CheckItem>5 team members</CheckItem>
                   <CheckItem>Unlimited active matters</CheckItem>
-                  <CheckItem>Advanced client portals &amp; intake</CheckItem>
-                  <CheckItem>Automated Paystack invoicing</CheckItem>
-                  <CheckItem>100GB secure drive storage</CheckItem>
+                  <CheckItem>Google Drive &amp; Docs integration</CheckItem>
+                  <CheckItem>Activity reports</CheckItem>
+                  <CheckItem>Two-factor authentication</CheckItem>
                 </ul>
                 <Button className="w-full" onClick={() => navigate('/register')}>Start 30-Day Free Trial</Button>
               </CardContent>
@@ -334,8 +334,9 @@ export function LandingPage() {
                 </div>
                 <ul className="flex flex-col gap-2 text-sm flex-1">
                   <CheckItem>Unlimited team members</CheckItem>
-                  <CheckItem>Multi-organisation support</CheckItem>
-                  <CheckItem>1TB storage &amp; priority support</CheckItem>
+                  <CheckItem>Unlimited matters</CheckItem>
+                  <CheckItem>Everything in Professional</CheckItem>
+                  <CheckItem>Priority support</CheckItem>
                 </ul>
                 <Button variant="secondary" className="w-full" onClick={() => navigate('/register')}>Start 30-Day Free Trial</Button>
               </CardContent>
@@ -346,8 +347,8 @@ export function LandingPage() {
         {/* ── CTA band ── */}
         <section className="py-16 sm:py-20 border-t border-border text-center">
           <span className="text-[11px] font-semibold uppercase tracking-widest text-primary">Get started in minutes</span>
-          <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-foreground mt-1 max-w-xl mx-auto">Ready to modernise your legal practice?</h2>
-          <p className="text-muted-foreground mt-2 max-w-xl mx-auto">Join ambitious Nigerian law firms and legal teams streamlining their entire practice with Lawmate.</p>
+          <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-foreground mt-1 max-w-xl mx-auto">Ready to run your practice without the chaos?</h2>
+          <p className="text-muted-foreground mt-2 max-w-xl mx-auto">Start your 30-day free trial — no setup fees, cancel anytime.</p>
           <div className="flex flex-col sm:flex-row justify-center gap-3 mt-6">
             <Button size="lg" onClick={() => navigate('/register')}>Start Your Free Trial</Button>
             <Button size="lg" variant="secondary" onClick={() => navigate('/login')}>Sign In to Workspace</Button>

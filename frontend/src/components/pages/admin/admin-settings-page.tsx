@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
+import { CloudSyncSection } from './cloud-sync-section';
 
 interface OrgDetails {
   id: string;
@@ -406,6 +407,8 @@ export function AdminSettingsPage() {
           )}
         </CardContent>
       </Card>
+
+      <CloudSyncSection />
 
       {/* Danger Zone */}
       <Card className="border-red-100 dark:border-red-900/30">

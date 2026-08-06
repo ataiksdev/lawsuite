@@ -50,3 +50,10 @@ supabase/.temp
 
 # local-only db utility script (reads creds from env vars, but keep it out of the repo entirely)
 backend/copy_dbs.py
+
+# desktop/ only exists as tracked content on feature/desktop-app — its own
+# .gitignore (which excludes dist/node_modules/resources) lives there too,
+# so switching to a branch that doesn't track desktop/ leaves its ~15k-file
+# Electron build output on disk with nothing ignoring it. This blanket rule
+# keeps that leftover cruft invisible to git/IDE tooling on other branches.
+/desktop/

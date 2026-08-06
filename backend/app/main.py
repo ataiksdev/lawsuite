@@ -67,6 +67,7 @@ from app.api import (
     notifications,
     reports,
     search,
+    sync,
     tasks,
     webhooks,
 )
@@ -94,3 +95,4 @@ app.include_router(invoices.router, prefix="/invoices", tags=["invoicing"])
 app.include_router(invoice_payments.router, prefix="/invoice-payments", tags=["invoicing"])
 app.include_router(search.router, prefix="/search", tags=["search"])
 app.include_router(audit_logs.router, prefix="/audit-logs", tags=["audit-logs"])
+app.include_router(sync.router, prefix="/sync", tags=["sync"])

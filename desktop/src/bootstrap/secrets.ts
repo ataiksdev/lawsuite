@@ -9,6 +9,12 @@ export interface RuntimeConfig {
   encryptionKey: string;
   pgSuperuserPassword: string;
   firstRunComplete: boolean;
+  // Cloud sync — absent until the user completes "Connect to Cloud".
+  // cloudRefreshToken is Fernet-encrypted with this same encryptionKey
+  // (see desktop/src/sync/crypto.ts) before being written here.
+  cloudUrl?: string;
+  cloudRefreshToken?: string;
+  lastSyncedAt?: string;
 }
 
 // ENCRYPTION_KEY must stay byte-identical across every future launch — it's

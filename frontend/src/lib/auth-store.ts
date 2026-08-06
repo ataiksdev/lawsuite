@@ -64,6 +64,15 @@ interface BackendRegisterResponse {
   tokens: BackendTokenResponse;
 }
 
+// Desktop-only — window.desktopSync only exists inside the Electron shell
+// (see frontend/src/lib/desktop-sync.ts), so this is a harmless no-op on
+// the hosted cloud site. Lets the desktop app auto-sync right after an
+// admin logs in, per the "on login or manual click" trigger design.
+function notifyDesktopOfLogin(role: string): void {
+  if (typeof window === 'undefined') return;
+  (window as unknown as { desktopSync?: { notifyLoggedIn?: (role: string) => void } }).desktopSync?.notifyLoggedIn?.(role);
+}
+
 function splitFullName(fullName: string): { firstName: string; lastName: string } {
   const parts = fullName.trim().split(/\s+/).filter(Boolean);
   return {
@@ -207,6 +216,7 @@ export const useAuthStore = create<AuthState>()(
 
           toast.success(`Welcome back, ${mappedUser.first_name || 'there'}!`);
           void get().loadMyOrgs();
+          notifyDesktopOfLogin(mappedUser.role);
           return { mfaRequired: false };
         } catch (error) {
           const message =
@@ -262,6 +272,7 @@ export const useAuthStore = create<AuthState>()(
 
           toast.success(`Welcome back, ${mappedUser.first_name || 'there'}!`);
           void get().loadMyOrgs();
+          notifyDesktopOfLogin(mappedUser.role);
         } catch (error) {
           const message =
             error instanceof ApiClientError

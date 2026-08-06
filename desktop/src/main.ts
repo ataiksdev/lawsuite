@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog } from "electron";
+import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import path from "node:path";
 import { readFileSync } from "node:fs";
 import { loadOrCreateRuntimeConfig, writeRuntimeConfig } from "./bootstrap/secrets";
@@ -9,6 +9,8 @@ import { waitForHttpOk } from "./bootstrap/health";
 import { ports } from "./bootstrap/ports";
 import { logBootstrap } from "./bootstrap/logger";
 import { logsDir } from "./bootstrap/paths";
+import { connectToCloud, disconnectFromCloud } from "./sync/connect";
+import { runSync } from "./sync/orchestrator";
 
 // Chromium's GPU process can fail to initialize on machines with limited or
 // problematic graphics drivers (common on VMs and some laptops) — when it
@@ -122,6 +124,53 @@ async function shutdown(): Promise<void> {
   await stopPostgres();
 }
 
+// Sync IPC — the renderer never talks to the cloud or reads/writes
+// RuntimeConfig directly (see desktop/src/preload.ts); everything routes
+// through here so the actual cloud credentials and encryption never leave
+// the main process.
+function registerSyncIpcHandlers(): void {
+  ipcMain.handle("sync:get-status", async () => {
+    const { config } = await loadOrCreateRuntimeConfig();
+    return {
+      connected: Boolean(config.cloudUrl && config.cloudRefreshToken),
+      cloudUrl: config.cloudUrl ?? null,
+      lastSyncedAt: config.lastSyncedAt ?? null,
+    };
+  });
+
+  ipcMain.handle("sync:connect", async (_event, cloudUrl: string, email: string, password: string) => {
+    return connectToCloud(cloudUrl, email, password);
+  });
+
+  ipcMain.handle("sync:disconnect", async () => {
+    await disconnectFromCloud();
+  });
+
+  ipcMain.handle(
+    "sync:now",
+    async (_event, accessToken: string, options: { forceThroughConflicts?: boolean }) => {
+      try {
+        return await runSync(accessToken, options);
+      } catch (err) {
+        logBootstrap(`sync: failed — ${String(err)}`);
+        return { status: "error", message: String(err) };
+      }
+    }
+  );
+
+  // Fired by the renderer right after a successful login (see
+  // frontend/src/lib/auth-store.ts's notifyDesktopOfLogin). Only admins
+  // can trigger sync at all — a non-admin logging in is a silent no-op,
+  // same as a desktop install that's never connected to cloud.
+  ipcMain.on("sync:notify-logged-in", (_event, role: string, accessToken: string) => {
+    if (role !== "admin") return;
+    runSync(accessToken).then(
+      (result) => logBootstrap(`sync: auto-sync on login -> ${result.status}`),
+      (err) => logBootstrap(`sync: auto-sync on login failed — ${String(err)}`)
+    );
+  });
+}
+
 function readLogTail(filename: string, lines = 15): string {
   try {
     const content = readFileSync(path.join(logsDir, filename), "utf-8");
@@ -133,6 +182,7 @@ function readLogTail(filename: string, lines = 15): string {
 
 app.whenReady().then(async () => {
   try {
+    registerSyncIpcHandlers();
     await bootstrap();
   } catch (err) {
     console.error("[main] bootstrap failed:", err);

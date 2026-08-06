@@ -65,11 +65,16 @@ async function main() {
     requirementsPath,
   ], { cwd: backendDir });
 
+  // pythonDir itself is wiped fresh every run (ensureCleanDir above), so
+  // this never risks a stale/mismatched package — only the wheel *source*
+  // changes. Letting pip use its own local wheel cache (the default;
+  // --no-cache-dir was previously forcing every package to re-download on
+  // every single build) is the equivalent here of the extraction caching
+  // added for postgres/node.
   run(pythonExe, [
     "-m",
     "pip",
     "install",
-    "--no-cache-dir",
     "--no-warn-script-location",
     "-r",
     requirementsPath,

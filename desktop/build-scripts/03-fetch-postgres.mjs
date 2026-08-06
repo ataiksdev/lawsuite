@@ -27,10 +27,31 @@ async function main() {
 
   // The zip's top-level folder is "pgsql/" — flatten it directly into
   // resources/postgres/ so bootstrap code can reference postgres/bin/... .
+  // Skip GUI/dev-only tooling the app never launches at copy time (not
+  // just at electron-builder packaging time, where it's excluded again
+  // as a backstop) — pgAdmin 4 alone is a whole separate bundled app,
+  // and copying it on every build wastes disk and time for nothing.
   const pgDir = path.join(resourcesDir, "postgres");
   ensureCleanDir(pgDir);
   const { cpSync } = await import("node:fs");
-  cpSync(path.join(extractDir, "pgsql"), pgDir, { recursive: true });
+  const srcRoot = path.join(extractDir, "pgsql");
+  const PG_EXCLUDE = [
+    "pgAdmin 4",
+    "StackBuilder",
+    "include",
+    path.join("share", "locale"),
+    path.join("share", "man"),
+    "doc",
+    "symbols",
+  ];
+  cpSync(srcRoot, pgDir, {
+    recursive: true,
+    filter: (source) => {
+      const rel = path.relative(srcRoot, source);
+      if (rel === "") return true;
+      return !PG_EXCLUDE.some((prefix) => rel === prefix || rel.startsWith(prefix + path.sep));
+    },
+  });
 
   console.log("== Postgres binaries staged ==");
 }

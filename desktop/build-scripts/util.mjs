@@ -1,6 +1,6 @@
 // Shared helpers for the desktop build-scripts pipeline.
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync, cpSync, createWriteStream } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, cpSync, createWriteStream } from "node:fs";
 import { Readable } from "node:stream";
 import { finished } from "node:stream/promises";
 import path from "node:path";
@@ -68,7 +68,17 @@ export async function downloadCached(url, dest) {
 
 // Windows-only build pipeline — shells out to PowerShell's Expand-Archive
 // rather than pulling in a zip-extraction npm dependency.
+//
+// Expand-Archive is slow on archives with thousands of small files (the
+// Postgres zip alone took several minutes) — skip it entirely when destDir
+// already has content, same "trust an existing cache" policy as
+// downloadCached. A partial/corrupted prior extraction is no more likely
+// here than a partial download there, so this doesn't introduce new risk.
 export function extractZip(zipPath, destDir) {
+  if (existsSync(destDir) && readdirSync(destDir).length > 0) {
+    console.log(`[cache hit] ${destDir} already extracted`);
+    return;
+  }
   ensureDir(destDir);
   run("powershell", [
     "-NoProfile",
